@@ -31,6 +31,9 @@ export const ASK_SCOPES = ['Whole deck', 'Selection', 'Mission'];
 export const ASK_STATUS = ['Waiting', 'Working', 'Done', 'Failed', 'Cancelled'];
 export const VARIANT_STATUS = ['Proposed', 'Used', 'Dismissed'];
 export const BRAND_SOURCES = ['Brandkits', 'By hand'];
+/** The layouts and charts the layouts stage adds; the schema stage makes the Layout and Chart choices without them. */
+export const ADDED_LAYOUTS = ['Title only', 'Picture grid', 'Process', 'Cycle'];
+export const ADDED_CHARTS = ['Pie', 'Area', 'Stacked'];
 
 const op = (operationType, payload) => ({ operationType, payload });
 const field = (entityId, fieldId, displayName, storageKind, presentation, { required = false, options = [] } = {}) =>
@@ -74,8 +77,8 @@ function chunk(operations, description, size = 16) {
 
 export const PURPOSE = [
   'Slide decks. A Deck has Slides in order; each slide has a layout (Title, Bullets, Two columns, Big',
-  'numbers, Timeline, Chart and eleven more), a title, a kicker, a Markdown body, speaker notes and',
-  'perhaps a picture. A deck draws with a Template (its look) and perhaps a Brand kit, imported from a',
+  'numbers, Process, Chart and fifteen more), a title, a kicker, a Markdown body, speaker notes and',
+  'perhaps pictures. A deck draws with a Template (its look) and perhaps a Brand kit, imported from a',
   'Brandkits export, whose colours, fonts and logo override the template\'s.',
   '',
   'The Deck view is where decks are written, presented and exported to HTML and PowerPoint. The person',
@@ -152,7 +155,7 @@ export const STAGES = {
         op('schema.createEntity', { entityId: E.slide, displayName: 'Slides' }),
         reference(E.slide, F.slide.deck, 'Deck', true),
         integer(E.slide, F.slide.order, 'Order'),
-        choice(E.slide, F.slide.layout, 'Layout', LAYOUT_IDS, true),
+        choice(E.slide, F.slide.layout, 'Layout', LAYOUT_IDS.filter(id => !ADDED_LAYOUTS.includes(id)), true),
         text(E.slide, F.slide.title, 'Title'),
         text(E.slide, F.slide.kicker, 'Kicker'),
         markdown(E.slide, F.slide.body, 'Body'),
@@ -160,7 +163,7 @@ export const STAGES = {
         long(E.slide, F.slide.notes, 'Speaker notes'),
         picture(E.slide, F.slide.image, 'Picture'),
         text(E.slide, F.slide.imageAlt, 'Picture text'),
-        choice(E.slide, F.slide.chart, 'Chart', CHARTS),
+        choice(E.slide, F.slide.chart, 'Chart', CHARTS.filter(id => !ADDED_CHARTS.includes(id))),
         boolean(E.slide, F.slide.hidden, 'Hidden', true),
         long(E.slide, F.slide.format, 'Text format'),
       ] },
@@ -298,6 +301,13 @@ export const STAGES = {
     mutations: () => chunk(presentOperations(), 'Builds, transitions and timings'),
   },
 
+  layouts: {
+    title: 'Deck: Title only, Picture grid, Process and Cycle, the pie, area and stacked charts, and the grid\'s pictures',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.schema(E.slide)).fields.some(f => f.fieldId === F.slide.image2),
+    mutations: () => chunk(layoutsOperations(), 'More layouts and charts'),
+  },
+
   search: {
     title: 'Deck: build the search index, so Find reads every slide',
     needs: ENTITIES,
@@ -315,7 +325,24 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present'];
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present', 'layouts'];
+
+/**
+ * Four layouts and three charts more, as choices added to the slide's Layout and Chart, and the
+ * three pictures a Picture grid holds after the slide's own. The file says it has them in its purpose.
+ */
+function layoutsOperations() {
+  const node = (page, fieldId, position) => op('ui.addNode', { surfaceId: SURFACE, nodeId: `${page}.${fieldId}`, parentNodeId: page, kind: 'fieldBinding', position, properties: { fieldId } });
+  return [
+    op('application.setPurpose', { purpose: PURPOSE }),
+    ...ADDED_LAYOUTS.map(choiceId => op('schema.addChoice', { entityId: E.slide, fieldId: F.slide.layout, choiceId, displayName: choiceId })),
+    ...ADDED_CHARTS.map(choiceId => op('schema.addChoice', { entityId: E.slide, fieldId: F.slide.chart, choiceId, displayName: choiceId })),
+    picture(E.slide, F.slide.image2, 'Picture 2'),
+    picture(E.slide, F.slide.image3, 'Picture 3'),
+    picture(E.slide, F.slide.image4, 'Picture 4'),
+    node('dk.slide.page', F.slide.image2, 13), node('dk.slide.page', F.slide.image3, 14), node('dk.slide.page', F.slide.image4, 15),
+  ];
+}
 
 /**
  * How a talk is shown: a slide's points one click at a time, its transition (or the deck's), the
@@ -411,7 +438,7 @@ export function seedOperations() {
 // ---- What the fixture broker serves the view in tools/Review-Deck.ps1. -----------------------------
 
 export function fixture({ seeds = true } = {}) {
-  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations()].flatMap(m => m.operations);
+  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations(), ...STAGES.layouts.mutations()].flatMap(m => m.operations);
   const entities = schemaOps.filter(o => o.operationType === 'schema.createEntity').map(o => ({ entityId: o.payload.entityId, displayName: o.payload.displayName, hierarchy: null, fields: [] }));
   const byId = Object.fromEntries(entities.map(e => [e.entityId, e]));
   for (const o of schemaOps) {
@@ -419,6 +446,9 @@ export function fixture({ seeds = true } = {}) {
       const p = o.payload;
       byId[p.entityId].fields.push({ fieldId: p.fieldId, displayName: p.displayName, storageKind: p.storageKind.toLowerCase(), required: p.required, presentation: p.presentation,
         calculated: false, choices: (p.options ?? []).map(id => ({ id, displayName: id, retired: false, tone: null })), reference: null, scale: null });
+    }
+    if (o.operationType === 'schema.addChoice') {
+      byId[o.payload.entityId].fields.find(f => f.fieldId === o.payload.fieldId).choices.push({ id: o.payload.choiceId, displayName: o.payload.displayName, retired: false, tone: null });
     }
     if (o.operationType === 'schema.configureReference') {
       const f = byId[o.payload.entityId].fields.find(x => x.fieldId === o.payload.fieldId);

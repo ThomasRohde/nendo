@@ -91,13 +91,20 @@
         <div class="field" data-uses="body2"><label for="f-body2" id="l-body2">Body 2</label><textarea id="f-body2" data-field="body2" rows="5"></textarea></div>
         <div class="field" data-uses="chart"><span class="label">Chart</span><div id="f-chart" class="segmented" role="radiogroup" aria-label="Chart"></div></div>
         <div class="field" data-uses="image">
-          <span class="label">Picture</span>
+          <span class="label" id="l-image">Picture</span>
           <div class="picture-row">
             <button id="pick-image" type="button" class="ghost-button">Choose picture…</button>
             <button id="clear-image" type="button" class="ghost-button">Remove</button>
             <input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
           </div>
           <input id="f-imageAlt" data-field="imageAlt" placeholder="What the picture shows" aria-label="Picture text">
+        </div>
+        <div class="field" data-uses="pictures">
+          <span class="label">More pictures</span>
+          <div class="picture-row"><button id="pick-image2" type="button" class="ghost-button">Choose picture 2…</button><button id="clear-image2" type="button" class="ghost-button" aria-label="Remove picture 2">Remove</button></div>
+          <div class="picture-row"><button id="pick-image3" type="button" class="ghost-button">Choose picture 3…</button><button id="clear-image3" type="button" class="ghost-button" aria-label="Remove picture 3">Remove</button></div>
+          <div class="picture-row"><button id="pick-image4" type="button" class="ghost-button">Choose picture 4…</button><button id="clear-image4" type="button" class="ghost-button" aria-label="Remove picture 4">Remove</button></div>
+          <small class="hint">Each caption is a line in Captions, in the same order. A caption is also what a screen reader says for its picture.</small>
         </div>
         <h3>Presenting</h3>
         <div class="field"><span class="label">Points</span><div id="f-build" class="segmented" role="radiogroup" aria-label="Points"></div><small id="build-hint" class="hint"></small></div>

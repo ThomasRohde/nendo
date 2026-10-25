@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STAGES, STAGE_ORDER, PACKAGE_ID, PACKAGE_FOLDER, SKILL_URI, FAMILIES, ASK_SCOPES, ASK_STATUS, VARIANT_STATUS, seedRecords, seedOperations, packageFiles, skillPackage, fixture, templateRecordId } from './definition.mjs';
+import { STAGES, STAGE_ORDER, PACKAGE_ID, PACKAGE_FOLDER, SKILL_URI, FAMILIES, ASK_SCOPES, ASK_STATUS, VARIANT_STATUS, ADDED_LAYOUTS, ADDED_CHARTS, seedRecords, seedOperations, packageFiles, skillPackage, fixture, templateRecordId } from './definition.mjs';
 import { E, F, LAYOUT_IDS, CHARTS } from '../../extensions/deck/model.mjs';
 import { TEMPLATES } from '../../extensions/deck/themes.mjs';
 
@@ -11,8 +11,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
 const read = file => fs.readFile(path.join(repo, file), 'utf8');
 // Every stage that declares fields: the record types, and the fields later stages add to them.
-const schemaOps = () => [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations()].flatMap(m => m.operations);
+const schemaOps = () => [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations(), ...STAGES.layouts.mutations()].flatMap(m => m.operations);
 const fieldOf = id => schemaOps().find(o => o.operationType === 'schema.addField' && o.payload.fieldId === id)?.payload;
+/** A choice field's choices: those it is made with, then those later stages add. */
+const choicesOf = id => [...fieldOf(id).options, ...schemaOps().filter(o => o.operationType === 'schema.addChoice' && o.payload.fieldId === id).map(o => o.payload.choiceId)];
 
 test('each stage fits a change set, and each mutation a call', async () => {
   for (const name of STAGE_ORDER) {
@@ -27,10 +29,13 @@ test('each stage fits a change set, and each mutation a call', async () => {
 test('every field the view and the skill name is declared, with the choices the model uses', async () => {
   const declared = new Set(schemaOps().filter(o => o.operationType === 'schema.addField').map(o => o.payload.fieldId));
   for (const [entity, fields] of Object.entries(F)) for (const id of Object.values(fields)) assert.ok(declared.has(id), `${entity}: ${id}`);
-  assert.deepEqual(fieldOf(F.slide.layout).options, LAYOUT_IDS);
-  assert.deepEqual(fieldOf(F.slide.chart).options, CHARTS);
+  assert.deepEqual([...choicesOf(F.slide.layout)].sort(), [...LAYOUT_IDS].sort());
+  assert.deepEqual([...choicesOf(F.slide.chart)].sort(), [...CHARTS].sort());
+  // A new file is made with the Layout and Chart choices of the schema stage, so the layouts stage adds each choice once.
+  assert.ok(ADDED_LAYOUTS.every(id => !fieldOf(F.slide.layout).options.includes(id)) && ADDED_CHARTS.every(id => !fieldOf(F.slide.chart).options.includes(id)));
+  assert.equal(new Set(choicesOf(F.slide.layout)).size, choicesOf(F.slide.layout).length);
   assert.deepEqual(fieldOf(F.template.family).options, FAMILIES);
-  for (const id of [F.slide.image, F.brand.logo, F.brand.logoDark, F.brand.mark, F.template.titleImage, F.template.sectionImage, F.template.closingImage, F.template.contentImage]) assert.equal(fieldOf(id).presentation, 'media', id);
+  for (const id of [F.slide.image, F.slide.image2, F.slide.image3, F.slide.image4, F.brand.logo, F.brand.logoDark, F.brand.mark, F.template.titleImage, F.template.sectionImage, F.template.closingImage, F.template.contentImage]) assert.equal(fieldOf(id).presentation, 'media', id);
   const view = await read('extensions/deck/view.mjs');
   for (const word of [...view.matchAll(/'(Waiting|Working|Done|Failed|Cancelled|Proposed|Used|Dismissed|Whole deck|Selection|Mission)'/g)].map(m => m[1]))
     assert.ok([...ASK_STATUS, ...VARIANT_STATUS, ...ASK_SCOPES].includes(word), word);

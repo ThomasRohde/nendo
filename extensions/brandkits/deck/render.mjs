@@ -23,6 +23,8 @@ export const SLIDE_CSS = `
 
 /** A primitive or a paragraph that comes on with a click carries that click's number. */
 const stepOf = x => x?.step ? ` data-step="${x.step}"` : '';
+/** Which of the slide's pictures a picture, or its empty place, is: the stage puts a dropped one there. */
+const slotOf = x => Number.isInteger(x?.slot) ? ` data-slot="${x.slot}"` : '';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const n = v => Math.round(v * 100) / 100;
 export function rgba(hex, alpha = 1) {
@@ -83,7 +85,7 @@ function textHtml(p, index) {
     const words = runs(para.runs);
     return `<p${stepOf(para)} style="${bits}">${mark}${words || '<br>'}</p>`;
   }).join('');
-  return `<div class="dk-t${p.ghost ? ' dk-ghost' : ''}" data-role="${esc(p.role ?? '')}" data-i="${index}"${stepOf(p)}${editAttributes(p)} style="${style}">${paras}</div>`;
+  return `<div class="dk-t${p.ghost ? ' dk-ghost' : ''}" data-role="${esc(p.role ?? '')}" data-i="${index}"${stepOf(p)}${slotOf(p)}${editAttributes(p)} style="${style}">${paras}</div>`;
 }
 
 /** Where an editable box's words are in the slide, for the stage's editor (stage-editor.mjs). */
@@ -102,7 +104,7 @@ function shapeHtml(p, W, H) {
       const style = [`left:${n(p.x)}px`, `top:${n(p.y)}px`, `width:${n(p.w)}px`, `height:${n(p.h)}px`, `border-radius:${radius}`,
         `background:${cssFill(p.fill, p.alpha ?? 1, p.type)}`, p.stroke ? `box-shadow:0 0 0 ${n(p.strokeWidth ?? 1)}px ${rgba(p.stroke)} inset` : '',
         p.shadow ? 'box-shadow:0 14px 34px rgba(20,16,60,.10),0 2px 6px rgba(20,16,60,.06)' : ''].filter(Boolean).join(';');
-      return `<div class="dk-r" data-role="${esc(p.role ?? '')}"${stepOf(p)} style="${style}"></div>`;
+      return `<div class="dk-r" data-role="${esc(p.role ?? '')}"${stepOf(p)}${slotOf(p)} style="${style}"></div>`;
     }
     case 'line':
       return `<svg${stepOf(p)} width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><line x1="${n(p.x1)}" y1="${n(p.y1)}" x2="${n(p.x2)}" y2="${n(p.y2)}" stroke="${rgba(p.stroke)}" stroke-width="${p.width ?? 1}"${p.dash ? ' stroke-dasharray="4 6"' : ''}/></svg>`;
@@ -126,8 +128,8 @@ function imageHtml(p, urlFor) {
   const url = urlFor(p.src);
   const position = p.fit === 'contain' ? (p.align === 'right' ? 'right center' : p.align === 'center' ? 'center' : 'left center') : 'center';
   const style = `left:${n(p.x)}px;top:${n(p.y)}px;width:${n(p.w)}px;height:${n(p.h)}px;object-fit:${p.fit};object-position:${position};border-radius:${n(p.radius ?? 0)}px`;
-  if (!url) return `<div class="dk-r" data-role="${esc(p.role ?? '')}"${stepOf(p)} style="${style};background:rgba(127,127,127,.18)"></div>`;
-  return `<img class="dk-i" data-role="${esc(p.role ?? '')}"${stepOf(p)} src="${esc(url)}" alt="${esc(p.alt ?? '')}" draggable="false" style="${style}">`;
+  if (!url) return `<div class="dk-r" data-role="${esc(p.role ?? '')}"${stepOf(p)}${slotOf(p)} style="${style};background:rgba(127,127,127,.18)"></div>`;
+  return `<img class="dk-i" data-role="${esc(p.role ?? '')}"${stepOf(p)}${slotOf(p)} src="${esc(url)}" alt="${esc(p.alt ?? '')}" draggable="false" style="${style}">`;
 }
 
 /** The slide as an HTML string, `W` × `H` pixels; scale it with CSS. urlFor maps a media address to a URL. */

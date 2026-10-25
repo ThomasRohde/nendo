@@ -8,17 +8,19 @@
 //   line            {x1, y1, x2, y2, stroke, width, dash}
 //   path            {points: [[x, y]…], closed, fill, alpha, stroke, width}
 //   arc             {cx, cy, r, inner, start, end, fill}   degrees, 0 at the top, clockwise
-//   image           {x, y, w, h, src, fit: cover|contain, align, radius, alt}
+//   image           {x, y, w, h, src, fit: cover|contain, align, radius, alt, slot}
 //   text            {x, y, w, h, font, size, weight, italic, color, align, valign, lineHeight,
 //                    tracking, caps, paragraphs: [{runs, bullet, number, level, heading}], role,
 //                    key, and while editing `edit`: where its words are in the slide (below)}
-// A fill is a colour or {type: linear|radial, angle, stops: [{at, color, alpha}]}.
+// A fill is a colour or {type: linear|radial, angle, stops: [{at, color, alpha}]}. A picture, or the
+// place where one goes, says in `slot` which of the slide's pictures it is (0 to 3), so the stage can
+// put a picture dropped on it into that one.
 //
 // Builds: on a slide whose build is `One by one`, a primitive with `step` k, or a paragraph with
 // `step` k, comes on with the k-th click; one without is there from the start. The slide says how
 // many clicks it has in `steps`.
 
-import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat } from './model.mjs';
+import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat, PICTURES } from './model.mjs';
 import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast, colorsOn } from './themes.mjs';
 import { slotOf } from './design.mjs';
 
@@ -362,16 +364,18 @@ function card(g, x, y, w, h, opts = {}) {
   return { x: x + 24, y: y + 22, w: w - 48, h: h - 44 };
 }
 
+/** One of the slide's pictures, the first unless `slot` says another; a drawn place for it when it has none. */
 function picture(g, x, y, w, h, opts = {}) {
   const { slide, c } = g;
-  if (slide.image) {
-    g.items.push({ type: 'image', x, y, w, h, src: slide.image, fit: 'cover', radius: opts.radius ?? 0, alt: slide.imageAlt, role: 'image' });
+  const slot = opts.slot ?? 0, src = slide[PICTURES[slot]];
+  if (src) {
+    g.items.push({ type: 'image', x, y, w, h, src, fit: 'cover', radius: opts.radius ?? 0, alt: opts.alt ?? slide.imageAlt, role: 'image', slot });
   } else {
-    g.items.push({ type: 'rect', x, y, w, h, fill: { type: 'linear', angle: 160, stops: [{ at: 0, color: mix(c.surface, c.primary, 0.18) }, { at: 1, color: mix(c.surface, c.accent, 0.22) }] }, radius: opts.radius ?? 0, role: 'image' });
+    g.items.push({ type: 'rect', x, y, w, h, fill: { type: 'linear', angle: 160, stops: [{ at: 0, color: mix(c.surface, c.primary, 0.18) }, { at: 1, color: mix(c.surface, c.accent, 0.22) }] }, radius: opts.radius ?? 0, role: 'image', slot });
     const cx = x + w / 2, cy = y + h / 2;
     g.items.push({ type: 'path', points: [[cx - 70, cy + 40], [cx - 20, cy - 20], [cx + 10, cy + 12], [cx + 32, cy - 6], [cx + 70, cy + 40]], closed: true, fill: c.primary, alpha: 0.28 });
     g.items.push({ type: 'ellipse', x: cx + 26, y: cy - 52, w: 22, h: 22, fill: c.accent, alpha: 0.5 });
-    if (g.ctx.editing) g.items.push(text({ x, y: cy + 56, w, h: 24, size: 15, align: 'center', color: mix(c.ink, c.surface, 0.35), font: g.fonts.body, text: 'Drop a picture here', markdown: false, role: 'hint' }));
+    if (g.ctx.editing) g.items.push(text({ x, y: cy + 56, w, h: 24, size: 15, align: 'center', color: mix(c.ink, c.surface, 0.35), font: g.fonts.body, text: 'Drop a picture here', markdown: false, role: 'hint', slot }));
   }
 }
 
@@ -446,6 +450,16 @@ const LAYOUT_FUNCTIONS = {
     body(g, slide.body, X, top, W - 2 * X - (W > 1000 ? 120 : 0), H - top - 76, { bullets: false, build: true });
   },
 
+  'Title only'(g) {
+    const { W, H, X, slide } = g;
+    const top = header(g);
+    const h = H - top - 76;
+    // The space under the title is free: a picture fills it whole, and PowerPoint gets it empty to draw in.
+    if (slide.image) g.items.push({ type: 'image', x: X, y: top, w: W - 2 * X, h, src: slide.image, fit: 'contain', align: 'center', alt: slide.imageAlt, role: 'image', slot: 0 });
+    else if (g.ctx.editing) g.items.push(text({ x: X, y: top + h / 2 - 14, w: W - 2 * X, h: 28, size: 16, align: 'center', color: g.bg.muted, font: g.fonts.body,
+      text: 'Free space. Drop a picture here, or draw in it in PowerPoint.', markdown: false, role: 'hint', ghost: true, slot: 0 }));
+  },
+
   'Two columns'(g) {
     const { W, H, X, slide } = g;
     const top = header(g);
@@ -506,6 +520,32 @@ const LAYOUT_FUNCTIONS = {
     g.items.push({ type: 'rect', x: 0, y: H * 0.38, w: W, h: H * 0.62, fill: { type: 'linear', angle: 180, stops: [{ at: 0, color: '#000000', alpha: 0 }, { at: 1, color: '#000000', alpha: 0.72 }] } });
     const ky = kicker(g, slide.kicker, X, H - 210, W - 2 * X, { color: '#FFFFFF', plain: true });
     title(g, slide.title, X, ky > H - 210 ? ky + 8 : H - 200, W - 2 * X - 160, 150, { size: 52, min: 28, color: '#FFFFFF', valign: 'top' });
+  },
+
+  'Picture grid'(g) {
+    const { W, H, X, slide, theme } = g;
+    const top = header(g);
+    const at = rowCells(slide.body).slice(0, 4);
+    // As many places as the last picture or the last caption needs, two to four.
+    const last = PICTURES.reduce((n, key, i) => slide[key] ? i + 1 : n, 0);
+    const n = Math.min(4, Math.max(2, last, at.length));
+    const square = n === 4 && W < 1200;
+    const cols = square ? 2 : n, rowsN = square ? 2 : 1, gap = 24, captionH = at.length ? 44 : 0;
+    const w = (W - 2 * X - gap * (cols - 1)) / cols, cellH = (H - top - 76 - gap * (rowsN - 1)) / rowsN;
+    const captions = [];
+    for (let i = 0; i < n; i++) {
+      const x = X + (i % cols) * (w + gap), y = top + Math.floor(i / cols) * (cellH + gap);
+      const caption = at[i]?.[0];
+      const from = g.items.length, step = nextStep(g);
+      picture(g, x, y, w, cellH - captionH, { radius: Math.min(theme.style.radius, 12), slot: i, alt: (i === 0 && slide.imageAlt) || caption?.text || '' });
+      if (caption?.text || keeps(caption)) {
+        const t = text({ x, y: y + cellH - captionH + 10, w, h: captionH - 10, size: 18, font: g.fonts.body, color: g.bg.muted, text: caption.text, role: 'body', lineHeight: 1.2, src: cell(caption, 'body.0') });
+        captions.push(t); g.items.push(t);
+      }
+      stepFrom(g, from, step);
+    }
+    for (const p of captions) fit(p, g.measure, 12);
+    if (captions.length) alike(captions);
   },
 
   Quote(g) {
@@ -589,6 +629,91 @@ const LAYOUT_FUNCTIONS = {
       if (detail || keeps(at[i][2])) { const d = text({ x, y: lineY + 104, w: stepW - 28, h: H - lineY - 190, size: 16, font: g.fonts.body, color: g.bg.muted, text: detail, role: 'body', lineHeight: 1.35, src: cell(at[i][2], 'body.2') }); fit(d, g.measure, 12); g.items.push(d); }
       stepFrom(g, from, step);
     });
+  },
+
+  Process(g) {
+    const { W, H, X, slide, c } = g;
+    const top = header(g);
+    const at = rowCells(slide.body).slice(0, 6);
+    const n = Math.max(at.length, 1);
+    // Chevrons that nest: each one's point goes into the notch of the next, `gap` apart.
+    const gap = 10, h = 104, tip = 34;
+    const w = (W - 2 * X + (n - 1) * (tip - gap)) / n;
+    const heads = [], details = [];
+    at.forEach((row, i) => {
+      const x = X + i * (w + gap - tip), y = top + 8;
+      const fill = i === n - 1 && n > 1 ? c.accent : c.primary;
+      const from = g.items.length, step = nextStep(g);
+      const points = [[x, y], [x + w - tip, y], [x + w, y + h / 2], [x + w - tip, y + h], [x, y + h]];
+      if (i > 0) points.push([x + tip, y + h / 2]);
+      g.items.push({ type: 'path', points, closed: true, fill });
+      const inset = i > 0 ? tip : 14;
+      const head = text({ x: x + inset, y, w: w - tip - inset - 8, h, size: 22, weight: 700, font: g.fonts.heading, color: readableOn(fill, '#FFFFFF', c.ink), align: 'center', valign: 'middle',
+        text: row[0]?.text ?? '', role: 'body', lineHeight: 1.12, src: cell(row[0], 'body.0') });
+      heads.push(head); g.items.push(head);
+      if (row[1]?.text || keeps(row[1])) {
+        const d = text({ x: x + (i > 0 ? tip / 2 : 0), y: y + h + 24, w: w - tip - 4, h: H - y - h - 24 - 80, size: 18, font: g.fonts.body, color: g.bg.ink, text: row[1].text, role: 'body', lineHeight: 1.35, src: cell(row[1], 'body.1') });
+        details.push(d); g.items.push(d);
+      }
+      stepFrom(g, from, step);
+    });
+    for (const p of heads) fit(p, g.measure, 12);
+    for (const p of details) fit(p, g.measure, 12);
+    if (heads.length) alike(heads);
+    if (details.length) alike(details);
+  },
+
+  Cycle(g) {
+    const { W, H, X, slide, c } = g;
+    const top = header(g);
+    const at = rowCells(slide.body).slice(0, 6);
+    const n = at.length;
+    if (!n) return;
+    const areaH = H - top - 70;
+    const r = Math.min(areaH / 2 - 36, (W - 2 * X) * 0.18), cx = W / 2, cy = top + areaH / 2;
+    const node = n > 4 ? 52 : 60;
+    // A step's words stand beside it, no taller than the room to the next step down.
+    const labelH = Math.min(100, Math.max(60, r * (1 - Math.cos(2 * Math.PI / n))));
+    const at360 = deg => { const a = deg * Math.PI / 180; return { x: cx + r * Math.sin(a), y: cy - r * Math.cos(a), a }; };
+    g.items.push({ type: 'ellipse', x: cx - r, y: cy - r, w: 2 * r, h: 2 * r, fill: null, stroke: c.line, strokeWidth: 3 });
+    const heads = [], details = [], stepOf = [];
+    at.forEach((row, i) => {
+      const p = at360(i * 360 / n);
+      const colour = [c.primary, c.accent, c.secondary][i % 3];
+      const from = g.items.length, step = nextStep(g);
+      stepOf.push(step);
+      g.items.push({ type: 'ellipse', x: p.x - node / 2, y: p.y - node / 2, w: node, h: node, fill: colour, stroke: g.bg.base === c.bg ? c.bg : null, strokeWidth: 4 });
+      g.items.push(text({ x: p.x - node / 2, y: p.y - node / 2, w: node, h: node, size: Math.round(node * 0.42), weight: 700, font: g.fonts.heading, color: readableOn(colour, '#FFFFFF', c.ink),
+        align: 'center', valign: 'middle', text: String(i + 1), markdown: false, role: 'deco', lineHeight: 1 }));
+      // Steps on the right half, and the top and the foot, read from the node out; the left half towards it.
+      const right = Math.sin(p.a) > -0.01;
+      // At the top and the foot of five or six, the words start past the arrow beside the step.
+      const past = Math.abs(Math.sin(p.a)) < 0.01 && n >= 5 ? r * Math.sin(Math.PI / n) + 20 : 0;
+      const lx = right ? p.x + Math.max(node / 2 + 18, past) : X, lw = right ? W - X - lx : p.x - node / 2 - 18 - X;
+      // The step at the foot has its words lower, clear of the ring rising beside it, and above the footer.
+      const foot = Math.cos(p.a) < -0.99;
+      const ly = foot ? p.y - 16 : p.y - labelH / 2, labelBox = foot ? Math.min(labelH, H - 50 - ly) : labelH, align = right ? 'left' : 'right';
+      const head = text({ x: lx, y: ly, w: lw, h: 32, size: 22, weight: 700, font: g.fonts.heading, color: g.bg.ink, align, text: row[0]?.text ?? '', role: 'body', lineHeight: 1.15, src: cell(row[0], 'body.0') });
+      heads.push(head); g.items.push(head);
+      if (row[1]?.text || keeps(row[1])) {
+        const d = text({ x: lx, y: ly + 34, w: lw, h: labelBox - 34, size: 16, font: g.fonts.body, color: g.bg.muted, align, text: row[1].text, role: 'body', lineHeight: 1.3, src: cell(row[1], 'body.1') });
+        details.push(d); g.items.push(d);
+      }
+      stepFrom(g, from, step);
+    });
+    // An arrow half way to each next step, clockwise, comes on with that step; the one back to the first, with the last.
+    if (n > 1) for (let i = 0; i < n; i++) {
+      const p = at360((i + 0.5) * 360 / n), s = 11;
+      const tx = Math.cos(p.a), ty = Math.sin(p.a), nx = Math.sin(p.a), ny = -Math.cos(p.a);
+      const arrow = { type: 'path', closed: true, fill: g.bg.muted, points: [[p.x + tx * s, p.y + ty * s], [p.x - tx * s * 0.6 + nx * s * 0.8, p.y - ty * s * 0.6 + ny * s * 0.8], [p.x - tx * s * 0.6 - nx * s * 0.8, p.y - ty * s * 0.6 - ny * s * 0.8]] };
+      const step = stepOf[i + 1 < n ? i + 1 : n - 1];
+      if (step) arrow.step = step;
+      g.items.push(arrow);
+    }
+    for (const p of heads) fit(p, g.measure, 13);
+    for (const p of details) fit(p, g.measure, 11);
+    alike(heads);
+    if (details.length) alike(details);
   },
 
   Cards(g) {
@@ -716,8 +841,9 @@ function drawChart(g, type, data, x, y, w, h) {
   // series by series. The axes, the grid and the labels are there from the start.
   const base = g.steps;
   const mark = (p, i) => { if (g.build) { p.step = base + i + 1; g.steps = Math.max(g.steps, p.step); } g.items.push(p); };
-  // A doughnut shows one column, its first, and names its parts beside it: no series legend above.
-  const legend = data.series.length > 1 && type !== 'Doughnut';
+  // A doughnut or a pie shows one column, its first, and names its parts beside it: no series legend above.
+  const round = type === 'Doughnut' || type === 'Pie';
+  const legend = data.series.length > 1 && !round;
   if (legend) {
     let lx = x;
     data.series.forEach((s, i) => {
@@ -727,7 +853,7 @@ function drawChart(g, type, data, x, y, w, h) {
     });
     y += 38; h -= 38;
   }
-  if (type === 'Doughnut') {
+  if (round) {
     // The middle says the data's own total, nought included; only the sweep needs a share of something.
     const values = data.series[0].values.map(v => Math.max(0, v)), total = values.reduce((a, b) => a + b, 0), share = total || 1;
     const r = Math.min(h, w * 0.5) / 2, cx = x + r + 10, cy = y + h / 2;
@@ -736,13 +862,14 @@ function drawChart(g, type, data, x, y, w, h) {
     const colours = values.map((_, i) => parts[i % parts.length]);
     values.forEach((v, i) => {
       const sweep = v / share * 360;
-      if (sweep > 0) mark({ type: 'arc', cx, cy, r, inner: r * 0.58, start: at, end: at + Math.min(sweep, 359.99), fill: colours[i] }, i);
+      if (sweep > 0) mark({ type: 'arc', cx, cy, r, inner: type === 'Pie' ? 0 : r * 0.58, start: at, end: at + Math.min(sweep, 359.99), fill: colours[i] }, i);
       at += sweep;
     });
-    g.items.push(text({ x: cx - r * 0.5, y: cy - 30, w: r, h: 60, size: 40, weight: 700, font: g.fonts.heading, color: ink, align: 'center', valign: 'middle', text: formatNumber(total, data.unit), markdown: false, role: 'chart', lineHeight: 1 }));
-    // Which column it is, under the total; with more than one, the editor says the others are not drawn.
-    if (data.series.length > 1) g.items.push(text({ x: cx - r * 0.6, y: cy + 28, w: r * 1.2, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: data.series[0].name, markdown: false, role: 'chart' }));
-    if (data.series.length > 1 && g.ctx.editing) g.items.push(text({ x, y: y + h - 22, w, h: 22, size: 14, font: g.fonts.body, color: muted, text: `A doughnut draws the first column only; ${data.series.slice(1).map(s => s.name).join(', ')} ${data.series.length > 2 ? 'are' : 'is'} not drawn.`, markdown: false, role: 'hint', ghost: true }));
+    // A doughnut says the total in its middle, and under it which column it is; a pie has no middle.
+    if (type === 'Doughnut') g.items.push(text({ x: cx - r * 0.5, y: cy - 30, w: r, h: 60, size: 40, weight: 700, font: g.fonts.heading, color: ink, align: 'center', valign: 'middle', text: formatNumber(total, data.unit), markdown: false, role: 'chart', lineHeight: 1 }));
+    if (type === 'Doughnut' && data.series.length > 1) g.items.push(text({ x: cx - r * 0.6, y: cy + 28, w: r * 1.2, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: data.series[0].name, markdown: false, role: 'chart' }));
+    // With more than one column, the editor says the others are not drawn.
+    if (data.series.length > 1 && g.ctx.editing) g.items.push(text({ x, y: y + h - 22, w, h: 22, size: 14, font: g.fonts.body, color: muted, text: `A ${type.toLowerCase()} draws the first column only; ${data.series.slice(1).map(s => s.name).join(', ')} ${data.series.length > 2 ? 'are' : 'is'} not drawn.`, markdown: false, role: 'hint', ghost: true }));
     const lx = cx + r + 48, rowH = Math.min(44, h / values.length);
     data.labels.forEach((label, i) => {
       const ly = cy - (values.length * rowH) / 2 + i * rowH;
@@ -752,7 +879,10 @@ function drawChart(g, type, data, x, y, w, h) {
     });
     return;
   }
-  const all = data.series.flatMap(s => s.values);
+  const stacked = type === 'Stacked';
+  // A stack reaches the sum of its values each way: the positive ones up, the negative ones down.
+  const all = stacked ? data.labels.flatMap((_, i) => [data.series.reduce((t, s) => t + Math.max(0, s.values[i]), 0), data.series.reduce((t, s) => t + Math.min(0, s.values[i]), 0)])
+    : data.series.flatMap(s => s.values);
   // A signed axis: a negative value is drawn below (or left of) nought, never as nought.
   const { min, max, step } = signedScale(all);
   const frac = v => (v - min) / (max - min);
@@ -775,16 +905,40 @@ function drawChart(g, type, data, x, y, w, h) {
     }
   }
   const n = data.labels.length, k = data.series.length;
-  if (type === 'Line') {
-    const dx = n > 1 ? pw / (n - 1) : 0;
+  if (type === 'Line' || type === 'Area') {
+    const dx = n > 1 ? pw / (n - 1) : 0, zeroY = py + ph - frac(0) * ph;
     data.labels.forEach((label, i) => g.items.push(text({ x: px + i * dx - 60, y: py + ph + 10, w: 120, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: label, markdown: false, role: 'chart' })));
     data.series.forEach((s, j) => {
       const points = s.values.map((v, i) => [px + i * dx, py + ph - frac(v) * ph]);
-      mark({ type: 'path', points, closed: false, stroke: palette[j % palette.length], width: 4 }, j);
+      // An area is the ground between the line and nought, see-through where the series cross.
+      if (type === 'Area') mark({ type: 'path', points: [[px, zeroY], ...points, [px + (n - 1) * dx, zeroY]], closed: true, fill: palette[j % palette.length], alpha: k > 1 ? 0.32 : 0.42 }, j);
+      mark({ type: 'path', points, closed: false, stroke: palette[j % palette.length], width: type === 'Area' ? 3 : 4 }, j);
       points.forEach(([cx, cy], i) => {
-        mark({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.base === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 }, j);
+        if (type === 'Line') mark({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.base === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 }, j);
         if (k === 1) mark(text({ x: cx - 50, y: cy - 34, w: 100, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(s.values[i], data.unit), markdown: false, role: 'chart' }), j);
       });
+    });
+    return;
+  }
+  if (stacked) {
+    const band = pw / n, barW = band * 0.56;
+    data.labels.forEach((label, i) => {
+      g.items.push(text({ x: px + i * band, y: py + ph + 10, w: band, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: label, markdown: false, role: 'chart' }));
+      const bx = px + i * band + (band - barW) / 2;
+      let up = 0, down = 0;
+      data.series.forEach((s, j) => {
+        const v = s.values[i];
+        if (!v) return;
+        const from = v > 0 ? up : down, to = from + v;
+        if (v > 0) up = to; else down = to;
+        const y1 = py + ph - frac(Math.max(from, to)) * ph, y2 = py + ph - frac(Math.min(from, to)) * ph;
+        // A hair between the parts of a stack, so two of one colour still read as two.
+        const hair = k > 1 ? 1 : 0;
+        mark({ type: 'rect', x: bx, y: y1 + hair, w: barW, h: Math.max(1, y2 - y1 - 2 * hair), fill: palette[j % palette.length], radius: 0 }, k === 1 ? i : j);
+      });
+      // The stack's total over its top, with the last part of it.
+      const total = data.series.reduce((t, s) => t + s.values[i], 0), topY = py + ph - frac(up) * ph;
+      mark(text({ x: bx - 30, y: topY - 26, w: barW + 60, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(total, data.unit), markdown: false, role: 'chart' }), k === 1 ? i : k - 1);
     });
     return;
   }

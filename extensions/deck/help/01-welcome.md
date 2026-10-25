@@ -15,7 +15,7 @@ Deck makes slides. You write the words; the layout places them and the template 
 | --- | --- |
 | **Slides**, on the left | Every slide in order. Drag slides to move them, select more with `Ctrl` or `Shift`, and right-click for the slides' menu. **Slide sorter** in the toolbar shows them all at once. A purple number on a slide counts the variants your agent wrote for it. |
 | **The stage**, in the middle | The slide as it will look. Click words to edit them where they are; right-click for the text menu. Drop a picture on it to put the picture in the slide. |
-| **Layout**, under the slide | The seventeen layouts, each drawn with your slide's title. Click one to give the slide that layout. |
+| **Layout**, under the slide | The twenty-one layouts, each drawn with your slide's title. Click one to give the slide that layout. |
 | **Speaker notes**, under the layouts | What you will say, with a count of its words. Presenter view shows them; PowerPoint keeps them. |
 | **The ask bar**, at the bottom | Ask your agent for work on the whole deck or on this slide, or pick one of the **Missions**. |
 | **Slide**, **Design** and **Agent**, on the right | Whether the slide fits, its fields and the deck's design; the deck's template, brand kit and details; and every ask with its answer. |

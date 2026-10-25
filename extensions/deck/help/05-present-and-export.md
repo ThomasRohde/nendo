@@ -22,7 +22,7 @@
 
 ## Points one by one, and transitions
 
-On the **Slide** tab, under **Presenting**, **Points** sets how a slide's points come on: **All at once**, or **One by one**, a click each. One by one brings on a body's bullets, each card, big number, agenda item and timeline step, a table's rows and a chart's bars. The title and the rest of the slide are there from the start. While a slide builds, the stage numbers the first thing each click brings on.
+On the **Slide** tab, under **Presenting**, **Points** sets how a slide's points come on: **All at once**, or **One by one**, a click each. One by one brings on a body's bullets, each card, big number, agenda item, timeline, process and cycle step, each picture of a grid, a table's rows and a chart's bars. The title and the rest of the slide are there from the start. While a slide builds, the stage numbers the first thing each click brings on.
 
 **Transition** is how the slide comes on: **Fade**, **Push** or **Zoom**, or **None**. **Deck** takes the deck's own transition, which you set on the **Design** tab under **Presenting**. To set points or a transition on several slides at once, select them in the slide list first.
 
