@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STAGES, STAGE_ORDER, PACKAGE_ID, PACKAGE_FOLDER, SKILL_URI, FAMILIES, ASK_SCOPES, ASK_STATUS, VARIANT_STATUS, ADDED_LAYOUTS, ADDED_CHARTS, EXAMPLE_ID, seedRecords, seedOperations, packageFiles, skillPackage, fixture, templateRecordId, exampleSlideId, tourOperations } from './definition.mjs';
+import { STAGES, STAGE_ORDER, PACKAGE_ID, PACKAGE_FOLDER, SKILL_URI, FAMILIES, ASK_SCOPES, ASK_STATUS, VARIANT_STATUS, ADDED_LAYOUTS, ADDED_CHARTS, EXAMPLE_ID, newFileProblems, seedRecords, seedOperations, packageFiles, skillPackage, fixture, templateRecordId, exampleSlideId, tourOperations } from './definition.mjs';
 import { EXAMPLE_SLIDES } from './example.mjs';
 import { E, F, LAYOUT_IDS, CHARTS } from '../../extensions/deck/model.mjs';
 import { TEMPLATES } from '../../extensions/deck/themes.mjs';
@@ -202,6 +202,13 @@ test('the tour stage leaves words the person rewrote', () => {
   file.find(s => s.recordId === exampleSlideId(11)).values[F.slide.body] = '- 3 | teams | mine';
   const ops = tourOperations(file, DECK);
   assert.ok(!ops.some(o => o.payload.recordId === exampleSlideId(11)), 'a rewritten slide is written over');
+});
+
+test('compare names each kept record that points at one a new file leaves out', () => {
+  assert.deepEqual(newFileProblems({ conflictCount: 0, conflicts: [] }), []);
+  const problems = newFileProblems({ conflictCount: 1, conflicts: [{ entityId: E.deck, recordId: EXAMPLE_ID, fieldId: F.deck.template, targetEntityId: E.template, targetRecordId: 'template-401dcc7142e84c11' }] });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /dk\.deck\.example .*template-401dcc7142e84c11.*dk\.deck\.template/);
 });
 
 test('the seeds: six templates, and an example deck whose slides all reference it', () => {
