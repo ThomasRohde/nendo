@@ -1,4 +1,4 @@
-// The example deck a new Deck file carries: a tour of Deck that uses sixteen of its seventeen layouts. Every
+// The example deck a new Deck file carries: a tour of Deck that uses sixteen of its twenty-one layouts. Every
 // number in it is a fact about Deck itself, so nothing here needs a source.
 
 export const EXAMPLE_DECK = {
