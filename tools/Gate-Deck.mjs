@@ -222,12 +222,6 @@ async page => {
   const more = await frame.evaluate(() => ({ shown: !document.querySelector('.field[data-uses="pictures"]').closest('[hidden]') && !document.querySelector('.field[data-uses="pictures"]').hidden,
     first: document.getElementById('l-image').textContent, places: [...document.querySelectorAll('#stage [data-role="image"][data-slot]')].map(e => e.dataset.slot) }));
   assert(more.shown && more.first === 'Picture 1' && more.places[0] === '0' && more.places.includes('1'), `A Picture grid must offer its other pictures and draw a place for each, from the first: ${JSON.stringify(more)}.`);
-  const square = async () => frame.evaluate(async () => {
-    const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
-    canvas.getContext('2d').fillRect(0, 0, 64, 40);
-    return Array.from(new Uint8Array(await (await new Promise(r => canvas.toBlob(r, 'image/png'))).arrayBuffer()));
-  });
-  const png = Buffer.from(await square());
   const before = (await commits()).filter(c => c.recordId === pictureSlide).length;
   await frame.evaluate(async () => {
     const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
@@ -236,9 +230,18 @@ async page => {
     document.querySelector('#stage [data-role="image"][data-slot="1"]').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
   });
   await settle(900);
+  // The lane's runner has no Node Buffer, so the chooser is answered in the frame: a click picks the
+  // place, and the file input then reports a file as a browser's chooser would.
   const choose = async (open, name) => {
-    const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 4000 }), open()]);
-    await chooser.setFiles({ name, mimeType: 'image/png', buffer: png });
+    await open();
+    await frame.evaluate(async name => {
+      const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const data = new DataTransfer(); data.items.add(new File([blob], name, { type: 'image/png' }));
+      const input = document.getElementById('image-file');
+      input.files = data.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, name);
     await settle(900);
   };
   await choose(() => frame.click('#pick-image4'), 'fourth.png');
