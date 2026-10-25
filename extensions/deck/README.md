@@ -11,13 +11,14 @@ package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
 | Record type | What it holds |
 | --- | --- |
 | Decks (`dk.deck`) | Title, subtitle, author, date, audience, goal, shape (16:9 or 4:3), template, brand kit, footer, slide numbers, status, transition, talk length in minutes |
-| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, chart kind, hidden, text format (JSON), build (all at once or one by one), transition (the deck's or its own), rehearsed seconds |
+| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, three more pictures for a Picture grid (media fields), chart kind, hidden, text format (JSON), build (all at once or one by one), transition (the deck's or its own), rehearsed seconds |
 | Templates (`dk.template`) | A family's shapes with its own fonts and seven colours; six are seeds. A Design's template also holds light or dark, a style, per-kind backgrounds (four background pictures as media), chart colours, the logo's place, its Brand kit and the kit it came from |
 | Brand kits (`dk.brand`) | Seven colour roles, three fonts, logo, logo on dark and mark (media fields), voice, tagline, the imported tokens |
 | Asks (`dk.ask`) | One request to the person's agent: scope, request, selection, status, progress, reply |
 | Variants (`dk.variant`) | Another version of one slide from an ask: label, the slide fields it sets as JSON, why, status |
 
-The six templates and the example deck (sixteen slides, one per layout but Image left) are kept in
+The six templates and the example deck (sixteen slides, one per layout but Title only, Image left,
+Picture grid, Process and Cycle) are kept in
 every new file. A person's own decks, kits and asks are not.
 
 ## One drawing, four outputs
@@ -145,7 +146,8 @@ by its address, and one linked from a folder on the computer is left out, which 
 
 - **Builds.** A slide set to *One by one* brings its points on one click at a time. `layout.mjs`
   gives each primitive a `step`: a paragraph and the lines under it, a card, a big number, a table
-  row, a chart's category, series or doughnut part. `render.mjs` writes it as `data-step`, the stage
+  row, a process or cycle step, a picture of a grid with its caption, a chart's category, series or
+  doughnut or pie part. `render.mjs` writes it as `data-step`, the stage
   marks the first point of each click with its number, and the player and PowerPoint both count the
   same clicks.
 - **Transitions.** The deck has one (None, Fade, Push, Zoom) and a slide may set its own. The player
@@ -176,8 +178,12 @@ embedded picture with `nendo.media.read`, and draws an SVG or WebP to PNG first.
   view and in the HTML file when online; PowerPoint substitutes a font it does not have.
 - A picture only linked by URL is drawn on the stage but left out of the PowerPoint file, which
   says so.
-- Charts are column, bar, line and doughnut, from a Markdown table; there is no chart editor. A
-  doughnut draws the table's first number column and names it under the total.
+- Charts are column, bar, line, area, stacked column, pie and doughnut, from a Markdown table;
+  there is no chart editor. A pie or a doughnut draws the table's first number column; a doughnut
+  names it under the total.
+- Process and Cycle are drawn diagrams with two to six steps, not PowerPoint SmartArt: in PowerPoint
+  they open as shapes and text boxes. Title only gives PowerPoint an empty space under the title to
+  draw in; Deck itself has no free shapes or text boxes.
 - One person edits a slide at a time: a save that meets a newer version reads the record again and
   saves the typing over it. Typing still waiting for its save, or refused by the file, is kept in the
   package's storage on the device with the version it was typed over (`drafts.mjs`). When the view

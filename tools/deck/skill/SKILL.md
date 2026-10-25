@@ -1,6 +1,6 @@
 ---
 name: deck
-description: How an agent writes slide decks in this Deck file - its record types, the seventeen layouts and the text each one reads, and the Asks the Deck view sends, answered with slides or with Variants of a slide. Read it before reading or writing anything in this file; "work the Deck asks" finishes Asks left Waiting or Working.
+description: How an agent writes slide decks in this Deck file - its record types, the twenty-one layouts and the text each one reads, and the Asks the Deck view sends, answered with slides or with Variants of a slide. Read it before reading or writing anything in this file; "work the Deck asks" finishes Asks left Waiting or Working.
 ---
 
 # Writing slides in Deck
@@ -42,13 +42,14 @@ array of `{fieldId, op, value}`; put `cursor` before `limit`. A deck's slides:
 | Record type (entityId) | What it is | Fields (fieldId) |
 | --- | --- | --- |
 | Deck (`dk.deck`) | One talk | `dk.deck.title`, `.subtitle`, `.author`, `.date`, `.audience`, `.goal`, `.aspect` (16:9, 4:3), `.template`, `.brand`, `.footer`, `.numbers`, `.status` (Draft, Ready, Presented), `.transition` (None, Fade, Push, Zoom), `.minutes` (the talk's target length) |
-| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.chart` (Column, Bar, Line, Doughnut), `.hidden`, `.build` (None, One by one), `.transition` (Deck, None, Fade, Push, Zoom), `.format` and `.seconds` (the person's; never write them) |
+| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.image2`, `.image3`, `.image4` (a Picture grid's others), `.chart` (Column, Bar, Line, Doughnut, Pie, Area, Stacked), `.hidden`, `.build` (None, One by one), `.transition` (Deck, None, Fade, Push, Zoom), `.format` and `.seconds` (the person's; never write them) |
 | Template (`dk.template`) | A look: family, fonts, seven colours; a Design's also its style and backgrounds | Read `dk.template.name`, `.description`, `.family`, `.mode`, `.brand`; do not write |
 | Brand kit (`dk.brand`) | Colours, fonts, logo and voice from Brandkits | Read `dk.brand.name`, `.voice` and `.tagline`; do not write |
 | Ask (`dk.ask`) | A request from the view | `dk.ask.deck`, `.scope` (Whole deck, Selection, Mission), `.request`, `.selection`, `.status`, `.progress`, `.reply`, `.made` |
 | Variant (`dk.variant`) | Another version of one slide | `dk.variant.ask`, `.slide`, `.label`, `.changes`, `.rationale`, `.status` |
 
-Never write `dk.template`, `dk.brand`, `dk.slide.image` or the record types themselves. A deck's
+Never write `dk.template`, `dk.brand`, a slide's pictures (`dk.slide.image`, `dk.slide.image2`,
+`dk.slide.image3`, `dk.slide.image4`) or the record types themselves. A deck's
 look is the two references `dk.deck.template` and `dk.deck.brand`, which you may set (below).
 
 ## The deck's look
@@ -84,29 +85,34 @@ into parts. A backslash keeps a mark character as itself (`\*`). The person's ow
 | Section | title, kicker, body | Kicker is the section number, such as 02 |
 | Statement | title, kicker | No body: the title is one sentence that carries the point |
 | Bullets | title, kicker, body | 3 to 5 bullets, or two short paragraphs |
+| Title only | title, kicker, image | No body: the space under the title is free for a picture the person adds, such as a diagram or a screen, or for what they draw in PowerPoint |
 | Two columns | title, kicker, body, body2 | Left in body, right in body2; each may start with `### Heading` |
 | Comparison | title, kicker, body, body2 | Each side starts with `### Heading`, then bullets |
 | Image left, Image right | title, kicker, body, image | Bullets beside a picture |
 | Full image | title, kicker, image | The picture fills the slide; a short title sits on it |
+| Picture grid | title, kicker, body, image | Two to four pictures side by side; body is one caption per picture, in order: `- The harbour at dawn` |
 | Quote | body, kicker | Body is the quote without quote marks; kicker is who said it |
 | Big numbers | title, kicker, body | 2 to 4 lines: `- 42% \| what it counts \| where from` |
 | Agenda | title, kicker, body | `- Item \| short note`, 3 to 6 lines |
 | Timeline | title, kicker, body | `- When \| What \| detail`, 3 to 6 lines |
+| Process | title, kicker, body | Steps that lead on, left to right: `- Step \| detail`, 2 to 6 lines, each step two or three words |
+| Cycle | title, kicker, body | Steps that come round to the first again: `- Step \| detail`, 3 to 6 lines |
 | Cards | title, kicker, body | `- Heading \| text`, 2 to 6 lines |
 | Table | title, kicker, body | A Markdown table: header row, `\| --- \|` row, up to 8 rows |
-| Chart | title, kicker, body, body2, chart | Body is a Markdown table: first column the labels, one column per series of plain numbers. Body2 is the takeaway in one or two sentences |
+| Chart | title, kicker, body, body2, chart | Body is a Markdown table: first column the labels, one column per series of plain numbers. Body2 is the takeaway in one or two sentences. Chart: Column or Bar to compare, Line or Area for a change over time, Stacked for the parts of each total, Pie or Doughnut for the shares of one total (they draw the first column only) |
 | Closing | title, kicker, body | Thanks or the ask; body holds contact lines |
 
 The view shrinks text to fit and warns when even the smallest size runs over, so write less rather
 than more. A title is at most about 60 characters and says the point, not the topic ("Streaming cuts
 settlement from a day to a minute", not "Settlement"). A kicker is two to four words. Pictures are
 the person's: on an image layout, write `dk.slide.imageAlt` as what the picture should show, and the
-view shows a place for it. Put what the speaker says in `dk.slide.notes`, in full sentences.
+view shows a place for it. On a Picture grid, the captions in the body say what each picture shows. Put what the speaker says in `dk.slide.notes`, in full sentences.
 
 ## Presenting
 
 `dk.slide.build` One by one brings a slide's points on a click at a time: a body's top-level
-bullets, each card, number, agenda item or timeline step, a table's rows, a chart's bars. Use it
+bullets, each card, number, agenda item, timeline, process or cycle step, each picture of a grid, a
+table's rows, a chart's bars. Use it
 where the speaker talks through a list point by point and the audience should not read ahead; leave
 None on a slide read at a glance. A title, section, statement, quote or closing slide has nothing
 to bring on. `dk.slide.transition` is Deck (the deck's own `dk.deck.transition`) unless one slide

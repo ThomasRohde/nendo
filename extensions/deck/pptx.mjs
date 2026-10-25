@@ -64,8 +64,10 @@ function shape(p, id, ctx) {
     }
     case 'arc': {
       const toDml = deg => Math.round(((((deg - 90) % 360) + 360) % 360) * 60000);
-      const adj = `<a:gd name="adj1" fmla="val ${toDml(p.start)}"/><a:gd name="adj2" fmla="val ${toDml(p.end)}"/><a:gd name="adj3" fmla="val ${Math.round((p.r - p.inner) / (2 * p.r) * 100000)}"/>`;
-      return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(p.cx - p.r, p.cy - p.r, 2 * p.r, 2 * p.r)}${geometry('blockArc', adj)}${fill(p.fill)}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>`;
+      // An arc with no hole is a pie's slice, PowerPoint's own pie shape; one with a hole, a block arc.
+      const angles = `<a:gd name="adj1" fmla="val ${toDml(p.start)}"/><a:gd name="adj2" fmla="val ${toDml(p.end)}"/>`;
+      const geom = p.inner > 0 ? geometry('blockArc', `${angles}<a:gd name="adj3" fmla="val ${Math.round((p.r - p.inner) / (2 * p.r) * 100000)}"/>`) : geometry('pie', angles);
+      return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(p.cx - p.r, p.cy - p.r, 2 * p.r, 2 * p.r)}${geom}${fill(p.fill)}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>`;
     }
     case 'image': return picture(p, id, name, ctx);
     case 'text': return textBox(p, id, name, ctx);

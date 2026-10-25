@@ -207,6 +207,11 @@ body.dragging-slides, body.dragging-slides * { cursor: grabbing !important; }
 .segmented button:last-child { border-right: 0; }
 .segmented button[aria-checked="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
 .picture-row { display: flex; gap: 6px; margin: 4px 0 6px; flex-wrap: wrap; }
+/* Seven charts are two rows of four. */
+#f-chart { display: grid; grid-template-columns: repeat(4, 1fr); }
+#f-chart button { border-bottom: 1px solid var(--line); }
+#f-chart button:nth-child(4n) { border-right: 0; }
+#f-chart button:nth-child(n+5) { border-bottom: 0; }
 .layouts button, .templates button { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 3px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; text-align: left; }
 .layouts .thumb, .templates .thumb { position: relative; overflow: hidden; border-radius: 3px; box-shadow: 0 0 0 1px var(--line); }
 .layouts button > span, .templates button > span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

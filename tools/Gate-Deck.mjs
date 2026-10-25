@@ -93,7 +93,7 @@ async page => {
     const box = t.getBoundingClientRect(), slide = t.firstElementChild.getBoundingClientRect();
     return { where: t.closest('#slides') ? 'list' : t.closest('#layouts') ? 'layouts' : t.closest('#templates') ? 'templates' : 'other', dx: Math.abs(box.left - slide.left), dy: Math.abs(box.top - slide.top), dw: Math.abs(box.width - slide.width) };
   }).filter(m => m.dx > 1 || m.dy > 1 || m.dw > 1));
-  assert(await frame.locator('#layouts .thumb').count() === 17, 'The layout gallery must draw all seventeen layouts.');
+  assert(await frame.locator('#layouts .thumb').count() === 21, 'The layout gallery must draw all twenty-one layouts.');
   assert(misplaced.length === 0, `Thumbnails must draw their slide inside their own box: ${JSON.stringify(misplaced.slice(0, 4))}.`);
   // An idle ask bar shows no working mark: a toggle given undefined flips the class instead.
   assert(!await frame.evaluate(() => document.getElementById('ask-status').classList.contains('working')), 'The ask bar must not show the agent working before anything was asked.');
@@ -151,7 +151,7 @@ async page => {
   checks.push('typing saves');
 
   // 5. Add, move and delete, each one revision that Nendo offers to undo.
-  await command('add.10');
+  await command('add.12');
   await until(n => window.deck.slides.length === n, exampleSlides + 1);
   let s = await state();
   const added = s.slides.findIndex(x => x.id === s.slideId);
@@ -211,6 +211,53 @@ async page => {
   const pictureCommits = (await commits()).filter(c => c.recordId === pictureSlide).length;
   assert(pictureCommits === 1, `A picture dropped on the stage must be put once: ${pictureCommits} times.`);
   checks.push('picture');
+
+  // 20. A Picture grid's places each take their own picture: one dropped on a place, chosen with
+  // its button, or chosen by a click on the place goes into that place's field, and the slide keeps
+  // its layout. The fixture leaves the fields as they were, so every place stays empty to drop on.
+  const pictureLayout = (await state()).slides.find(x => x.id === pictureSlide).layout;
+  await frame.click('#layouts [data-layout="Picture grid"]');
+  await until(id => window.deck.slides.find(s => s.id === id)?.layout === 'Picture grid', pictureSlide, 4000);
+  await settle(300);
+  const more = await frame.evaluate(() => ({ shown: !document.querySelector('.field[data-uses="pictures"]').closest('[hidden]') && !document.querySelector('.field[data-uses="pictures"]').hidden,
+    first: document.getElementById('l-image').textContent, places: [...document.querySelectorAll('#stage [data-role="image"][data-slot]')].map(e => e.dataset.slot) }));
+  assert(more.shown && more.first === 'Picture 1' && more.places[0] === '0' && more.places.includes('1'), `A Picture grid must offer its other pictures and draw a place for each, from the first: ${JSON.stringify(more)}.`);
+  const before = (await commits()).filter(c => c.recordId === pictureSlide).length;
+  await frame.evaluate(async () => {
+    const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const data = new DataTransfer(); data.items.add(new File([blob], 'second.png', { type: 'image/png' }));
+    document.querySelector('#stage [data-role="image"][data-slot="1"]').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+  });
+  await settle(900);
+  // A real file chooser is a modal the lane's runner stops at, and it has no Node Buffer to answer
+  // one: the file input's own click is held, counted, and answered in the frame as a chooser would.
+  await frame.evaluate(() => { const input = document.getElementById('image-file'); window.choosers = 0; input.click = () => { window.choosers++; }; });
+  const choose = async (open, name) => {
+    const opened = await frame.evaluate(() => window.choosers);
+    await open();
+    await until(n => window.choosers > n, opened, 3000).catch(() => { throw Error(`Choosing picture ${name} must open the file chooser.`); });
+    await frame.evaluate(async name => {
+      const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const data = new DataTransfer(); data.items.add(new File([blob], name, { type: 'image/png' }));
+      const input = document.getElementById('image-file');
+      input.files = data.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, name);
+    await settle(900);
+  };
+  await choose(() => frame.click('#pick-image4'), 'fourth.png');
+  await choose(() => frame.click('#stage [data-role="image"][data-slot="1"]'), 'again.png');
+  await frame.evaluate(() => { delete document.getElementById('image-file').click; });
+  const gridPuts = (await commits()).filter(c => c.recordId === pictureSlide).slice(before).map(c => `${c.fieldId} ${c.name}`);
+  assert(JSON.stringify(gridPuts) === JSON.stringify(['dk.slide.image2 second.png', 'dk.slide.image4 fourth.png', 'dk.slide.image2 again.png']),
+    `Each picture must go into the place it was dropped on or chosen for: ${JSON.stringify(gridPuts)}.`);
+  assert((await record('dk.slide', pictureSlide)).values['dk.slide.layout'] === 'Picture grid', 'A picture put into a grid must leave the slide a Picture grid.');
+  // The slide goes back to its own layout, which the exports below look for.
+  await frame.click(`#layouts [data-layout="${pictureLayout}"]`);
+  await until(([id, layout]) => window.deck.slides.find(s => s.id === id)?.layout === layout, [pictureSlide, pictureLayout], 4000);
+  checks.push('picture grid');
 
   // 7. A Claude Design bundle from Brandkits dropped on the Design tab becomes a brand kit the deck uses.
   await frame.click('#tab-design');

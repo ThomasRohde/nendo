@@ -8,6 +8,7 @@ export const F = {
     numbers: 'dk.deck.numbers', status: 'dk.deck.status', transition: 'dk.deck.transition', minutes: 'dk.deck.minutes' },
   slide: { deck: 'dk.slide.deck', order: 'dk.slide.order', layout: 'dk.slide.layout', title: 'dk.slide.title', kicker: 'dk.slide.kicker',
     body: 'dk.slide.body', body2: 'dk.slide.body2', notes: 'dk.slide.notes', image: 'dk.slide.image', imageAlt: 'dk.slide.imageAlt',
+    image2: 'dk.slide.image2', image3: 'dk.slide.image3', image4: 'dk.slide.image4',
     chart: 'dk.slide.chart', hidden: 'dk.slide.hidden', format: 'dk.slide.format', build: 'dk.slide.build', transition: 'dk.slide.transition',
     seconds: 'dk.slide.seconds' },
   template: { name: 'dk.template.name', family: 'dk.template.family', description: 'dk.template.description', headingFont: 'dk.template.headingFont',
@@ -35,23 +36,29 @@ export const LAYOUTS = [
   { id: 'Section', label: 'Section', uses: ['title', 'kicker', 'body'], hint: 'Kicker is the section number, such as 02.' },
   { id: 'Statement', label: 'Statement', uses: ['title', 'kicker'], hint: 'One sentence that carries the point.' },
   { id: 'Bullets', label: 'Title and text', uses: ['title', 'kicker', 'body'], hint: 'Bullets (- ) or short paragraphs. Indent two spaces for a second level.' },
+  { id: 'Title only', label: 'Title only', uses: ['title', 'kicker', 'image'], hint: 'The title, and free space under it. A picture you add fills the space whole, such as a diagram or a screen.' },
   { id: 'Two columns', label: 'Two columns', uses: ['title', 'kicker', 'body', 'body2'], hint: 'Left column in Body, right column in Body 2.' },
   { id: 'Comparison', label: 'Comparison', uses: ['title', 'kicker', 'body', 'body2'], hint: 'Each side starts with ### Heading, then bullets.' },
   { id: 'Image left', label: 'Image left', uses: ['title', 'kicker', 'body', 'image'], hint: 'A picture on the left half, text on the right.' },
   { id: 'Image right', label: 'Image right', uses: ['title', 'kicker', 'body', 'image'], hint: 'Text on the left, a picture on the right half.' },
   { id: 'Full image', label: 'Full image', uses: ['title', 'kicker', 'image'], hint: 'The picture fills the slide; the title sits on it.' },
+  { id: 'Picture grid', label: 'Picture grid', uses: ['title', 'kicker', 'body', 'image', 'pictures'], hint: 'Two to four pictures side by side. Body holds a caption for each, one line per picture: - Caption.' },
   { id: 'Quote', label: 'Quote', uses: ['body', 'kicker', 'title'], hint: 'Body is the quote, Kicker who said it. Title is not drawn.' },
   { id: 'Big numbers', label: 'Big numbers', uses: ['title', 'kicker', 'body'], hint: 'One line each: - 42% | what it counts | where from (2 to 4).' },
   { id: 'Agenda', label: 'Agenda', uses: ['title', 'kicker', 'body'], hint: 'One item per line: - Item | short note.' },
   { id: 'Timeline', label: 'Timeline', uses: ['title', 'kicker', 'body'], hint: 'One step per line: - When | What | detail (3 to 6).' },
+  { id: 'Process', label: 'Process', uses: ['title', 'kicker', 'body'], hint: 'Steps from left to right, one per line: - Step | detail (2 to 6).' },
+  { id: 'Cycle', label: 'Cycle', uses: ['title', 'kicker', 'body'], hint: 'Steps round a circle, back to the first, one per line: - Step | detail (3 to 6).' },
   { id: 'Cards', label: 'Cards', uses: ['title', 'kicker', 'body'], hint: 'One card per line: - Heading | text (2 to 6).' },
   { id: 'Table', label: 'Table', uses: ['title', 'kicker', 'body'], hint: 'A Markdown table: | A | B | then | --- | --- | then rows.' },
   { id: 'Chart', label: 'Chart', uses: ['title', 'kicker', 'body', 'body2', 'chart'], hint: 'Body is a Markdown table: first column the labels, then one column per series. Body 2 is the takeaway.' },
   { id: 'Closing', label: 'Closing', uses: ['title', 'kicker', 'body'], hint: 'Thanks or the ask; Body holds contact lines.' },
 ];
 export const LAYOUT_IDS = LAYOUTS.map(l => l.id);
-export const layoutOf = id => LAYOUTS.find(l => l.id === id) ?? LAYOUTS[3];
-export const CHARTS = ['Column', 'Bar', 'Line', 'Doughnut'];
+export const layoutOf = id => LAYOUTS.find(l => l.id === id) ?? LAYOUTS.find(l => l.id === 'Bullets');
+export const CHARTS = ['Column', 'Bar', 'Line', 'Doughnut', 'Pie', 'Area', 'Stacked'];
+/** A slide's pictures, in order: the first is its Picture, the others are for the Picture grid. */
+export const PICTURES = ['image', 'image2', 'image3', 'image4'];
 /** How a slide comes on, in Present, the HTML file and PowerPoint. A slide's own `Deck` takes the deck's. */
 export const TRANSITIONS = ['None', 'Fade', 'Push', 'Zoom'];
 export const SLIDE_TRANSITIONS = ['Deck', ...TRANSITIONS];
@@ -68,6 +75,7 @@ export function slideFrom(record) {
     layout: LAYOUT_IDS.includes(v[F.slide.layout]) ? v[F.slide.layout] : 'Bullets',
     title: str(v[F.slide.title]), kicker: str(v[F.slide.kicker]), body: str(v[F.slide.body]), body2: str(v[F.slide.body2]),
     notes: str(v[F.slide.notes]), image: v[F.slide.image] || null, imageAlt: str(v[F.slide.imageAlt]),
+    image2: v[F.slide.image2] || null, image3: v[F.slide.image3] || null, image4: v[F.slide.image4] || null,
     chart: CHARTS.includes(v[F.slide.chart]) ? v[F.slide.chart] : 'Column', hidden: v[F.slide.hidden] === true, format: str(v[F.slide.format]),
     build: BUILDS.includes(v[F.slide.build]) ? v[F.slide.build] : 'None', transition: SLIDE_TRANSITIONS.includes(v[F.slide.transition]) ? v[F.slide.transition] : 'Deck',
     seconds: Number.isInteger(v[F.slide.seconds]) && v[F.slide.seconds] > 0 ? v[F.slide.seconds] : null,

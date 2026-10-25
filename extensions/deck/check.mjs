@@ -1,7 +1,7 @@
 // The deck check: what would trip the talk, slide by slide, and how long it runs. Pure: the view
 // draws it in its Check tab, and node's tests hold it.
 
-import { layoutOf } from './model.mjs';
+import { layoutOf, rows, PICTURES } from './model.mjs';
 
 /** A speaker's pace when the notes are read as written. */
 export const WORDS_PER_MINUTE = 130;
@@ -10,7 +10,7 @@ export const SLIDE_WORDS = 60;
 /** The time a slide is given that has neither notes nor a rehearsal. */
 export const DEFAULT_SECONDS = 30;
 const PICTURE_LAYOUTS = ['Image left', 'Image right', 'Full image'];
-const NO_BODY = ['Title', 'Section', 'Statement', 'Closing', 'Full image', 'Quote'];
+const NO_BODY = ['Title', 'Section', 'Statement', 'Closing', 'Full image', 'Quote', 'Title only', 'Picture grid'];
 
 /** Words in Markdown or plain text: marks, table bars and bullets are not words. */
 export function wordsOf(text) {
@@ -49,7 +49,15 @@ export function checkDeck(slides, { laid, minutes = null } = {}) {
     if (!NO_BODY.includes(slide.layout) && !slide.body.trim()) add('warn', `Nothing in the ${slide.layout === 'Table' || slide.layout === 'Chart' ? 'table' : 'body'} yet.`);
     if (slide.layout === 'Quote' && !slide.body.trim()) add('warn', 'The quote is empty.');
     if (PICTURE_LAYOUTS.includes(slide.layout) && !slide.image) add('warn', 'No picture yet.');
-    if (slide.image && !slide.imageAlt.trim()) add('info', 'The picture has no picture text, which a screen reader says in its place.');
+    if (slide.layout === 'Picture grid') {
+      // The grid's places are the ones it draws; each picture's text is its caption, the first's its picture text too.
+      const captions = rows(slide.body).map(r => r[0] ?? '');
+      const places = l.items.filter(p => p.role === 'image' && Number.isInteger(p.slot)).map(p => p.slot);
+      const empty = places.filter(i => !slide[PICTURES[i]]).map(i => i + 1);
+      if (empty.length) add('warn', `No picture yet in place ${empty.join(' and ')} of the grid.`);
+      const silent = places.filter(i => slide[PICTURES[i]] && !(captions[i] ?? '').trim() && !(i === 0 && slide.imageAlt.trim())).map(i => i + 1);
+      if (silent.length) add('info', `Picture ${silent.join(' and ')} has no caption, which a screen reader says in its place.`);
+    } else if (slide.image && !slide.imageAlt.trim()) add('info', 'The picture has no picture text, which a screen reader says in its place.');
     const words = wordsOf([slide.kicker, slide.title, slide.body, slide.body2].join('\n'));
     if (words > SLIDE_WORDS) add('warn', `${words} words on the slide. A slide reads best with fewer than ${SLIDE_WORDS}: move some to the notes.`);
     if (slide.build === 'One by one' && !l.steps) add('info', `“One by one” has nothing to bring on in the ${layout.label} layout.`);

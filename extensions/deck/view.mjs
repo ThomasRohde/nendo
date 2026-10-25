@@ -3,7 +3,7 @@
 // same primitives from layout.mjs. The person's own agent writes whole decks, reworks one slide
 // as variants, or runs a mission, through nendo.assistant.ask; its work lands as records.
 
-import { E, F, LAYOUTS, LAYOUT_IDS, CHARTS, TRANSITIONS, SLIDE_TRANSITIONS, BUILDS, transitionOf, layoutOf, slideFrom, sortSlides, reorder } from './model.mjs';
+import { E, F, LAYOUTS, LAYOUT_IDS, CHARTS, PICTURES, TRANSITIONS, SLIDE_TRANSITIONS, BUILDS, transitionOf, layoutOf, slideFrom, sortSlides, reorder } from './model.mjs';
 import { TEMPLATES, resolveTheme, sizeOf, webFonts, BRAND_ROLES, normalHex } from './themes.mjs';
 import { layoutSlide } from './layout.mjs';
 import { slideHtml, SLIDE_CSS } from './render.mjs';
@@ -126,7 +126,7 @@ const designsOf = () => deck.templates.filter(t => v(t, F.template.brand) && dec
 /** Every picture address the deck draws, resolved once to a URL the stage can show. */
 async function resolveMedia() {
   const addresses = new Set();
-  for (const s of deck.slides) if (s.image) addresses.add(s.image);
+  for (const s of deck.slides) for (const key of PICTURES) if (s[key]) addresses.add(s[key]);
   for (const variant of deck.variants) { try { const c = JSON.parse(v(variant, F.variant.changes) ?? '{}'); if (c.image) addresses.add(c.image); } catch { /* shown as text */ } }
   const brand = deck.theme?.brand;
   if (brand?.logo) addresses.add(brand.logo);
@@ -163,7 +163,7 @@ function laid(slide, theme = deck.theme, editing = true, number = null) {
   const n = number ?? numberOf(slide);
   // The field being edited keeps its box while it is empty.
   const keep = editing ? editor?.keep() ?? null : null;
-  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, slide.notes, slide.format, slide.build, n, editing, keep, theme]);
+  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, ...PICTURES.map(k => slide[k]), slide.chart, slide.imageAlt, slide.notes, slide.format, slide.build, n, editing, keep, theme]);
   let hit = laidCache.get(key);
   if (!hit) {
     if (laidCache.size > 600) laidCache.clear();
@@ -392,11 +392,12 @@ function drawCheck() {
 
 const SAMPLE = {
   Title: { title: 'Title', kicker: 'Kicker', body: 'Subtitle' }, Section: { title: 'Section', kicker: '01' }, Statement: { title: 'One idea in one sentence' },
-  Bullets: { title: 'Title', body: '- Point\n- Point\n- Point' }, 'Two columns': { title: 'Title', body: 'Text on the left', body2: 'Text on the right' },
+  Bullets: { title: 'Title', body: '- Point\n- Point\n- Point' }, 'Title only': { title: 'Title' }, 'Two columns': { title: 'Title', body: 'Text on the left', body2: 'Text on the right' },
   Comparison: { title: 'Title', body: '### Before\n- Point\n- Point', body2: '### After\n- Point\n- Point' }, 'Image left': { title: 'Title', body: '- Point\n- Point' },
   'Image right': { title: 'Title', body: '- Point\n- Point' }, 'Full image': { title: 'Title on a picture' }, Quote: { body: 'A line worth quoting.', kicker: 'Someone' },
   'Big numbers': { title: 'Title', body: '- 42% | label\n- 3× | label\n- 12 | label' }, Agenda: { title: 'Agenda', body: '- One\n- Two\n- Three\n- Four' },
-  Timeline: { title: 'Title', body: '- 2024 | Start\n- 2025 | Grow\n- 2026 | Lead' }, Cards: { title: 'Title', body: '- One | text\n- Two | text\n- Three | text' },
+  Timeline: { title: 'Title', body: '- 2024 | Start\n- 2025 | Grow\n- 2026 | Lead' }, Process: { title: 'Title', body: '- Plan | text\n- Make | text\n- Ship | text' },
+  Cycle: { title: 'Title', body: '- Plan | text\n- Do | text\n- Check | text\n- Act | text' }, 'Picture grid': { title: 'Title', body: '- Caption\n- Caption\n- Caption' }, Cards: { title: 'Title', body: '- One | text\n- Two | text\n- Three | text' },
   Table: { title: 'Title', body: '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |' }, Chart: { title: 'Title', body: '| A | n |\n| --- | --- |\n| a | 3 |\n| b | 5 |\n| c | 4 |\n| d | 7 |' },
   Closing: { title: 'Thank you', kicker: 'Questions' },
 };
@@ -431,7 +432,8 @@ function drawSlidePane(slide) {
   const layout = layoutOf(slide.layout);
   $('layout-hint').textContent = layout.hint;
   for (const field of pane.querySelectorAll('.field[data-uses]')) field.hidden = !layout.uses.includes(field.dataset.uses);
-  $('l-body').textContent = slide.layout === 'Quote' ? 'Quote' : slide.layout === 'Chart' || slide.layout === 'Table' ? 'Table' : slide.layout === 'Two columns' || slide.layout === 'Comparison' ? 'Left' : 'Body';
+  $('l-body').textContent = slide.layout === 'Quote' ? 'Quote' : slide.layout === 'Chart' || slide.layout === 'Table' ? 'Table' : slide.layout === 'Two columns' || slide.layout === 'Comparison' ? 'Left'
+    : slide.layout === 'Process' || slide.layout === 'Cycle' ? 'Steps' : slide.layout === 'Picture grid' ? 'Captions' : 'Body';
   $('l-body2').textContent = slide.layout === 'Chart' ? 'Takeaway' : 'Right';
   for (const input of pane.querySelectorAll('[data-field]')) if (document.activeElement !== input) input.value = slide[input.dataset.field] ?? '';
   $('f-hidden').checked = slide.hidden;
@@ -444,8 +446,13 @@ function drawSlidePane(slide) {
   $('f-transition').title = `Deck: the deck’s own transition, now ${deckTransition}. Set it on the Design tab.`;
   const planned = deck.check?.seconds?.[deck.slides.filter(s => !s.hidden).findIndex(s => s.id === slide.id)];
   $('slide-time').textContent = slide.hidden ? 'Hidden: Present leaves this slide out.' : slide.seconds ? `Rehearsed: ${clock(slide.seconds)} on this slide.` : planned ? `About ${clock(planned)} on this slide${slide.notes ? ', from the notes' : ''}. Rehearse to time it.` : '';
-  $('clear-image').hidden = !slide.image;
-  $('pick-image').textContent = slide.image ? 'Change picture…' : 'Choose picture…';
+  const grid = slide.layout === 'Picture grid';
+  $('l-image').textContent = grid ? 'Picture 1' : 'Picture';
+  PICTURES.forEach((key, i) => {
+    const pick = $(i ? `pick-image${i + 1}` : 'pick-image'), clear = $(i ? `clear-image${i + 1}` : 'clear-image');
+    clear.hidden = !slide[key];
+    pick.textContent = `${slide[key] ? 'Change' : 'Choose'} ${grid && i ? `picture ${i + 1}` : 'picture'}…`;
+  });
 }
 
 function drawDesignCard() {
@@ -610,9 +617,9 @@ function drawVariants() {
     return card;
   }));
 }
-const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'imageAlt', 'hidden', 'format', 'build', 'transition', 'seconds'];
+const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'image2', 'image3', 'image4', 'imageAlt', 'hidden', 'format', 'build', 'transition', 'seconds'];
 // A variant writes words and how they come on, never a picture, a size, a transition or a time: those are the person's.
-const VARIANT_FIELDS = EDITABLE.filter(k => !['image', 'format', 'transition', 'seconds'].includes(k));
+const VARIANT_FIELDS = EDITABLE.filter(k => !PICTURES.includes(k) && !['format', 'transition', 'seconds'].includes(k));
 /** The slide fields a variant changes, by the slide model's names; anything else is dropped. */
 export function pick(changes) {
   const out = {};
@@ -648,7 +655,8 @@ function drawAsk() {
 // ---- Writing -----------------------------------------------------------------------------------
 
 const SLIDE_FIELD = { layout: F.slide.layout, title: F.slide.title, kicker: F.slide.kicker, body: F.slide.body, body2: F.slide.body2, notes: F.slide.notes,
-  chart: F.slide.chart, image: F.slide.image, imageAlt: F.slide.imageAlt, hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format,
+  chart: F.slide.chart, image: F.slide.image, image2: F.slide.image2, image3: F.slide.image3, image4: F.slide.image4, imageAlt: F.slide.imageAlt,
+  hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format,
   build: F.slide.build, transition: F.slide.transition, seconds: F.slide.seconds };
 const toValues = changes => Object.fromEntries(Object.entries(changes).map(([k, val]) => [SLIDE_FIELD[k], val === '' ? null : val]));
 
@@ -1033,7 +1041,7 @@ async function insertSlides(list, label, at) {
     }
     for (const f of fresh) {
       const values = { [F.slide.deck]: d.recordId, [F.slide.order]: orders.get(f.id), [F.slide.hidden]: false, ...toValues(f.values) };
-      if (!withPictures) values[F.slide.image] = null;
+      if (!withPictures) for (const key of PICTURES) values[F.slide[key]] = null;
       writes.push({ op: 'create', entityId: E.slide, recordId: f.id, values, targetVersions: { [F.slide.deck]: d.version } });
       records.push({ entityId: E.slide, id: f.id, before: null, after: values });
     }
@@ -1044,7 +1052,7 @@ async function insertSlides(list, label, at) {
     try { await write(true); }
     catch (error) {
       // A picture copied from another file is not this file's to point at.
-      if (!fresh.some(f => f.values.image) || !/media/i.test(`${error?.code} ${error?.message}`)) throw error;
+      if (!fresh.some(f => PICTURES.some(key => f.values[key])) || !/media/i.test(`${error?.code} ${error?.message}`)) throw error;
       await write(false);
       toast('The pictures stayed behind: they belong to another file. Put them in again on these slides.');
     }
@@ -1282,22 +1290,46 @@ async function clipboardCommand(action) {
 
 // ---- Pictures ----------------------------------------------------------------------------------
 
-async function putPicture(file, slide = currentSlide()) {
+/**
+ * Puts a picture into one of the slide's pictures: `slot` 0 is its Picture, 1 to 3 the Picture grid's
+ * others. A slide whose layout draws no such picture takes one that does.
+ */
+async function putPicture(file, slide = currentSlide(), slot = 0) {
   if (!slide || !file) return;
   if (!/^image\/(png|jpeg|gif|webp|svg\+xml|avif)$/.test(file.type)) { toast(`${file.name} is not a picture Deck can use: PNG, JPEG, GIF, WebP or SVG.`); return; }
   await flushAll();
   try {
     toast(`Putting ${file.name} into the file…`);
     const fresh = await nendo.records.get(E.slide, slide.id);
-    const { address } = await nendo.media.put(file, { name: file.name, mediaType: file.type, record: { entityId: E.slide, recordId: slide.id, version: fresh.version }, fieldId: F.slide.image });
-    if (!layoutOf(slide.layout).uses.includes('image')) {
+    const { address } = await nendo.media.put(file, { name: file.name, mediaType: file.type, record: { entityId: E.slide, recordId: slide.id, version: fresh.version }, fieldId: F.slide[PICTURES[slot]] });
+    const wanted = slot > 0 ? (slide.layout === 'Picture grid' ? null : 'Picture grid') : layoutOf(slide.layout).uses.includes('image') ? null : 'Image right';
+    if (wanted) {
       const record = await nendo.records.get(E.slide, slide.id);
-      await nendo.records.update({ entityId: E.slide, recordId: slide.id, version: record.version }, { [F.slide.layout]: 'Image right' });
+      await nendo.records.update({ entityId: E.slide, recordId: slide.id, version: record.version }, { [F.slide.layout]: wanted });
     }
     deck.media.delete(address);
     await refresh();
     toast(`${file.name} is on slide ${deck.slides.indexOf(currentSlide()) + 1}.`);
   } catch (error) { problem(error, 'The picture could not be put in the file'); }
+}
+
+/** Which of the slide's pictures the file chooser fills when it answers. */
+let pictureSlot = 0;
+function choosePicture(slot) {
+  pictureSlot = slot;
+  $('image-file').click();
+}
+/**
+ * Which picture a file dropped on the stage goes into: the picture or the place it falls on, else in
+ * a Picture grid its first empty place, else the slide's Picture.
+ */
+function dropSlot(target) {
+  const on = target?.closest?.('[data-slot]')?.dataset.slot;
+  if (on !== undefined) return Number(on);
+  const slide = currentSlide();
+  if (slide?.layout !== 'Picture grid') return 0;
+  const empty = PICTURES.findIndex(key => !slide[key]);
+  return empty < 0 ? 0 : empty;
 }
 
 // ---- Brand kits --------------------------------------------------------------------------------
@@ -2003,12 +2035,15 @@ function wire() {
     const field = { title: 'f-title', kicker: 'f-kicker', body: 'f-body', body2: 'f-body2', image: 'pick-image', hint: 'pick-image' }[role];
     if (!field) return;
     deck.tab = 'slide'; drawInspector();
-    const el = $(field); if (!el.closest('[hidden]')) { el.focus(); if (field === 'pick-image') $('image-file').click(); }
+    // A picture, or its place, opens the chooser for that one of the slide's pictures.
+    // A layout without a picture has hints of its own, such as a pie's, which open nothing.
+    if (field === 'pick-image') { if (layoutOf(currentSlide()?.layout).uses.includes('image')) choosePicture(Number(e.target.closest('[data-slot]')?.dataset.slot ?? 0)); return; }
+    const el = $(field); if (!el.closest('[hidden]')) el.focus();
   });
   for (const target of [$('stage-wrap')]) {
     target.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); stage.classList.add('drop'); } });
     target.addEventListener('dragleave', () => stage.classList.remove('drop'));
-    target.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); stage.classList.remove('drop'); putPicture(e.dataTransfer.files[0]); });
+    target.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); stage.classList.remove('drop'); putPicture(e.dataTransfer.files[0], currentSlide(), dropSlot(e.target)); });
   }
   new ResizeObserver(() => drawStage()).observe($('stage-wrap'));
   new ResizeObserver(debounce(() => drawSorter(), 120)).observe($('slides'));
@@ -2032,9 +2067,11 @@ function wire() {
   $('design-change').addEventListener('click', () => { deck.tab = 'design'; drawInspector(); $('tab-design').focus(); });
   $('notes').addEventListener('blur', () => save.flush());
   $('f-hidden').addEventListener('change', () => setHidden($('f-hidden').checked));
-  $('pick-image').addEventListener('click', () => $('image-file').click());
-  $('image-file').addEventListener('change', () => { const f = $('image-file').files[0]; $('image-file').value = ''; if (f) putPicture(f); });
-  $('clear-image').addEventListener('click', () => typed({ image: '' }, { now: true }));
+  PICTURES.forEach((key, i) => {
+    $(i ? `pick-image${i + 1}` : 'pick-image').addEventListener('click', () => choosePicture(i));
+    $(i ? `clear-image${i + 1}` : 'clear-image').addEventListener('click', () => typed({ [key]: '' }, { now: true }));
+  });
+  $('image-file').addEventListener('change', () => { const f = $('image-file').files[0]; $('image-file').value = ''; if (f) putPicture(f, currentSlide(), pictureSlot); });
   $('templates').addEventListener('click', e => { const b = e.target.closest('[data-template]'); if (b && b.dataset.template) editDeck({ template: b.dataset.template }); });
   $('brands').addEventListener('click', e => {
     const open = e.target.closest('[data-open]');
