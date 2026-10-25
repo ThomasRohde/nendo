@@ -318,9 +318,25 @@ body {
 
 .tab-main .outline-icon { flex: 0 0 16px; width: 16px; height: 16px; }
 
-/* A tab being dragged, and one held past the window's edge, which letting go moves to a window of its own. */
-.tab.is-dragging { cursor: grabbing; }
-.tab.is-leaving { opacity: 0.55; outline: 2px dashed var(--cobalt); outline-offset: -2px; }
+/* A tab being dragged follows the pointer along the strip, above the others. Pulled off the strip,
+   its picture rides under the pointer (the host draws it) and the strip keeps its place, dimmed. */
+:root[data-tab-drag],
+:root[data-tab-drag] * { cursor: grabbing; }
+.tab.is-dragging { position: relative; z-index: 2; }
+.tab.is-dragging:not(.is-leaving) { color: var(--ink); background: var(--canvas); border-color: var(--line); }
+.tab.is-leaving { opacity: 0.4; outline: 2px dashed var(--cobalt); outline-offset: -2px; }
+
+/* A tab from another window held over this strip: where letting go puts it. */
+.tab-strip.is-drop-target { background: var(--nav-hover); }
+.tab-drop-marker {
+  position: absolute;
+  bottom: 4px;
+  width: 3px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--cobalt);
+  pointer-events: none;
+}
 
 .tab-label {
   overflow: hidden;

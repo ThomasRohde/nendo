@@ -489,6 +489,7 @@ public sealed partial class MainPage : Page
     {
         _workbenchGeneration = checked(_workbenchGeneration + 1);
         _workbenchNavigationId = null;
+        _tabsReady = false;
         var webView = _webView;
         _webView = null;
         _extensionAssets?.Detach();

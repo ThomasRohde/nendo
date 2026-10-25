@@ -5,9 +5,11 @@
 // both, the tab window closing while the file and the process stay, and Exit ending the process
 // while a tab window is open. That a tab window closes
 // when its file changes needs a native confirmation pressed, which no lane can do: it was observed
-// with a real keyboard on 2026-10-16. The move is made by the
-// command palette's Move tab to new window; a drag out of the strip ends in the same call, and a
-// real pointer drag needs the foreground, which a gate lane cannot hold.
+// with a real keyboard on 2026-10-16. T1-T7 move the tab by the
+// command palette's Move tab to new window. T8-T10 drag it with the page's own pointer events,
+// the host told where the pointer is by diagnostics.tabDrag, since a real pointer drag needs the
+// foreground, which a gate lane cannot hold: the picture under the pointer, the drop mark, joining
+// another window, Escape, and a new window where the tab is let go.
 const [port, processId, output] = process.argv.slice(2);
 if (!/^\d+$/.test(port) || !/^\d+$/.test(processId) || !output) throw new Error('Owned port, process and output are required.');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -160,6 +162,103 @@ try {
   const mainRefused = await bridge(main, 'diagnostics.closeWindow');
   assert(!mainRefused.ok && mainRefused.error.code === 'main-window', 'A page closed the main window.');
   check('T6 closing the tab window left the file open in the main window and the process running; the main window does not close from its page');
+
+  // T8-T10: a tab dragged with the page's own pointer events, which the browser delivers without
+  // the foreground. The host is told where the pointer is (diagnostics.tabDrag), since the real one
+  // is the person's; everything else is the drag as a person makes it.
+  const mouse = (session, type, x, y, buttons = 1) => command('Input.dispatchMouseEvent',
+    { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', buttons, clickCount: type === 'mouseMoved' ? 0 : 1 }, session);
+  const tabCentre = (session, index) => evaluateIn(session, `(() => { const box = document.querySelectorAll('#tab-strip .tab')[${index}].getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2, width: box.width, height: box.height, scale: devicePixelRatio }; })()`);
+  const pullDown = async (session, index) => {
+    // What the page heard, for a failure to name.
+    await evaluateIn(session, `(() => { if (window.__dragEvents) return true; window.__dragEvents = [];
+      for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture', 'gotpointercapture', 'blur'])
+        window.addEventListener(type, e => window.__dragEvents.push(type + (e.clientY === undefined ? '' : ' ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' ' + (e.target?.className ?? ''))), true);
+      const post = chrome.webview.postMessage.bind(chrome.webview);
+      chrome.webview.postMessage = message => { if (!['session.getSnapshot', 'diagnostics.tabDrag'].includes(message?.method)) window.__dragEvents.push('request ' + (message?.method ?? '?')); return post(message); };
+      return true; })()`);
+    const at = await tabCentre(session, index);
+    await mouse(session, 'mouseMoved', at.x, at.y, 0);
+    await mouse(session, 'mousePressed', at.x, at.y);
+    for (const dy of [10, 30, 80, 160, 240]) { await mouse(session, 'mouseMoved', at.x, at.y + dy); await sleep(30); }
+    return { ...at, y: at.y + 240 };
+  };
+  const dragNow = session => bridge(session, 'diagnostics.tabDrag').then(answer => { assert(answer.ok, JSON.stringify(answer.error)); return answer.result; });
+  /** Wait for the host's drag to meet `test`, and say what it last held and what the page drew when it does not. */
+  const waitDrag = async (session, test, label) => {
+    let seen = null;
+    try { return await waitFor(async () => { seen = await dragNow(session); return test(seen) ? seen : null; }, label, 10000); }
+    catch (error) {
+      const strip = await evaluateIn(session, `(() => ({ classes: document.querySelector('#tab-strip').className, tabs: [...document.querySelectorAll('#tab-strip .tab')].map(t => t.className),
+        events: (window.__dragEvents ?? []).slice(-30) }))()`);
+      throw new Error(`${error.message}; the host held ${JSON.stringify(seen)} and the strip was ${JSON.stringify(strip)}`);
+    }
+  };
+
+  await click(main, '#tab-new');
+  await click(main, '#nav-history');
+  await waitFor(() => evaluateIn(main, `document.querySelector('#workspace-title')?.textContent?.includes('History')`), 'History in a new tab');
+  await idle(main);
+  await click(main, '#palette-open');
+  await click(main, '[data-command-id="tab:moveToWindow"]');
+  const loneTargets = await waitFor(async () => { const all = await workbenches(); return all.length === 2 ? all : null; }, 'a tab window with one tab');
+  const lone = await attach(loneTargets.find(t => t.targetId !== first.targetId).targetId);
+  await waitFor(async () => (await describe(lone)).role === 'tab', 'the one-tab window');
+  await idle(lone);
+  await waitFor(async () => (await describe(main)).tabs.length === 1 ? true : null, 'the main window back to one tab');
+
+  // T8: the tab window's only tab, pulled off its strip and held over the main window's tabs, past
+  // its one tab: its picture is under the pointer, the main window marks where it would land, and
+  // let go it joins the main window there and its own window closes.
+  const mainTab = await evaluateIn(main, `(() => { const box = document.querySelector('#tab-strip .tab').getBoundingClientRect(); return { right: box.right, middle: box.top + box.height / 2 }; })()`);
+  const over = { x: Math.round(mainTab.right + 16), y: Math.round(mainTab.middle) };
+  assert((await bridge(main, 'diagnostics.tabDrag', { point: over })).ok, 'The journey cannot place the pointer.');
+  const lonely = await pullDown(lone, 0);
+  const held = await waitDrag(lone, now => now.following && now.pictureShown && now.target === 'main', 'the picture under the pointer over the main window\'s tabs');
+  const expected = { width: Math.round(lonely.width * lonely.scale), height: Math.round(lonely.height * lonely.scale) };
+  assert(Math.abs(held.pictureWidth - expected.width) <= 2 && Math.abs(held.pictureHeight - expected.height) <= 2 && held.centreAlpha === 255,
+    `The picture is ${held.pictureWidth} × ${held.pictureHeight} with its middle at alpha ${held.centreAlpha}; the tab is ${expected.width} × ${expected.height}.`);
+  // The leaving tab's dashed outline from the strip rides with it: dashes three times its width along the top.
+  assert(held.outlineDashes >= 3, `The picture's top edge carries ${held.outlineDashes} dashes of the leaving tab's outline.`);
+  assert(Math.abs(held.targetX - over.x) <= 1, `The host holds the tab at ${held.targetX} along the main window's tabs, not ${over.x}.`);
+  const marked = await waitFor(() => evaluateIn(main, `(() => { const mark = document.querySelector('#tab-strip .tab-drop-marker')?.getBoundingClientRect();
+    const tab = document.querySelector('#tab-strip .tab')?.getBoundingClientRect();
+    return mark && tab && document.querySelector('#tab-strip').classList.contains('is-drop-target') ? { mark: mark.left, tabRight: tab.right } : null; })()`), 'the main window to mark where the tab would land');
+  assert(marked.mark >= marked.tabRight - 2 && marked.mark <= marked.tabRight + 6, `The drop mark is at ${marked.mark}, not after the main window's tab ending at ${marked.tabRight}.`);
+  await mouse(lone, 'mouseReleased', lonely.x, lonely.y, 0);
+  await waitFor(async () => (await workbenches()).length === 1 ? true : null, 'the emptied tab window to close');
+  const joined = await waitFor(async () => { const now = await describe(main); return now.tabs.length === 2 && now.title?.includes('History') ? now : null; }, 'the tab to join the main window and be shown');
+  assert(joined.tabs[1].includes('History'), `The tab joined at ${JSON.stringify(joined.tabs)}; it was let go after the main window's tab.`);
+  assert(await evaluateIn(main, `document.querySelector('#tab-strip .tab-drop-marker') === null`), 'The main window kept its drop mark.');
+  const after = await dragNow(main);
+  assert(!after.following && after.pictureWidth === null, `The drag outlived the drop: ${JSON.stringify(after)}.`);
+  check(`T8 a tab window's only tab held over the main window showed a ${held.pictureWidth} × ${held.pictureHeight} picture with ${held.outlineDashes} dashes of outline along its top and a drop mark, and joined it after its tab; the tab window closed`);
+
+  // T9: Escape while a tab is held off the strip ends the drag: the picture goes and nothing moves.
+  assert((await bridge(main, 'diagnostics.tabDrag', { point: { x: 700, y: 500 } })).ok);
+  const escaping = await pullDown(main, 1);
+  await waitDrag(main, now => now.following && now.pictureShown, 'the picture of the held tab');
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, main);
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, main);
+  await waitDrag(main, now => !now.following && now.pictureWidth === null, 'Escape to take the picture away');
+  await mouse(main, 'mouseReleased', escaping.x, escaping.y, 0);
+  await sleep(500);
+  assert((await workbenches()).length === 1 && (await describe(main)).tabs.length === 2, 'Escape and then letting go moved the tab.');
+  check('T9 Escape while the tab was held off the strip took its picture away and left the tab where it stood');
+
+  // T10: pulled down into the page and let go there, over no other window of the file, the tab opens in a window of its own.
+  const into = await pullDown(main, 1);
+  await waitDrag(main, now => now.following && now.target === null, 'the drag over the page');
+  await mouse(main, 'mouseReleased', into.x, into.y, 0);
+  const ownTargets = await waitFor(async () => { const all = await workbenches(); return all.length === 2 ? all : null; }, 'the tab to open in a window of its own');
+  const own = await attach(ownTargets.find(t => t.targetId !== first.targetId).targetId);
+  await waitFor(async () => (await describe(own)).title?.includes('History'), 'History in the new tab window');
+  assert((await describe(main)).tabs.length === 1, 'The main window kept the tab it let go.');
+  assert((await bridge(main, 'diagnostics.tabDrag', { point: null })).ok);
+  check('T10 a tab pulled into the page and let go opened in a window of its own');
+  await bridge(own, 'diagnostics.closeWindow');
+  await waitFor(async () => (await workbenches()).length === 1 ? true : null, 'the T10 window to close');
 
   assert(pageErrors.length === 0, 'Unhandled renderer exception: ' + pageErrors.join(' | '));
 

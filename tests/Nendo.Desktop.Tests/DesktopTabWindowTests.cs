@@ -143,6 +143,111 @@ public sealed class DesktopTabWindowTests
         Assert.AreEqual(area, DesktopTabWindowRules.Cascaded(area, area, 1.0));
     }
 
+    [TestMethod]
+    public async Task AWindowsOnlyTabMovesOnlyWhereItIsLetGoAndTheOutcomeReachesThePage()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
+        await session.CreateAsync(workspace.FilePath);
+        var fileSession = (await session.GetViewAsync()).FileSessionId!;
+        var window = new RecordingTabWindow(isTabWindow: true);
+        var handler = new WorkbenchProtocolHandler(session, _ => { }) { TabWindowHost = window };
+        const string trail = """{"places":[{"view":"use"}],"cursor":0}""";
+
+        var moved = await handler.HandleAsync(Request(WorkbenchMethods.WindowDetachTab, new { trail, atPointer = true, last = true }, fileSession));
+        Assert.IsTrue(moved.Ok, moved.Error?.Message);
+        Assert.AreEqual(TabMoveOutcome.Moved, JsonSerializer.SerializeToElement(moved.Result).GetProperty("outcome").GetString(),
+            "The page was not told what became of its only tab.");
+        Assert.IsTrue(window.Last.Single(), "A window's only tab reached the host as one of several.");
+
+        // An only tab has nowhere to go but where it was let go: the command never moves it.
+        var beside = await handler.HandleAsync(Request(WorkbenchMethods.WindowDetachTab, new { trail, last = true }, fileSession));
+        Assert.AreEqual("validation", beside.Error?.Code);
+        Assert.HasCount(1, window.Detached);
+    }
+
+    [TestMethod]
+    public async Task ADraggedTabsPictureIsAskedForWithinItsViewportAndTheDropIsKeptOnlyWhenLetGo()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
+        var window = new RecordingTabWindow(isTabWindow: false);
+        var handler = new WorkbenchProtocolHandler(session, _ => { }) { TabWindowHost = window };
+        object Picture(double x = 120, double width = 236, double viewport = 1600, object? background = null) => new
+        {
+            box = new { x, y = 10, width, height = 38 }, grab = new { x = 40, y = 18 }, viewport = new { width = viewport, height = 900 },
+            background = background ?? new[] { 255, 255, 255 }, border = new[] { 224, 224, 224 }, radius = 8,
+        };
+
+        // Asked before the page has a file session, as the drag ends whatever the file does meanwhile.
+        var shown = await handler.HandleAsync(Request(WorkbenchMethods.WindowBeginTabDrag, Picture(), null));
+        Assert.IsTrue(shown.Ok, shown.Error?.Message);
+        Assert.AreEqual(new TabDragPicture(120, 10, 236, 38, 40, 18, 1600, 900, new(255, 255, 255), new(224, 224, 224), 8), window.Pictures.Single());
+
+        foreach (var bad in new[] { Picture(width: 0), Picture(width: 2000), Picture(viewport: 0), Picture(background: new[] { 1, 2 }), (object)new { box = 3 } })
+        {
+            var refused = await handler.HandleAsync(Request(WorkbenchMethods.WindowBeginTabDrag, bad, null));
+            Assert.AreEqual("validation", refused.Error?.Code, JsonSerializer.Serialize(bad));
+        }
+        Assert.HasCount(1, window.Pictures, "A picture was asked for a box outside its page.");
+
+        Assert.IsTrue((await handler.HandleAsync(Request(WorkbenchMethods.WindowEndTabDrag, new { dropped = true }, null))).Ok);
+        Assert.IsTrue((await handler.HandleAsync(Request(WorkbenchMethods.WindowEndTabDrag, new { }, null))).Ok);
+        CollectionAssert.AreEqual(new[] { true, false }, window.Ended, "A tab brought back to the strip kept a drop point, or one let go did not.");
+    }
+
+    [TestMethod]
+    public void ADraggedTabsPictureIsAWholeTabWithRoundedCornersOverWhatThePageDrew()
+    {
+        const int width = 20, height = 10;
+        var tab = new byte[width * height * 4];
+        // One opaque pixel of the tab's text, and one half-covered, premultiplied as the capture gives it.
+        void Put(int x, int y, byte b, byte g, byte r, byte a) { var at = (y * width + x) * 4; tab[at] = b; tab[at + 1] = g; tab[at + 2] = r; tab[at + 3] = a; }
+        Put(10, 5, 10, 20, 30, 255);
+        Put(12, 5, 0, 0, 100, 128);
+        var picture = DesktopTabWindowRules.ComposePicture(tab, width, height, new TabColour(200, 210, 220), new TabColour(1, 2, 3), 4);
+        byte[] At(int x, int y) => picture.AsSpan((y * width + x) * 4, 4).ToArray();
+
+        CollectionAssert.AreEqual(new byte[] { 0, 0, 0, 0 }, At(0, 0), "The corner was drawn square.");
+        CollectionAssert.AreEqual(new byte[] { 220, 210, 200, 255 }, At(6, 5), "Where the page drew nothing, the picture is not a tab's background.");
+        CollectionAssert.AreEqual(new byte[] { 3, 2, 1, 255 }, At(10, 0), "The tab has no border.");
+        CollectionAssert.AreEqual(new byte[] { 10, 20, 30, 255 }, At(10, 5), "The tab's own pixel was changed.");
+        // Half the page's red over the background: 100 + 200 × 127 / 255 = 199.
+        CollectionAssert.AreEqual(new byte[] { 109, 104, 199, 255 }, At(12, 5));
+        Assert.ThrowsExactly<ArgumentException>(() => DesktopTabWindowRules.ComposePicture(new byte[8], width, height, default, default, 0));
+
+        // With the leaving tab's outline, 2 px wide: dashes and gaps of 6 along the edge, over the tab, inside its corners.
+        var cobalt = new TabColour(30, 90, 200);
+        var dashed = DesktopTabWindowRules.ComposePicture(tab, width, height, new TabColour(200, 210, 220), new TabColour(1, 2, 3), 4, cobalt, 2);
+        byte[] Dash(int x, int y) => dashed.AsSpan((y * width + x) * 4, 4).ToArray();
+        CollectionAssert.AreEqual(new byte[] { 200, 90, 30, 255 }, Dash(13, 0), "The outline has no dash where one falls.");
+        CollectionAssert.AreEqual(new byte[] { 200, 90, 30, 255 }, Dash(13, 1), "The outline is not 2 px wide.");
+        CollectionAssert.AreEqual(new byte[] { 3, 2, 1, 255 }, Dash(8, 0), "The outline has no gap where one falls.");
+        CollectionAssert.AreEqual(new byte[] { 220, 210, 200, 255 }, Dash(13, 2), "The outline is wider than 2 px.");
+        CollectionAssert.AreEqual(new byte[] { 0, 0, 0, 0 }, Dash(0, 0), "The outline was drawn outside the corner.");
+        Assert.AreEqual(2, DesktopTabWindowRules.DashesAlongTop(dashed, width, cobalt), "The top edge carries the wrong number of dashes.");
+        Assert.AreEqual(0, DesktopTabWindowRules.DashesAlongTop(picture, width, cobalt), "A picture without the outline counted dashes.");
+    }
+
+    [TestMethod]
+    public void ATabsPictureIsCutAtItsBoxAndJoinsAWindowOnlyOverItsTitleBar()
+    {
+        var picture = new TabDragPicture(10, 5, 100, 36, 0, 0, 1600, 900, default, default, 0);
+        Assert.AreEqual(new RectInt32(15, 7, 150, 55), DesktopTabWindowRules.PictureBounds(picture, 1.5, 2400, 1350), "The picture was cut off the tab at 150%.");
+        Assert.AreEqual(new RectInt32(15, 7, 5, 55), DesktopTabWindowRules.PictureBounds(picture, 1.5, 20, 1350), "A box past the capture's edge was not cut to it.");
+        Assert.IsNull(DesktopTabWindowRules.PictureBounds(picture with { X = 2000 }, 1.0, 1600, 900));
+        Assert.IsNull(DesktopTabWindowRules.PictureBounds(picture, 0, 1600, 900));
+
+        // The title bar short of Windows' buttons: where the window's tabs are.
+        var client = new RectInt32(100, 50, 1600, 900);
+        var band = DesktopTabWindowRules.JoinBand(client, 72, 216);
+        Assert.AreEqual(new RectInt32(100, 50, 1384, 72), band);
+        Assert.IsTrue(DesktopTabWindowRules.Contains(band, new PointInt32(700, 80)));
+        Assert.IsFalse(DesktopTabWindowRules.Contains(band, new PointInt32(700, 122)), "A tab let go in the page joined the window.");
+        Assert.IsFalse(DesktopTabWindowRules.Contains(band, new PointInt32(1600, 80)), "A tab let go on Windows' Close joined the window.");
+        Assert.AreEqual(400.0, DesktopTabWindowRules.PageX(new PointInt32(700, 80), client, 1.5));
+    }
+
     private static string Request(string method, object payload, string? fileSessionId) => JsonSerializer.Serialize(new
     {
         protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = Guid.NewGuid().ToString("N"), method, fileSessionId, payload,
@@ -156,7 +261,28 @@ public sealed class DesktopTabWindowTests
 
         public bool IsTabWindow => isTabWindow;
 
-        public void DetachTab(string trail, bool atPointer) => Detached.Add((trail, atPointer));
+        public List<bool> Last { get; } = [];
+
+        public List<TabDragPicture> Pictures { get; } = [];
+
+        public List<bool> Ended { get; } = [];
+
+        public string DetachTab(string trail, bool atPointer, bool last)
+        {
+            Detached.Add((trail, atPointer));
+            Last.Add(last);
+            return last ? TabMoveOutcome.Moved : TabMoveOutcome.Window;
+        }
+
+        public Task BeginTabDragAsync(TabDragPicture picture)
+        {
+            Pictures.Add(picture);
+            return Task.CompletedTask;
+        }
+
+        public void EndTabDrag(bool dropped) => Ended.Add(dropped);
+
+        public TabDragDiagnostics DiagnoseTabDrag(bool setPoint, (double X, double Y)? point) => new(false, null, null, false, null, null, null, null);
 
         public void CloseWindow() { }
 

@@ -57,10 +57,11 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Opens a window of this file on <paramref name="trail"/>: let go at the pointer, the size of
-    /// this window with the pointer over its tab, or by the command, one step down and to the right.
+    /// Opens a window of this file on <paramref name="trail"/>: let go at <paramref name="pointer"/>,
+    /// the size of this window with the pointer over its tab, or by the command, one step down and
+    /// to the right.
     /// </summary>
-    internal void OpenTabWindow(DesktopSessionController session, string trail, bool atPointer)
+    private void OpenTabWindow(DesktopSessionController session, string trail, PointInt32? pointer)
     {
         // A window that fills the screen hands on the size it had before it did.
         var fills = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized } ||
@@ -69,11 +70,10 @@ public sealed partial class MainWindow
         var size = DesktopTabWindowRules.SizeToCarry(AppWindow.Size, fills,
             _windowState is { } before ? new SizeInt32(before.Width, before.Height) : null, home);
         RectInt32 bounds;
-        if (atPointer && GetCursorPos(out var cursor))
+        if (pointer is { } at)
         {
-            var pointer = new PointInt32(cursor.X, cursor.Y);
-            var area = DisplayArea.GetFromPoint(pointer, DisplayAreaFallback.Nearest).WorkArea;
-            bounds = DesktopTabWindowRules.AtPointer(size, Scale, pointer, area, DesktopWindowPolicy.ScaleOf(area));
+            var area = DisplayArea.GetFromPoint(at, DisplayAreaFallback.Nearest).WorkArea;
+            bounds = DesktopTabWindowRules.AtPointer(size, Scale, at, area, DesktopWindowPolicy.ScaleOf(area));
         }
         else
         {
@@ -133,6 +133,7 @@ public sealed partial class MainWindow
         TabWindowList.Remove(this);
         _detachFromSession?.Invoke();
         _detachFromSession = null;
+        StopTabDrag();
         try
         {
             if (RootFrame.Content is MainPage page) await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync);

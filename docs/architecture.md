@@ -479,14 +479,25 @@ Each tab is a trail of places (`workspace-tabs.ts`). The window draws from one t
 revisits its current place (`revisitCurrent` in `navigation-actions.ts`). Tabs belong to
 the window, are never written to the file, and are cleared with the file.
 
-A tab can move to a window of its own: dragged past the window's edge or more than 40
-pixels below the strip, or by *Move tab to new window*. It leaves the strip without the
-closed-tab listeners hearing it, so a launched agent keeps running. The page hands its
-trail to `window.detachTab` as an opaque string; the host opens another `MainWindow` in
-the same process (`MainWindow.TabWindows.cs`) at the pointer, with the source window's
-restored size, and a `MainPage` on the same `DesktopSessionController`, whose Workbench
-takes the trail once with `window.takeTab`. The drag listens on the window, because a
-browser sends a held mouse's moves past the edge to the document.
+A tab dragged along the strip follows the pointer and the tabs reorder (`slotFor`,
+`moveTab` in `tab-set.ts`). Dragged past the window's edge or more than 24 pixels below
+the strip, or moved by *Move tab to new window*, it leaves the strip without the
+closed-tab listeners hearing it, so a launched agent keeps running. The drag listens on
+the window, because a browser sends a held mouse's moves past the edge to the document;
+it takes no pointer capture, which the Desktop host loses part-way along the strip. It
+follows the tab by its ID across redraws, and ends with nothing moved on Escape, `blur`,
+`pointercancel` or a move with the button no longer held. Off the strip, `window.beginTabDrag` has the
+host cut the tab's picture from `CapturePreviewAsync` and show it in a click-through
+layered window (`DesktopTabDragPicture`) that a 15 ms timer moves with the cursor
+(`MainWindow.TabDrag.cs`); the timer also finds the window of the file under the pointer
+(`WindowFromPoint`, its title bar short of Windows' buttons) and sends it
+`tabDropTarget`. `window.endTabDrag` keeps the drop point and its window for the move.
+The page hands its trail to `window.detachTab` as an opaque string; the host gives it to
+the window it was let go over as `tabArrived`, or opens another `MainWindow` in the same
+process (`MainWindow.TabWindows.cs`) at the drop point, with the source window's restored
+size, and a `MainPage` on the same `DesktopSessionController`, whose Workbench takes the
+trail once with `window.takeTab`. A tab window's only tab joins the window it is let go
+over, and its window closes, or moves its window there.
 
 The first window is the main window: it alone has the tray icon, the taskbar badge,
 notifications, the Jump List and the file's saved place, and it owns and ends the

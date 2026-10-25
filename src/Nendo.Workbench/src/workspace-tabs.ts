@@ -8,7 +8,8 @@ import { fileViewById, viewIcon } from './file-view-model';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
-import { closeTabAt, dragState, ownerIndex, putTabBack, readTabTrail, switchTab, trailForNewTab, trailOfTab, type Tab, type TabSet } from './tab-set';
+import { arrivalIndex, closeTabAt, dragState, moveTab, ownerIndex, putTabBack, readTabTrail, slotFor, switchTab, trailForNewTab, trailOfTab, type Tab, type TabSet, type TabSpan } from './tab-set';
+import { windowRole } from './window-role';
 import { announce, refreshChrome, requiredElement, rerender, showError } from './shell';
 import { client } from './client';
 import { messageFor } from './format';
@@ -152,7 +153,7 @@ export function drawTabs(): void {
     const status = place === null ? null : statusOf(place);
     const said = status === null ? label : `${label}, ${status.label.toLowerCase()}`;
     const mark = status === null ? '' : `<span class="tab-status is-${escapeAttribute(status.kind)}" aria-hidden="true"></span><span class="visually-hidden">, ${escapeHtml(status.label.toLowerCase())}</span>`;
-    return `<div class="tab${selected ? ' is-active' : ''}" role="presentation" data-tab-index="${index}">
+    return `<div class="tab${selected ? ' is-active' : ''}" role="presentation" data-tab-index="${index}" data-tab-id="${tab.id}">
       <button class="tab-main" type="button" role="tab" aria-selected="${selected}" tabindex="${selected ? 0 : -1}" data-tab="${index}" title="${escapeAttribute(said)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span>${mark}</button>
       <button class="tab-close" type="button" data-close-tab="${index}" tabindex="-1" aria-hidden="true" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
     </div>`;
@@ -168,6 +169,9 @@ export function drawTabs(): void {
     else if (box.left < room.left) list.scrollLeft -= room.left - box.left;
   }
   if (refocus !== null) strip.querySelector<HTMLElement>(refocus)?.focus({ preventScroll: true });
+  // A redraw in the middle of a drag (an agent's mark, a write) draws the dragged tab afresh.
+  restyleDrag();
+  drawDropMarker();
 }
 
 /**
@@ -358,8 +362,9 @@ export function tabsCanMove(): boolean {
  * Move tab `index` to a window of its own (ADR-0002). The tab leaves this
  * window first, as a close would take it but without being closed: no listener hears it, so a
  * launched agent's conversation keeps running in the window it went to. The host then opens the
- * window on its trail, at the pointer when it was let go outside this one. A window that did not
- * open puts the tab back where it stood.
+ * window on its trail, at the pointer when it was let go outside this one, or hands it to the
+ * window of the same file whose tabs it was let go over. A window that did not open puts the tab
+ * back where it stood.
  */
 export async function moveTabToWindow(index: number, atPointer: boolean): Promise<void> {
   if (!tabsCanMove() || index < 0 || index >= set.tabs.length) return;
@@ -373,8 +378,8 @@ export async function moveTabToWindow(index: number, atPointer: boolean): Promis
   if (owned) ownerTab = null;
   refreshChrome();
   try {
-    await client.request('window.detachTab', { trail: JSON.stringify(saved), atPointer });
-    announce('The tab moved to a new window.');
+    const answer = await client.request<DetachOutcome | null>('window.detachTab', { trail: JSON.stringify(saved), atPointer });
+    announce(answer?.outcome === 'joined' ? 'The tab moved to the other window.' : 'The tab moved to a new window.');
   } catch (error) {
     putTabBack(set, index, moving, saved);
     if (owned) ownerTab = moving.id;
@@ -404,52 +409,341 @@ export async function adoptTab(text: string): Promise<void> {
   refreshChrome();
 }
 
+/** What the host did with a tab let go: opened a window, gave it to another, or moved this one. */
+interface DetachOutcome { outcome?: 'window' | 'joined' | 'moved' }
+
 /**
- * A tab dragged out of the strip, past the window's edge or pulled down into the page, and let go
- * moves to a window of its own, where it was let go. The browser keeps sending a held mouse's moves and its release to the page after
- * the pointer leaves the window, aimed at the document rather than the strip, so the drag listens
- * on the window from the press until the release. A drag let go inside the window, or a press that
- * never moved, is the click it always was.
+ * A tab window's only tab, let go outside it: over another window's tabs it joins that window,
+ * and this one, left with nothing to show, closes; anywhere else this window goes there, as a
+ * window dragged by its tab does. The host does both, so the tab never leaves this strip first.
  */
-let drag: { index: number; pointerId: number; startX: number; startY: number; stripBottom: number; tab: HTMLElement; out: boolean } | null = null;
+async function moveLastTab(): Promise<void> {
+  if (windowRole() !== 'tab' || set.tabs.length !== 1 || !tabsShown()) return;
+  if (deferWhileBusy(() => { void moveLastTab(); })) return;
+  if (refuseWhileDirty('moving the tab')) return;
+  const saved = navigationTrail.inspect();
+  if (saved.cursor < 0 || saved.places.length === 0) return;
+  try {
+    const answer = await client.request<DetachOutcome | null>('window.detachTab', { trail: JSON.stringify(saved), atPointer: true, last: true });
+    if (answer?.outcome === 'moved') announce('The window moved.');
+  } catch (error) {
+    showError(messageFor(error));
+  }
+}
+
+/**
+ * A tab moved here from another window of this file, let go over this strip at `x` (the page's
+ * pixels from its left edge; null when the strip could not be told). It stands where it was let
+ * go and is shown, as a tab opened there would be. A conversation this window already shows in a
+ * tab of its own is not shown twice: the tab arrives on the place before it, or the conversation's
+ * own tab is shown instead.
+ */
+export async function receiveTab(text: string, x: number | null): Promise<void> {
+  dropAt = null;
+  drawDropMarker();
+  let saved = readTabTrail(text);
+  if (saved === null || state.session.fileName === null) return;
+  const owner = ownerIndex(set, ownerTab);
+  const current = saved.places[saved.cursor];
+  if (owner >= 0 && current !== undefined && oneOfAKind(current)) {
+    const kept = trailForNewTab(saved, oneOfAKind);
+    if (kept.cursor < 0) { await activateTab(owner); announce('The conversation is already open here.'); return; }
+    saved = kept;
+  }
+  const at = arrivalIndex(tabsShown() ? tabSpans() : [], tabsShown() ? x : null, set.active);
+  const arriving: Tab = { id: nextId++, saved: null };
+  putTabBack(set, at, arriving, saved);
+  refreshChrome();
+  // Shown at once, unless the page here holds unsaved typing or an action is running: then it
+  // waits beside the others, where it was let go, until the person goes to it.
+  const index = set.tabs.findIndex((tab) => tab.id === arriving.id);
+  if (index >= 0) await activateTab(index);
+  announce('A tab moved here from another window.');
+}
+
+/** Where a tab from another window would land in this strip, while one is held over it. */
+let dropAt: number | null = null;
+
+/** The host says a tab held over this window's strip would land at `x`, or that none is held. */
+export function showTabDropTarget(x: number | null): void {
+  dropAt = x;
+  drawDropMarker();
+}
+
+function drawDropMarker(): void {
+  strip.querySelector('.tab-drop-marker')?.remove();
+  strip.classList.toggle('is-drop-target', dropAt !== null);
+  if (dropAt === null || strip.hidden) return;
+  const spans = tabSpans();
+  const at = arrivalIndex(spans, dropAt, set.active);
+  const room = strip.getBoundingClientRect();
+  const edge = spans.length === 0 ? room.left + 8 : at < spans.length ? spans[at]!.left - 2 : spans[spans.length - 1]!.left + spans[spans.length - 1]!.width + 2;
+  const marker = document.createElement('span');
+  marker.className = 'tab-drop-marker';
+  marker.setAttribute('aria-hidden', 'true');
+  marker.style.left = `${Math.round(edge - room.left - 1)}px`;
+  strip.append(marker);
+}
+
+/** The tabs as drawn, left to right, where they stand in the strip without a drag's offset. */
+function tabElements(): HTMLElement[] {
+  return [...strip.querySelectorAll<HTMLElement>('.tab[data-tab-id]')];
+}
+
+function tabSpans(): TabSpan[] {
+  const list = strip.querySelector<HTMLElement>('.tab-list');
+  const left = strip.getBoundingClientRect().left - (list?.scrollLeft ?? 0);
+  // offsetLeft is the tab's place in the strip and ignores the transform a dragged tab carries.
+  return tabElements().map((tab) => ({ left: left + tab.offsetLeft, width: tab.offsetWidth }));
+}
+
+/** Whether a tab can be dragged along the strip to stand somewhere else. */
+function tabsCanReorder(): boolean {
+  return state.session.fileName !== null && set.tabs.length > 1 && tabsShown();
+}
+
+/** Whether a tab can be dragged off the strip: to a window of its own, or a tab window's last one away. */
+function tabsCanTearOff(): boolean {
+  return client.mode === 'desktop' && state.session.fileName !== null && tabsShown() && (set.tabs.length > 1 || windowRole() === 'tab');
+}
+
+/**
+ * A tab being dragged (ADR-0002), as every tabbed Windows app drags one. Along the strip it
+ * follows the pointer and the others make room. Pulled off the strip, past the window's edge or
+ * down into the page, it leaves: the host shows a picture of it under the pointer, inside the
+ * window and outside it, and letting go opens it in a window there, or gives it to the window of
+ * this file whose tabs it is let go over. Escape, the window losing focus, the pointer cancelled,
+ * or a move with the button no longer held (its release went elsewhere) ends the drag with every
+ * tab where it stood. A press that never moved is the click it always was.
+ *
+ * The browser keeps sending a held mouse's moves and its release to the page after the pointer
+ * leaves the window, aimed at the document rather than the strip, so the drag listens on the
+ * window from the press until the release. It does not take the pointer with setPointerCapture:
+ * in the Desktop host the capture is lost part-way along the strip, and nothing it gives is
+ * missing without it. The drag follows the tab by its ID, since a redraw while it runs makes the
+ * strip afresh and an agent's tab opened meanwhile moves the others along.
+ */
+interface TabDrag {
+  tabId: number;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  /** Where in the tab it was pressed, so the tab keeps its place under the pointer. */
+  grabX: number;
+  grabY: number;
+  stripBottom: number;
+  /** Where the tab stood when pressed, for a drag that ends with nothing moved. */
+  from: number;
+  phase: 'press' | 'strip' | 'out';
+  /** The tab's offset from its place in the strip while it follows the pointer along it. */
+  offset: number;
+  /** The host was asked to show the tab's picture under the pointer. */
+  picture: boolean;
+}
+
+let drag: TabDrag | null = null;
 
 strip.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0 || drag !== null || !tabsCanMove()) return;
+  if (event.button !== 0) return;
+  // A drag whose release never came (the pointer taken by the system) ends here rather than
+  // leaving every later press ignored.
+  if (drag !== null) cancelDrag();
+  if (!tabsCanReorder() && !tabsCanTearOff()) return;
   const main = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tab]') : null;
-  const tab = main?.closest<HTMLElement>('[data-tab-index]');
+  const tab = main?.closest<HTMLElement>('[data-tab-id]');
   if (!main || !tab) return;
-  drag = { index: Number(main.dataset.tab), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-    stripBottom: strip.getBoundingClientRect().bottom, tab, out: false };
+  const box = tab.getBoundingClientRect();
+  drag = { tabId: Number(tab.dataset.tabId), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+    grabX: event.clientX - box.left, grabY: event.clientY - box.top, stripBottom: strip.getBoundingClientRect().bottom,
+    from: set.tabs.findIndex((candidate) => candidate.id === Number(tab.dataset.tabId)), phase: 'press', offset: 0, picture: false };
   window.addEventListener('pointermove', moveDrag, true);
   window.addEventListener('pointerup', releaseDrag, true);
-  window.addEventListener('pointercancel', cancelDrag, true);
+  window.addEventListener('pointercancel', abandonDrag, true);
+  window.addEventListener('keydown', escapeDrag, true);
+  window.addEventListener('blur', abandonDrag);
 });
+
+function draggedIndex(): number {
+  return drag === null ? -1 : set.tabs.findIndex((tab) => tab.id === drag!.tabId);
+}
 
 function moveDrag(event: PointerEvent): void {
   if (drag === null || event.pointerId !== drag.pointerId) return;
-  const where = dragState(drag.startX, drag.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight, drag.stripBottom);
-  if (where === 'press') return;
-  drag.tab.classList.add('is-dragging');
-  drag.out = where === 'out';
-  drag.tab.classList.toggle('is-leaving', drag.out);
+  // The button is no longer held: its release reached something else (another window took the
+  // pointer), so the drag ends here rather than following a pointer nobody is holding.
+  if (event.type === 'pointermove' && (event.buttons & 1) === 0) { cancelDrag(); return; }
+  let where = dragState(drag.startX, drag.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight, drag.stripBottom);
+  if (where === 'press' && drag.phase === 'press') return;
+  if (drag.phase === 'press') {
+    strip.classList.add('is-tab-dragging');
+    document.documentElement.dataset.tabDrag = '';
+  }
+  if (where === 'out' && !tabsCanTearOff()) where = 'inside';
+  if (where === 'out') {
+    if (drag.phase !== 'out') {
+      drag.phase = 'out';
+      drag.offset = 0;
+      restyleDrag();
+      void showPicture(drag);
+    }
+    return;
+  }
+  if (drag.phase === 'out') endPicture(drag, false);
+  drag.phase = 'strip';
+  followAlongStrip(event.clientX);
 }
 
-function endDrag(event: PointerEvent, cancelled: boolean): void {
-  if (drag === null || event.pointerId !== drag.pointerId) return;
+/** The dragged tab under the pointer along the strip, the others making room as it passes their middle. */
+function followAlongStrip(x: number): void {
+  if (drag === null) return;
+  let index = draggedIndex();
+  if (index < 0) { cancelDrag(); return; }
+  const left = x - drag.grabX;
+  if (tabsCanReorder()) {
+    const slot = slotFor(tabSpans(), index, left);
+    if (moveTab(set, index, slot)) { index = slot; drawTabs(); }
+  }
+  const spans = tabSpans();
+  const own = spans[index];
+  if (own === undefined) return;
+  // Kept within the strip's tabs, as a tab cannot be dragged past the first or the last.
+  const first = spans[0]!.left;
+  const last = spans[spans.length - 1]!;
+  drag.offset = Math.max(first, Math.min(left, last.left + last.width - own.width)) - own.left;
+  restyleDrag();
+}
+
+/** The dragged tab drawn for where the drag has got to, on whichever element the strip now holds for it. */
+function restyleDrag(): void {
+  for (const tab of strip.querySelectorAll<HTMLElement>('.tab.is-dragging, .tab.is-leaving')) {
+    tab.classList.remove('is-dragging', 'is-leaving');
+    tab.style.transform = '';
+  }
+  if (drag === null || drag.phase === 'press') return;
+  const tab = strip.querySelector<HTMLElement>(`.tab[data-tab-id="${drag.tabId}"]`);
+  // The tab closed while it was dragged: the drag ends, after the redraw that lost it.
+  if (tab === null) { queueMicrotask(() => { if (drag !== null && draggedIndex() < 0) cancelDrag(); }); return; }
+  tab.classList.add('is-dragging');
+  if (drag.phase === 'out' && drag.picture) tab.classList.add('is-leaving');
+  tab.style.transform = drag.phase === 'strip' && drag.offset !== 0 ? `translateX(${Math.round(drag.offset)}px)` : '';
+}
+
+/**
+ * Ask the host for the tab's picture under the pointer. The host takes it from what the page last
+ * drew, so the tab is put back in its place first and drawn as it is, and dimmed in the strip only
+ * once the picture is taken.
+ */
+async function showPicture(held: TabDrag): Promise<void> {
+  if (client.mode !== 'desktop') return;
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  if (drag !== held || held.phase !== 'out') return;
+  const tab = strip.querySelector<HTMLElement>(`.tab[data-tab-id="${held.tabId}"]`);
+  if (tab === null) return;
+  const box = tab.getBoundingClientRect();
+  const look = getComputedStyle(strip.querySelector<HTMLElement>('.tab.is-active') ?? tab);
+  // The dashed outline the strip draws on a leaving tab, read from that rule, so the picture under
+  // the pointer carries the same one.
+  const probe = document.createElement('div');
+  probe.className = 'tab is-leaving';
+  probe.hidden = true;
+  strip.append(probe);
+  const leaving = getComputedStyle(probe);
+  const outline = { outline: rgb(leaving.outlineColor), outlineWidth: leaving.outlineStyle === 'none' ? 0 : Number.parseFloat(leaving.outlineWidth) || 0 };
+  probe.remove();
+  held.picture = true;
+  try {
+    await client.request('window.beginTabDrag', {
+      box: { x: box.left, y: box.top, width: box.width, height: box.height },
+      grab: { x: held.grabX, y: held.grabY },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      background: rgb(look.backgroundColor), border: rgb(look.borderTopColor),
+      radius: Number.parseFloat(look.borderTopLeftRadius) || 0,
+      ...outline,
+    });
+  } catch {
+    // No picture: the drag still ends where it is let go.
+  }
+  restyleDrag();
+}
+
+/** A computed colour as its red, green and blue, for the host to draw the tab's picture on. */
+function rgb(colour: string): [number, number, number] {
+  const [r = 0, g = 0, b = 0] = (colour.match(/\d+(\.\d+)?/g) ?? []).map(Number);
+  return [r, g, b];
+}
+
+/**
+ * The tab came back to the strip, or the drag ended: the picture goes. Let go off the strip, the
+ * host keeps where the pointer was let go and over which window, for the move that follows, which
+ * may wait on a running action and must not open where the pointer has gone since.
+ */
+function endPicture(held: TabDrag, dropped: boolean): Promise<unknown> {
+  held.picture = false;
+  if (client.mode !== 'desktop') return Promise.resolve();
+  return client.request('window.endTabDrag', { dropped }).catch(() => undefined);
+}
+
+function endListening(): TabDrag | null {
   const ended = drag;
   drag = null;
   window.removeEventListener('pointermove', moveDrag, true);
   window.removeEventListener('pointerup', releaseDrag, true);
-  window.removeEventListener('pointercancel', cancelDrag, true);
-  ended.tab.classList.remove('is-dragging', 'is-leaving');
-  // Where it was let go, not where it was last seen moving: a quick flick ends past the edge.
-  const out = !cancelled && dragState(ended.startX, ended.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight, ended.stripBottom) === 'out';
-  if (!out) return;
-  swallowClick = true;
-  // The click a release makes comes straight after it, or not at all when the release was off the tab.
-  window.setTimeout(() => { swallowClick = false; }, 0);
-  void moveTabToWindow(ended.index, true);
+  window.removeEventListener('pointercancel', abandonDrag, true);
+  window.removeEventListener('keydown', escapeDrag, true);
+  window.removeEventListener('blur', abandonDrag);
+  strip.classList.remove('is-tab-dragging');
+  delete document.documentElement.dataset.tabDrag;
+  restyleDrag();
+  return ended;
 }
 
-function releaseDrag(event: PointerEvent): void { endDrag(event, false); }
-function cancelDrag(event: PointerEvent): void { endDrag(event, true); }
+/** The click a release makes comes straight after it, or not at all when the release was off the tab. */
+function swallowReleaseClick(): void {
+  swallowClick = true;
+  window.setTimeout(() => { swallowClick = false; }, 0);
+}
+
+function releaseDrag(event: PointerEvent): void {
+  if (drag === null || event.pointerId !== drag.pointerId) return;
+  // Where it was let go, not where it was last seen moving: a quick flick ends past the edge.
+  if (drag.phase !== 'press') moveDrag(event);
+  const ended = endListening();
+  if (ended !== null && ended.phase !== 'press') swallowReleaseClick();
+  if (ended === null || ended.phase !== 'out') return;
+  void (async () => {
+    await endPicture(ended, true);
+    const index = set.tabs.findIndex((tab) => tab.id === ended.tabId);
+    if (index < 0) return;
+    if (set.tabs.length === 1) await moveLastTab();
+    else await moveTabToWindow(index, true);
+  })();
+}
+
+/** End the drag with nothing moved: the tab back where it stood, and its picture gone. */
+function cancelDrag(): void {
+  const ended = endListening();
+  if (ended === null) return;
+  if (ended.phase === 'out') void endPicture(ended, false);
+  const index = set.tabs.findIndex((tab) => tab.id === ended.tabId);
+  if (index >= 0 && ended.from >= 0 && moveTab(set, index, ended.from)) drawTabs();
+}
+
+function abandonDrag(event: Event): void {
+  if (drag === null) return;
+  if (event instanceof PointerEvent && event.pointerId !== drag.pointerId) return;
+  cancelDrag();
+}
+
+function escapeDrag(event: KeyboardEvent): void {
+  if (drag === null || event.key !== 'Escape') return;
+  // Only a drag under way: the Escape of a press that has not moved is the page's.
+  if (drag.phase === 'press') return;
+  event.preventDefault();
+  event.stopPropagation();
+  cancelDrag();
+}
+
+// Another window of this file hands this one a tab let go over its strip, and says where one held
+// over it would land.
+client.onTabArrived?.((arrival) => { void receiveTab(arrival.trail, arrival.x); });
+client.onTabDropTarget?.((x) => { showTabDropTarget(x); });

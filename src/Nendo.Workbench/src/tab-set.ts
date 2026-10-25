@@ -99,6 +99,54 @@ export function putTabBack(set: TabSet, index: number, tab: Tab, saved: SavedTra
   if (at <= set.active) set.active += 1;
 }
 
+/**
+ * Move tab `from` to stand at `to` among the others, as a tab dragged along the strip does. The
+ * tab on screen stays on screen, wherever it now stands. False when nothing moved.
+ */
+export function moveTab(set: TabSet, from: number, to: number): boolean {
+  if (from < 0 || from >= set.tabs.length) return false;
+  const at = Math.max(0, Math.min(to, set.tabs.length - 1));
+  if (at === from) return false;
+  const shown = set.tabs[set.active];
+  const [tab] = set.tabs.splice(from, 1);
+  set.tabs.splice(at, 0, tab!);
+  set.active = set.tabs.indexOf(shown!);
+  return true;
+}
+
+/** A tab's place along the strip, in the page's pixels. */
+export interface TabSpan { left: number; width: number }
+
+/**
+ * Where a tab dragged along the strip stands, with its left edge at `left` and the others at
+ * `spans` (the dragged tab's own span included, at `from`): past the middle of a neighbour, it
+ * takes that neighbour's place, as in every tabbed Windows app.
+ */
+export function slotFor(spans: TabSpan[], from: number, left: number): number {
+  const width = spans[from]?.width ?? 0;
+  let slot = from;
+  for (let at = from + 1; at < spans.length; at += 1) {
+    const other = spans[at]!;
+    if (left + width > other.left + other.width / 2) slot = at; else break;
+  }
+  if (slot !== from) return slot;
+  for (let at = from - 1; at >= 0; at -= 1) {
+    const other = spans[at]!;
+    if (left < other.left + other.width / 2) slot = at; else break;
+  }
+  return slot;
+}
+
+/**
+ * Where a tab let go at `x` over this window's strip from another window goes: before the first
+ * tab whose middle is past `x`, or after the last. With no strip to measure, after the tab on screen.
+ */
+export function arrivalIndex(spans: TabSpan[], x: number | null, active: number): number {
+  if (x === null || spans.length === 0) return Math.max(0, active + 1);
+  const before = spans.findIndex((span) => x < span.left + span.width / 2);
+  return before < 0 ? spans.length : before;
+}
+
 /** A trail handed to this window by the host, read back from its text; null for anything else. */
 export function readTabTrail(text: string): SavedTrail | null {
   let value: unknown;
@@ -117,8 +165,11 @@ export const dragThreshold = 6;
 /** How far past the window's edge a tab must be let go to leave it, in the page's pixels. */
 export const leaveMargin = 8;
 
-/** How far below the tab strip a tab must be pulled to leave, in the page's pixels. */
-export const pullDistance = 40;
+/**
+ * How far below the tab strip a tab must be pulled to leave, in the page's pixels: about half a
+ * tab, so a tab dragged along the strip with a wobble stays in it, and one pulled off it goes.
+ */
+export const pullDistance = 24;
 
 /**
  * Where a tab dragged from (`startX`, `startY`) to (`x`, `y`) stands: still a press, a drag along

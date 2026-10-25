@@ -977,6 +977,13 @@ export interface WorkbenchClient {
   onAgentActivity?(listener: (activity: AgentWork) => void): () => void;
   /** Listen for the window's title bar changing shape: a new display scale, so new sizes. */
   onTitleBarChanged?(listener: (bar: WindowTitleBar) => void): () => void;
+  /**
+   * A tab of another window of this file was let go over this window's strip (ADR-0002): its
+   * trail, as that window sent it, and where it was let go in this page's pixels from the left.
+   */
+  onTabArrived?(listener: (arrival: TabArrival) => void): () => void;
+  /** A tab held over this window's strip from another window would land at `x`, or none is held (null). */
+  onTabDropTarget?(listener: (x: number | null) => void): () => void;
   /** A file a view downloaded is saved; WebView2's own downloads panel is never shown. */
   onDownloadSaved?(listener: (saved: HostDownloadSaved) => void): () => void;
   /**
@@ -1057,3 +1064,6 @@ export function isObject(value: unknown): value is Record<string, unknown> {
 
 /** Which window of the file a page is in, and the trail of the tab a tab window was opened for. */
 export interface TabWindowStart { role: 'main' | 'tab'; trail: string | null }
+
+/** A tab handed over from another window of the file: its trail and where it was let go. */
+export interface TabArrival { trail: string; x: number | null }

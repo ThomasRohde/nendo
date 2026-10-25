@@ -606,6 +606,137 @@ async page => {
       `the tab list exposes ${JSON.stringify(roles)}; it should hold only tabs, one of them a Tab stop.`);
   });
 
+  // A tab dragged with the mouse (ADR-0002). The preview has no window to tear a tab off into,
+  // so these measure the drag along the strip and the ways a drag ends; the journey measures the
+  // host's picture and a tab joining another window.
+  const tabOrder = () => page.evaluate(() => [...document.querySelectorAll('#tab-strip .tab[data-tab-id]')].map(tab => Number(tab.dataset.tabId)));
+  const tabBox = id => page.evaluate(id => { const box = document.querySelector(`#tab-strip .tab[data-tab-id="${id}"]`)?.getBoundingClientRect();
+    return box ? { left: box.left, top: box.top, width: box.width, height: box.height } : null; }, id);
+  const activeTab = () => page.evaluate(() => Number(document.querySelector('#tab-strip .tab.is-active')?.dataset.tabId));
+  const dragStyle = id => page.evaluate(id => { const tab = document.querySelector(`#tab-strip .tab[data-tab-id="${id}"]`);
+    return { dragging: tab?.classList.contains('is-dragging') ?? null, transform: tab?.style.transform ?? null,
+      strip: document.querySelector('#tab-strip').classList.contains('is-tab-dragging'), left: tab?.getBoundingClientRect().left ?? null }; }, id);
+  const threeTabs = async () => {
+    await page.click('#tab-new');
+    await page.click('#tab-new');
+    await until(() => document.querySelectorAll('#tab-strip .tab[data-tab-id]').length === 3, null, 'three tabs');
+    return tabOrder();
+  };
+  /** Press the tab's middle and move by (dx, dy) in steps, the button held. */
+  const pressAndMove = async (id, dx, dy = 0) => {
+    const box = await tabBox(id);
+    const x = box.left + box.width / 2, y = box.top + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y + dy, { steps: 12 });
+    return { x, y };
+  };
+  const settled = async (order) => {
+    const style = await dragStyle(order[0]);
+    const left = await page.evaluate(() => document.querySelectorAll('#tab-strip .tab.is-dragging, #tab-strip .tab.is-leaving').length);
+    assert(!style.strip && left === 0, `a drag that ended left its marks: ${JSON.stringify(style)}, ${left} tab(s) still marked.`);
+  };
+
+  await check('tab drag follows the pointer and reorders', 'decision', async () => {
+    const [first, second, third] = await threeTabs();
+    const shown = await activeTab();
+    const start = await tabBox(first);
+    const press = await pressAndMove(first, 70);
+    const held = await dragStyle(first);
+    // The tab's left edge stays where the press put it under the pointer, give or take a pixel.
+    assert(held.dragging && held.strip && Math.abs(held.left - (start.left + 70)) <= 2,
+      `dragged 70 px, the tab is at ${JSON.stringify(held)}, not under the pointer at ${start.left + 70}.`);
+    const box3 = await tabBox(third);
+    await page.mouse.move(box3.left + box3.width - 4, press.y, { steps: 12 });
+    const order = await tabOrder();
+    assert(JSON.stringify(order) === JSON.stringify([second, third, first]), `dragged past the last tab's middle, the tabs are ${JSON.stringify(order)}, not ${JSON.stringify([second, third, first])}.`);
+    await page.mouse.up();
+    await page.waitForTimeout(100);
+    assert(JSON.stringify(await tabOrder()) === JSON.stringify([second, third, first]), 'letting go put the tabs back.');
+    assert(await activeTab() === shown, `letting go of a dragged tab pressed it: tab ${await activeTab()} is on screen, not ${shown}.`);
+    await settled([first]);
+    // Pulled far below the strip in the browser, where there is no window to tear it off into, it stays a tab here.
+    await pressAndMove(second, 0, 300);
+    await page.mouse.up();
+    assert((await tabOrder()).length === 3, 'a tab pulled off the strip in the browser preview was lost.');
+    await settled([second]);
+  });
+
+  await check('tab drag survives a redraw', 'decision', async () => {
+    const [first, second, third] = await threeTabs();
+    const press = await pressAndMove(first, 30);
+    // An agent's mark or a write redraws the strip while the tab is held, and a tab opens beside the one on screen.
+    await page.evaluate(async () => { const tabs = await import('/src/workspace-tabs.ts'); tabs.drawTabs(); });
+    const redrawn = await dragStyle(first);
+    assert(redrawn.dragging && redrawn.transform.startsWith('translateX('), `after a redraw the held tab is drawn ${JSON.stringify(redrawn)}.`);
+    const box2 = await tabBox(second);
+    await page.mouse.move(box2.left + box2.width - 4, press.y, { steps: 10 });
+    const order = await tabOrder();
+    assert(order.indexOf(first) === 1 && order.indexOf(second) === 0, `after a redraw the drag moved ${JSON.stringify(order)}; tab ${first} should be second.`);
+    await page.mouse.up();
+    await settled([first]);
+    void third;
+  });
+
+  await check('Escape and a lost pointer end a tab drag', 'decision', async () => {
+    const before = await threeTabs();
+    const shown = await activeTab();
+    const box3 = await tabBox(before[2]);
+    const start = await tabBox(before[0]);
+    await pressAndMove(before[0], box3.left + box3.width - 4 - (start.left + start.width / 2));
+    assert(JSON.stringify(await tabOrder()) !== JSON.stringify(before), 'the drag moved nothing; Escape measures nothing.');
+    await page.keyboard.press('Escape');
+    assert(JSON.stringify(await tabOrder()) === JSON.stringify(before), `Escape left the tabs at ${JSON.stringify(await tabOrder())}, not ${JSON.stringify(before)}.`);
+    await page.mouse.up();
+    assert(await activeTab() === shown, 'the release after Escape pressed the tab.');
+    await settled(before);
+    // The release goes elsewhere, so the next move comes with no button held; then the window loses
+    // the focus: each ends the drag.
+    await page.evaluate(() => window.addEventListener('pointerdown', event => { window.__pointerId = event.pointerId; }, true));
+    for (const lose of ['release', 'blur']) {
+      await pressAndMove(before[0], 60);
+      await page.evaluate(lose => {
+        if (lose === 'blur') window.dispatchEvent(new Event('blur'));
+        else document.querySelector('#tab-strip').dispatchEvent(new PointerEvent('pointermove', { pointerId: window.__pointerId, pointerType: 'mouse',
+          isPrimary: true, buttons: 0, clientX: 400, clientY: 20, bubbles: true }));
+      }, lose);
+      await page.waitForTimeout(50);
+      const style = await dragStyle(before[0]);
+      assert(!style.dragging && !style.strip, `after the ${lose === 'blur' ? 'window lost the focus' : 'release went elsewhere'} the tab was still dragged: ${JSON.stringify(style)}.`);
+      // Let go in the page, as the release that went elsewhere or after the focus came back would.
+      await page.mouse.move(700, 600);
+      await page.mouse.up();
+      assert(JSON.stringify(await tabOrder()) === JSON.stringify(before), `a ${lose} moved the tabs to ${JSON.stringify(await tabOrder())}.`);
+    }
+    // And the next press drags again.
+    await pressAndMove(before[0], box3.left + box3.width - 4 - (start.left + start.width / 2));
+    await page.mouse.up();
+    assert((await tabOrder())[2] === before[0], `after a drag that was ended, the next one did not drag: ${JSON.stringify(await tabOrder())}.`);
+  });
+
+  await check('a tab from another window lands where it is let go', 'decision', async () => {
+    const order = await page.evaluate(async () => { document.querySelector('#tab-new').click(); return [...document.querySelectorAll('#tab-strip .tab[data-tab-id]')].map(tab => Number(tab.dataset.tabId)); });
+    const box1 = await tabBox(order[1]);
+    const at = box1.left + 10;
+    await page.evaluate(async x => (await import('/src/workspace-tabs.ts')).showTabDropTarget(x), at);
+    const marker = await page.evaluate(() => { const mark = document.querySelector('#tab-strip .tab-drop-marker')?.getBoundingClientRect();
+      return { left: mark?.left ?? null, target: document.querySelector('#tab-strip').classList.contains('is-drop-target') }; });
+    assert(marker.target && marker.left !== null && Math.abs(marker.left - (box1.left - 3)) <= 3,
+      `held over tab 2's left half, the strip marks ${JSON.stringify(marker)}, not the edge at ${box1.left}.`);
+    const before = await page.evaluate(() => document.querySelector('#workspace-title')?.textContent?.trim());
+    await page.evaluate(async x => {
+      const { navigationTrail } = await import('/src/navigation-trail.ts');
+      await (await import('/src/workspace-tabs.ts')).receiveTab(JSON.stringify(navigationTrail.inspect()), x);
+    }, at);
+    const after = await tabOrder();
+    const arrived = after.find(id => !order.includes(id));
+    assert(after.length === 3 && after.indexOf(arrived) === 1 && await activeTab() === arrived,
+      `the tab let go over tab 2's left half stands at ${after.indexOf(arrived)} of ${JSON.stringify(after)}, and tab ${await activeTab()} is on screen.`);
+    assert(await page.evaluate(() => document.querySelector('#tab-strip .tab-drop-marker') === null && !document.querySelector('#tab-strip').classList.contains('is-drop-target')),
+      'the strip kept its drop mark after the tab arrived.');
+    assert(await page.evaluate(() => document.querySelector('#workspace-title')?.textContent?.trim()) === before, 'the arrived tab does not show its place.');
+  });
+
   // In a narrow window the File menu opens whole, not clipped to the top bar.
   await check('narrow File menu', 'decision', async () => {
     await page.click('#file-menu > summary');

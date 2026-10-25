@@ -328,7 +328,9 @@ public sealed class DesktopExtensionViewJourneyTests
     /// <summary>
     /// A tab moved to a window of its own in a real host, on the same file session, refusing
     /// the file actions that switch the file, hearing the other window's writes and theme, and
-    /// closing with its file. tools/Review-TabWindows.mjs holds the measurements (T1–T6).
+    /// closing with its file, and a tab dragged: its picture under the pointer, joining another
+    /// window, Escape, and a window where it is let go. tools/Review-TabWindows.mjs holds the
+    /// measurements (T1–T10).
     /// </summary>
     [TestMethod]
     [TestCategory("ExtensionRuntime")]

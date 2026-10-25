@@ -1,4 +1,4 @@
-import { type AgentWork, type DesktopFileActionView, type DesktopSessionView, type HostDownloadSaved, type WindowTitleBar } from './host-types';
+import { type AgentWork, type DesktopFileActionView, type DesktopSessionView, type HostDownloadSaved, type TabArrival, type WindowTitleBar } from './host-types';
 import { protocolVersion } from './host';
 import { PendingMutationJournal, isJournaledMutation, madeElsewhere, type PendingMutation } from './pending-mutations';
 import { readTitleBar } from './title-bar-model';
@@ -14,7 +14,8 @@ const frameNamePattern = /^nendo-view-[0-9a-f]{12}$/;
  * Requests about the device and the window rather than the open file: they carry no file
  * session, and their answers are not checked against one.
  */
-const independentMethods = new Set(['appearance.set', 'appearance.get', 'session.getRecentFiles', 'window.setTitleBarControls', 'window.takeTab']);
+const independentMethods = new Set(['appearance.set', 'appearance.get', 'session.getRecentFiles', 'window.setTitleBarControls', 'window.takeTab',
+  'window.beginTabDrag', 'window.endTabDrag']);
 
 /**
  * The real client, and the one that fails closed.
@@ -113,6 +114,8 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
   private readonly downloadSavedListeners = new Set<(saved: HostDownloadSaved) => void>();
   private readonly titleBarListeners = new Set<(bar: WindowTitleBar) => void>();
+  private readonly tabArrivedListeners = new Set<(arrival: TabArrival) => void>();
+  private readonly tabDropTargetListeners = new Set<(x: number | null) => void>();
   private readonly agentSessionListeners = new Set<(revision: number) => void>();
   private readonly appearanceListeners = new Set<(preference: string) => void>();
   private readonly journal = new PendingMutationJournal({
@@ -346,6 +349,16 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.titleBarListeners.delete(listener); };
   }
 
+  onTabArrived(listener: (arrival: TabArrival) => void): () => void {
+    this.tabArrivedListeners.add(listener);
+    return () => { this.tabArrivedListeners.delete(listener); };
+  }
+
+  onTabDropTarget(listener: (x: number | null) => void): () => void {
+    this.tabDropTargetListeners.add(listener);
+    return () => { this.tabDropTargetListeners.delete(listener); };
+  }
+
   private receiveHostEvent(message: HostEvent): void {
     if (message.protocolVersion !== protocolVersion) {
       return;
@@ -400,6 +413,24 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
         } catch {
           // Nothing here can report a failure the person would act on.
         }
+      }
+      return;
+    }
+    if (message.event === 'tabArrived') {
+      // A trail is read by the tabs, which refuse anything that is not one; bounded here as at the host.
+      const arrival = message.payload as { trail?: unknown; x?: unknown } | null;
+      if (!arrival || typeof arrival.trail !== 'string' || arrival.trail.length === 0 || arrival.trail.length > 200_000) return;
+      const x = typeof arrival.x === 'number' && Number.isFinite(arrival.x) ? arrival.x : null;
+      for (const listener of this.tabArrivedListeners) {
+        try { listener({ trail: arrival.trail, x }); } catch { /* Another listener must still hear it. */ }
+      }
+      return;
+    }
+    if (message.event === 'tabDropTarget') {
+      const x = (message.payload as { x?: unknown } | null)?.x;
+      const at = typeof x === 'number' && Number.isFinite(x) ? x : null;
+      for (const listener of this.tabDropTargetListeners) {
+        try { listener(at); } catch { /* Another listener must still hear it. */ }
       }
       return;
     }

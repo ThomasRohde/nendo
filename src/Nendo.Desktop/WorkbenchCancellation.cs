@@ -132,6 +132,9 @@ internal static partial class WorkbenchMethods
         // A tab window: opening a window, reading the page's own window, closing one.
         WindowDetachTab,
         WindowTakeTab,
+        WindowBeginTabDrag,
+        WindowEndTabDrag,
+        DiagnosticsTabDrag,
         DiagnosticsCloseWindow,
         DiagnosticsExit,
         SessionCreateFile,

@@ -80,9 +80,20 @@ renderer may receive storage or generic privileged calls.
   (`window\tray.json`), defaulting to the notification area; `NENDO_DESKTOP_CLOSE_ACTION` (`tray` or
   `exit`) pins it.
 - One process holds one file; a second file is a second process.
-- A tab dragged out of the tab strip and dropped outside the window, or pulled down
-  into the page, opens in a new window of the same process at the drop point, with
-  the source window's size. It shares the file's `DesktopSessionController` (Engine,
+- A tab is dragged as in every tabbed Windows app. Along the strip it follows the
+  pointer and the tabs reorder. Pulled off the strip, past the window's edge or more
+  than 24 pixels down into the page, it leaves, and the host shows a picture of it
+  under the pointer: a click-through layered window cut from what the page drew, with
+  the dashed outline the strip draws on the tab it leaves, inside the window and
+  outside it. Held over another window of the same file's title
+  bar, that window marks where the tab would land; let go there, it joins that
+  window. Let go anywhere else, it opens in a new window of the same process at the
+  drop point, with the source window's size. A tab window's only tab joins the window
+  it is let go over, and its emptied window closes; let go elsewhere, its window moves
+  there. Escape, the page losing focus, a cancelled pointer or a move with the button
+  no longer held ends a drag with every tab where it stood. The drop point is taken when the tab is
+  let go, so a move that waits for a running action opens where it was let go. A new
+  window shares the file's `DesktopSessionController` (Engine,
   file session, agent host, launched agent) and has its own WebView2 and Workbench,
   so its own tabs, trail and drafts. Nothing about the file opens twice.
 - The first window is the **main window**. It alone carries the notification-area
@@ -91,15 +102,19 @@ renderer may receive storage or generic privileged calls.
   ends, hides and shows with the main window, and closing it closes only its tabs.
   Moving a tab does not end a launched agent's conversation.
 - `window.detachTab` hands a tab's trail to the host as an opaque string, and
-  `window.takeTab` lets the new window take it once; the host never parses a trail.
+  `window.takeTab` lets the new window take it once; a window it joins hears it as
+  `tabArrived`. The host never parses a trail. `window.beginTabDrag` and
+  `window.endTabDrag` bracket the picture; between them the host follows the pointer
+  itself and tells the window held over with `tabDropTarget`, and it ends a drag the
+  page never ends once the button has been up for a second.
   Session events (`fileChanged`, `agentActivity`, `agentSessionChanged`,
   `extensionDevelopmentChanged`, `extensionSettingsChanged`) go to every window of
   the file; a notification's route goes to the main window.
 - The device-local save journal (`pending-mutations.ts`) keeps one slot per file,
   shared by its windows. A save while another window's is unconfirmed is refused
   unsent.
-- Not built: dropping a tab into another window, a window that follows the pointer
-  during the drag, and moving tabs between two files' processes.
+- Not built: a window that follows the pointer during the drag, and moving tabs
+  between two files' processes.
 
 ### Notifications route, never grant
 

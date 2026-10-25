@@ -132,6 +132,19 @@ internal static class WorkbenchEvents
     internal const string TitleBarChanged = "titleBarChanged";
 
     /// <summary>
+    /// A tab of another window of this file was let go over this window's tabs (ADR-0002).
+    /// Payload is its trail, opaque as <c>window.detachTab</c> received it, and <c>x</c>, where it
+    /// was let go in the page's pixels from the left.
+    /// </summary>
+    internal const string TabArrived = "tabArrived";
+
+    /// <summary>
+    /// A tab dragged from another window of this file is held over this window's tabs at <c>x</c>
+    /// in the page's pixels, or no longer (<c>x</c> null), so the strip shows where it would land.
+    /// </summary>
+    internal const string TabDropTarget = "tabDropTarget";
+
+    /// <summary>
     /// A file a view downloaded is saved. WebView2's downloads panel is never shown, so this
     /// is how the person hears of it. Payload is an identifier for <c>downloads.show</c>, the file's
     /// name and its folder's name.
@@ -360,7 +373,8 @@ internal sealed partial class WorkbenchProtocolHandler
             // its gate, including after every interactive picker/confirmation wait.
             var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet or WorkbenchMethods.SessionGetRecentFiles
                 or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow
-                or WorkbenchMethods.DownloadsShow or WorkbenchMethods.WindowTakeTab;
+                or WorkbenchMethods.DownloadsShow or WorkbenchMethods.WindowTakeTab
+                or WorkbenchMethods.WindowBeginTabDrag or WorkbenchMethods.WindowEndTabDrag or WorkbenchMethods.DiagnosticsTabDrag;
             var expectedSession = independent ? null : RequiredString(root, "fileSessionId", 120);
             using var projection = _session.BindReadProjection(root.TryGetProperty("boundedRead", out var boundedRead) &&
                 boundedRead.ValueKind == JsonValueKind.True);
@@ -453,8 +467,11 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.WindowSetTitleBarControls => SetTitleBarControls(payload),
                     WorkbenchMethods.WindowDetachTab => DetachTab(payload),
                     WorkbenchMethods.WindowTakeTab => TabWindows().TakeTab(),
+                    WorkbenchMethods.WindowBeginTabDrag => await BeginTabDragAsync(payload),
+                    WorkbenchMethods.WindowEndTabDrag => EndTabDrag(payload),
                     WorkbenchMethods.DiagnosticsCloseWindow when DesktopRuntimeConfiguration.NativeDiagnostics => CloseWindow(),
                     WorkbenchMethods.DiagnosticsExit when DesktopRuntimeConfiguration.NativeDiagnostics => Exit(),
+                    WorkbenchMethods.DiagnosticsTabDrag when DesktopRuntimeConfiguration.NativeDiagnostics => DiagnoseTabDrag(payload),
                     WorkbenchMethods.DownloadsShow => ShowDownload(payload),
                     WorkbenchMethods.DiagnosticsTitleBar when DesktopRuntimeConfiguration.NativeDiagnostics => DiagnoseTitleBar(payload),
                     WorkbenchMethods.DiagnosticsResizeWindow when DesktopRuntimeConfiguration.NativeDiagnostics => ResizeWindow(payload),
