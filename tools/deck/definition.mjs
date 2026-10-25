@@ -301,6 +301,17 @@ export const STAGES = {
     mutations: () => chunk(presentOperations(), 'Builds, transitions and timings'),
   },
 
+  tour: {
+    title: 'Deck: the example deck shows the new layouts',
+    needs: ENTITIES,
+    // Run once: any of its slides in the file, in any deck, says so, and one the person deleted since stays deleted.
+    appliedWhen: async read => tourRan(await read.records(E.slide)),
+    // An empty file has no example deck yet, as in a dry run of the whole build: nothing to bring up.
+    mutations: async ({ read }) => (await read.entities()).includes(E.deck)
+      ? chunk(tourOperations(await read.records(E.slide), (await read.records(E.deck)).find(d => d.recordId === EXAMPLE_ID)), 'The example deck')
+      : [],
+  },
+
   layouts: {
     title: 'Deck: Title only, Picture grid, Process and Cycle, the pie, area and stacked charts, and the grid\'s pictures',
     needs: ENTITIES,
@@ -325,7 +336,9 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present', 'layouts'];
+// The seeds come after every stage that declares a field or a choice they use. A built file has the
+// stages before them already, so the order only decides how an empty file is built.
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'format', 'design', 'present', 'layouts', 'seed', 'keep', 'search', 'tour'];
 
 /**
  * Four layouts and three charts more, as choices added to the slide's Layout and Chart, and the
@@ -419,13 +432,80 @@ export function seedRecords() {
     [F.deck.audience]: EXAMPLE_DECK.audience, [F.deck.goal]: EXAMPLE_DECK.goal, [F.deck.aspect]: '16:9', [F.deck.template]: templateRecordId('keynote'),
     [F.deck.footer]: EXAMPLE_DECK.footer, [F.deck.numbers]: true, [F.deck.status]: 'Ready',
   } });
-  EXAMPLE_SLIDES.forEach((s, i) => records.push({ entityId: E.slide, recordId: `dk.slide.example-${String(i + 1).padStart(2, '0')}`, values: {
+  EXAMPLE_SLIDES.forEach((s, i) => records.push({ entityId: E.slide, recordId: exampleSlideId(s.n), values: {
     [F.slide.deck]: EXAMPLE_ID, [F.slide.order]: (i + 1) * 10, [F.slide.layout]: s.layout, [F.slide.hidden]: false,
     ...(s.title ? { [F.slide.title]: s.title } : {}), ...(s.kicker ? { [F.slide.kicker]: s.kicker } : {}), ...(s.body ? { [F.slide.body]: s.body } : {}),
     ...(s.body2 ? { [F.slide.body2]: s.body2 } : {}), ...(s.notes ? { [F.slide.notes]: s.notes } : {}), ...(s.chart ? { [F.slide.chart]: s.chart } : {}),
     ...(s.imageAlt ? { [F.slide.imageAlt]: s.imageAlt } : {}),
   } }));
   return records;
+}
+
+export const exampleSlideId = n => `dk.slide.example-${String(n).padStart(2, '0')}`;
+
+/**
+ * The words in an older file's example slides that named seventeen layouts and four charts, by slide
+ * number and field, with the words they held. The tour stage writes the seed's words over them only
+ * where the file still holds these, so a slide the person has rewritten keeps their words.
+ */
+/** The example slides the tour adds: Title only, Picture grid, Process and Cycle. */
+const TOUR_SLIDES = [17, 18, 19, 20];
+/** Whether the tour has run on a file: it holds one of the tour's slides. */
+export const tourRan = slides => slides.some(s => TOUR_SLIDES.map(exampleSlideId).includes(s.recordId));
+const TOUR_WORDS = [
+  [1, F.slide.body, 'Seventeen layouts, six templates, your brand'],
+  [11, F.slide.body, '- 17 | layouts | from title to closing\n- 6 | templates | each with its own decorations\n- 2 | exports | HTML and PowerPoint'],
+  [15, F.slide.title, 'This tour leans on text layouts'],
+  [15, F.slide.body, '| Kind | Slides |\n| --- | --- |\n| Text | 6 |\n| Feature | 4 |\n| Data | 4 |\n| Picture | 2 |'],
+  [15, F.slide.body2, 'A chart is a table in the body. Pick Column, Bar, Line or Doughnut.'],
+  [15, F.slide.chart, 'Bar'],
+];
+
+/**
+ * What brings an older file's example deck up to this one, given every slide the file holds and the
+ * example deck. On a file that holds none of them, the TOUR_SLIDES slides are made, kept in new
+ * files, and each placed just after the nearest slide before it in the seed that the deck still holds,
+ * wherever the person has put that one; with no room there, it goes at the end. Once the file holds
+ * one, a missing one is one the person deleted, and is not made again. An older example slide the person deleted stays
+ * deleted, and one moved to another deck is theirs there. The slides already there keep their
+ * places. A file without the example deck gets nothing. The old words of TOUR_WORDS take the seed's.
+ * Nothing else is written: not the notes, the pictures, the order the person gave a slide, or a slide
+ * of their own.
+ */
+export function tourOperations(slides, deck) {
+  if (!deck) return [];
+  // Once any of the tour's slides is in the file, a missing one is one the person deleted.
+  const ran = tourRan(slides);
+  slides = slides.filter(s => s.values[F.slide.deck] === EXAMPLE_ID);
+  const held = new Map(slides.map(s => [s.recordId, s]));
+  const seeds = seedRecords().filter(x => x.entityId === E.slide);
+  const operations = [];
+  const orders = new Map(seeds.filter(r => held.has(r.recordId)).map(r => [r.recordId, held.get(r.recordId).values[F.slide.order]]));
+  const taken = slides.map(s => s.values[F.slide.order]).filter(Number.isInteger);
+  seeds.forEach((r, k) => {
+    if (ran || !TOUR_SLIDES.includes(Number(r.recordId.slice(-2)))) return;
+    // Halfway from the slide it follows to the next slide in the deck, or ten past that slide when
+    // nothing follows it; before every slide when it follows none.
+    const before = seeds.slice(0, k).reverse().find(x => orders.has(x.recordId));
+    const anchor = before ? orders.get(before.recordId) : null;
+    const next = anchor === null ? Math.min(...taken) : Math.min(...taken.filter(o => o > anchor));
+    let order = anchor === null ? (Number.isFinite(next) ? next - 10 : 10)
+      : !Number.isFinite(next) ? anchor + 10 : next - anchor >= 2 ? Math.floor((anchor + next) / 2) : null;
+    if (order === null) order = Math.max(...taken) + 10;
+    orders.set(r.recordId, order); taken.push(order);
+    operations.push(op('data.createRecord', { entityId: E.slide, recordId: r.recordId, values: { ...r.values, [F.slide.order]: order },
+      expectedTargetVersions: { [F.slide.deck]: deck.recordVersion } }),
+      op('data.setKeptInNewFiles', { entityId: E.slide, recordId: r.recordId, kept: true }));
+  });
+  const version = new Map(slides.map(s => [s.recordId, s.recordVersion]));
+  for (const [n, fieldId, was] of TOUR_WORDS) {
+    const slide = held.get(exampleSlideId(n));
+    const value = seeds.find(r => r.recordId === exampleSlideId(n)).values[fieldId] ?? null;
+    if (!slide || slide.values[fieldId] !== was || value === was) continue;
+    operations.push(op('data.setField', { entityId: E.slide, recordId: slide.recordId, fieldId, expectedRecordVersion: version.get(slide.recordId), value }));
+    version.set(slide.recordId, version.get(slide.recordId) + 1);
+  }
+  return operations;
 }
 
 const REFERENCES = { [E.template]: [], [E.deck]: [F.deck.template, F.deck.brand], [E.slide]: [F.slide.deck] };

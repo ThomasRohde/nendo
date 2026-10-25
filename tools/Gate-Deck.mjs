@@ -194,7 +194,7 @@ async page => {
   checks.push('add, move, delete');
 
   // 6. A picture dropped on the stage goes into the slide's picture field in the same revision.
-  await frame.evaluate(() => document.querySelectorAll('#slides li')[7].click());
+  await frame.evaluate(() => document.querySelectorAll('#slides li')[window.deck.slides.findIndex(s => s.layout === 'Image right')].click());
   const pictureSlide = (await state()).slideId;
   await frame.evaluate(async () => {
     const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
@@ -938,6 +938,7 @@ async page => {
   const editing = () => frame.evaluate(() => window.deck.stageEditor());
   const current = () => frame.evaluate(() => { const s = window.deck.slides.find(x => x.id === window.deck.slideId); return { id: s.id, title: s.title, body: s.body, format: s.format }; });
   const openSlide = async n => { await frame.evaluate(n => document.querySelectorAll('#slides li')[n].click(), n); await until(n => window.deck.slideId === window.deck.slides[n].id, n); };
+  const openLayout = async layout => openSlide(await frame.evaluate(layout => window.deck.slides.findIndex(s => s.layout === layout), layout));
   const TITLE = '#stage .dk-t[data-field="title"]', BODY = '#stage .dk-t[data-field="body"]';
   await openSlide(4);
   const bullets = await current();
@@ -1068,7 +1069,7 @@ async page => {
     `Larger pressed many times must step up and stop at the largest size the slide keeps, never back to the layout's: ${JSON.stringify(scales)}.`);
   await page.keyboard.press('Escape');
   // A card's heading and a table's cell are edited on their own; the rest of the line stays as it was.
-  await openSlide(12);
+  await openLayout('Cards');
   const cards = await current();
   await clickAt('#stage .dk-t[data-key="body.0"]', 2, 0.9);
   await page.keyboard.type('Z');
@@ -1086,7 +1087,7 @@ async page => {
   const replaced = { line: (await current()).body.split('\n')[0], field: (await editing())?.field };
   assert(replaced.line === '- Fresh | a dark stage and one bright accent' && replaced.field === 'body', `A cell emptied and typed into again must keep its place: ${JSON.stringify(replaced)}.`);
   for (let i = 0; i < 2; i++) await page.keyboard.press('Control+z');
-  await openSlide(13);
+  await openLayout('Table');
   const tables = await current();
   const cell = await frame.evaluate(() => [...document.querySelectorAll('#stage .dk-t[data-field="body"]')].findIndex(b => b.textContent === 'any browser'));
   assert(cell >= 0, 'The table slide must draw the cell "any browser" as words of the body.');
