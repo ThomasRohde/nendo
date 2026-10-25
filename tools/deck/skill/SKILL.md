@@ -41,8 +41,8 @@ array of `{fieldId, op, value}`; put `cursor` before `limit`. A deck's slides:
 
 | Record type (entityId) | What it is | Fields (fieldId) |
 | --- | --- | --- |
-| Deck (`dk.deck`) | One talk | `dk.deck.title`, `.subtitle`, `.author`, `.date`, `.audience`, `.goal`, `.aspect` (16:9, 4:3), `.template`, `.brand`, `.footer`, `.numbers`, `.status` (Draft, Ready, Presented) |
-| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.chart` (Column, Bar, Line, Doughnut), `.hidden`, `.format` (the person's; never write it) |
+| Deck (`dk.deck`) | One talk | `dk.deck.title`, `.subtitle`, `.author`, `.date`, `.audience`, `.goal`, `.aspect` (16:9, 4:3), `.template`, `.brand`, `.footer`, `.numbers`, `.status` (Draft, Ready, Presented), `.transition` (None, Fade, Push, Zoom), `.minutes` (the talk's target length) |
+| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.chart` (Column, Bar, Line, Doughnut), `.hidden`, `.build` (None, One by one), `.transition` (Deck, None, Fade, Push, Zoom), `.format` and `.seconds` (the person's; never write them) |
 | Template (`dk.template`) | A look: family, fonts, seven colours; a Design's also its style and backgrounds | Read `dk.template.name`, `.description`, `.family`, `.mode`, `.brand`; do not write |
 | Brand kit (`dk.brand`) | Colours, fonts, logo and voice from Brandkits | Read `dk.brand.name`, `.voice` and `.tagline`; do not write |
 | Ask (`dk.ask`) | A request from the view | `dk.ask.deck`, `.scope` (Whole deck, Selection, Mission), `.request`, `.selection`, `.status`, `.progress`, `.reply`, `.made` |
@@ -103,6 +103,17 @@ settlement from a day to a minute", not "Settlement"). A kicker is two to four w
 the person's: on an image layout, write `dk.slide.imageAlt` as what the picture should show, and the
 view shows a place for it. Put what the speaker says in `dk.slide.notes`, in full sentences.
 
+## Presenting
+
+`dk.slide.build` One by one brings a slide's points on a click at a time: a body's top-level
+bullets, each card, number, agenda item or timeline step, a table's rows, a chart's bars. Use it
+where the speaker talks through a list point by point and the audience should not read ahead; leave
+None on a slide read at a glance. A title, section, statement, quote or closing slide has nothing
+to bring on. `dk.slide.transition` is Deck (the deck's own `dk.deck.transition`) unless one slide
+needs another; set transitions only when the Ask asks for them, and keep one for the whole deck.
+`dk.slide.seconds` is the time a rehearsal kept on the slide, and `dk.deck.minutes` the length the
+person means to talk: when a deck runs long against them, cut slides or words rather than notes.
+
 Write in the brand kit's voice when the deck has one (`dk.brand.voice`). Never invent a number, a
 quote or a source: when the request gives you none, use a layout that needs none, or write the
 number as a gap such as `??%` and say so in the Progress.
@@ -147,7 +158,7 @@ append the reason to `dk.ask.progress`, and stop.
 | `dk.variant.status` | `Proposed`. Never Used or Dismissed: those are the person's |
 
 `dk.variant.changes` names fields without the `dk.slide.` prefix: `layout`, `title`, `kicker`,
-`body`, `body2`, `notes`, `chart`, `imageAlt`, `hidden`. A field it leaves out stays as it is.
+`body`, `body2`, `notes`, `chart`, `imageAlt`, `hidden`, `build`. A field it leaves out stays as it is.
 
 ```json
 {"layout": "Big numbers", "title": "Streaming, counted",

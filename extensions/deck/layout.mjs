@@ -13,6 +13,10 @@
 //                    tracking, caps, paragraphs: [{runs, bullet, number, level, heading}], role,
 //                    key, and while editing `edit`: where its words are in the slide (below)}
 // A fill is a colour or {type: linear|radial, angle, stops: [{at, color, alpha}]}.
+//
+// Builds: on a slide whose build is `One by one`, a primitive with `step` k, or a paragraph with
+// `step` k, comes on with the k-th click; one without is there from the start. The slide says how
+// many clicks it has in `steps`.
 
 import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat } from './model.mjs';
 import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast, colorsOn } from './themes.mjs';
@@ -134,7 +138,8 @@ function layoutWith(slide, theme, ctx) {
   const { W, H } = sizeOf(theme.aspect);
   const c = theme.colors, s = theme.style;
   const X = W >= 1200 ? 80 : 64;
-  const g = { W, H, X, c, s, theme, measure, ctx, slide, items: [], fonts: { heading: theme.fonts.heading, body: theme.fonts.body, mono: theme.fonts.mono } };
+  const g = { W, H, X, c, s, theme, measure, ctx, slide, items: [], fonts: { heading: theme.fonts.heading, body: theme.fonts.body, mono: theme.fonts.mono },
+    build: slide.build === 'One by one', steps: 0 };
   const kind = slide.layout;
   const feature = ['Title', 'Section', 'Closing', 'Statement'].includes(kind) ? kind : null;
   g.bg = background(g, feature, kind);
@@ -143,7 +148,7 @@ function layoutWith(slide, theme, ctx) {
   const draw = LAYOUT_FUNCTIONS[kind] ?? LAYOUT_FUNCTIONS.Bullets;
   draw(g);
   chrome(g, feature, kind);
-  return { W, H, background: g.bg.fill, dark: g.bg.dark, items: g.items, notes: slide.notes ?? '' };
+  return { W, H, background: g.bg.fill, dark: g.bg.dark, items: g.items, notes: slide.notes ?? '', steps: g.steps };
 }
 
 // ---- Backgrounds and decorations, per template family ------------------------------------------
@@ -245,6 +250,29 @@ function logoRoom(theme, corner) {
 }
 const footerRoom = (theme, side) => logoRoom(theme, `bottom-${side}`);
 
+// ---- Builds ------------------------------------------------------------------------------------
+// The points of a content slide come one click at a time: a body's top-level paragraphs, each card,
+// number, agenda item or timeline step, a table's rows, a chart's bars or series. A title, a kicker
+// and the slide's furniture are there from the start.
+
+/** The next click's number, or 0 when the slide does not build. */
+const nextStep = g => g.build ? ++g.steps : 0;
+/** Every primitive drawn since `from` comes on with click `step`. */
+function stepFrom(g, from, step) { if (step) for (const p of g.items.slice(from)) p.step ??= step; }
+/**
+ * Each top-level paragraph of a box comes on with a click of its own, and its sub-points with it.
+ * `join` puts the first paragraph in the click already counted, such as a card's own.
+ */
+function stepParagraphs(g, p, join = false) {
+  if (!g.build || p.ghost) return;
+  p.paragraphs.forEach((para, i) => {
+    // An empty line has nothing to bring on.
+    if (!para.runs.some(r => r.text)) return;
+    const along = i === 0 ? join && g.steps > 0 : (para.level ?? 0) > 0;
+    para.step = along ? g.steps : ++g.steps;
+  });
+}
+
 // ---- Shared pieces -----------------------------------------------------------------------------
 
 /** The kicker above a title, in the template's manner. Answers its bottom edge. */
@@ -313,6 +341,7 @@ function body(g, value, x, y, w, h, opts = {}) {
     src: whole(opts.role ?? 'body', 'blocks') });
   fit(p, g.measure, opts.min ?? 15);
   g.items.push(p);
+  if (opts.build) stepParagraphs(g, p);
   return p;
 }
 /** Fewer, shorter lines read larger. */
@@ -414,7 +443,7 @@ const LAYOUT_FUNCTIONS = {
   Bullets(g) {
     const { W, H, X, slide } = g;
     const top = header(g);
-    body(g, slide.body, X, top, W - 2 * X - (W > 1000 ? 120 : 0), H - top - 76, { bullets: false });
+    body(g, slide.body, X, top, W - 2 * X - (W > 1000 ? 120 : 0), H - top - 76, { bullets: false, build: true });
   },
 
   'Two columns'(g) {
@@ -422,8 +451,8 @@ const LAYOUT_FUNCTIONS = {
     const top = header(g);
     const gap = 64, w = (W - 2 * X - gap) / 2;
     const size = Math.min(bodySize(paragraphs(slide.body)), bodySize(paragraphs(slide.body2)), 26);
-    const a = body(g, slide.body, X, top, w, H - top - 76, { size });
-    const b = body(g, slide.body2, X + w + gap, top, w, H - top - 76, { size, role: 'body2' });
+    const a = body(g, slide.body, X, top, w, H - top - 76, { size, build: true });
+    const b = body(g, slide.body2, X + w + gap, top, w, H - top - 76, { size, role: 'body2', build: true });
     alike([a, b]);
     g.items.push({ type: 'line', x1: X + w + gap / 2, y1: top + 4, x2: X + w + gap / 2, y2: H - 96, stroke: g.c.line, width: 1 });
   },
@@ -438,6 +467,7 @@ const LAYOUT_FUNCTIONS = {
       const x = X + i * (w + gap);
       const paras = paragraphs(value);
       const head = paras[0]?.heading ? paras.shift() : null;
+      const from = g.items.length, step = nextStep(g);
       const inner = card(g, x, top, w, h, { accent: colour });
       const fam = g.theme.family;
       let y = inner.y;
@@ -461,6 +491,8 @@ const LAYOUT_FUNCTIONS = {
         src: whole(role, 'blocks', role, head ? 1 : 0) });
       fit(p, g.measure, 14);
       g.items.push(p); fitted.push(p);
+      stepParagraphs(g, p, true);
+      stepFrom(g, from, step);
     });
     alike(fitted);
   },
@@ -502,6 +534,7 @@ const LAYOUT_FUNCTIONS = {
     const values = [];
     list.forEach(([value, label, note], i) => {
       const x = X + i * (w + gap);
+      const from = g.items.length, step = nextStep(g);
       const inner = card(g, x, top, w, h, { accent: i === 0 ? c.primary : c.line });
       const onSurface = ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.ink : c.onSurface;
       const v = text({ x: inner.x, y: inner.y, w: inner.w, h: valueSize * 1.1, size: valueSize, weight: 700, font: g.fonts.heading, tracking: -0.03, lineHeight: 1,
@@ -509,6 +542,7 @@ const LAYOUT_FUNCTIONS = {
       values.push(v); g.items.push(v);
       g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 14, w: inner.w, h: 64, size: 22, weight: 600, font: g.fonts.body, color: onSurface, text: label ?? '', role: 'body', lineHeight: 1.2, src: cell(at[i]?.[1], 'body.1') }));
       if (note || keeps(at[i]?.[2])) g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 84, w: inner.w, h: inner.h - valueSize * 1.1 - 84, size: 16, font: g.fonts.body, color: ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.muted : mix(onSurface, c.surface, 0.3), text: note, role: 'body', lineHeight: 1.3, src: cell(at[i]?.[2], 'body.2') }));
+      stepFrom(g, from, step);
     });
     for (const v of values) fit(v, g.measure, 36);
     const shared = Math.min(...values.map(v => v.size)); values.forEach(v => { v.size = shared; });
@@ -526,11 +560,13 @@ const LAYOUT_FUNCTIONS = {
     items.forEach(([item, note], i) => {
       const col = Math.floor(i / per), row = i % per;
       const x = X + col * (colW + 56), y = top + row * rowH;
+      const from = g.items.length, step = nextStep(g);
       g.items.push(text({ x, y, w: 64, h: rowH, size: Math.min(34, rowH * 0.55), weight: 700, font: g.fonts.heading, color: g.bg.accent, text: String(i + 1).padStart(2, '0'), markdown: false, role: 'body', lineHeight: 1 }));
       const t = text({ x: x + 76, y: y + 2, w: colW - 76, h: rowH * 0.5, size: Math.min(26, rowH * 0.36), weight: 600, font: g.fonts.body, color: g.bg.ink, text: item, role: 'body', lineHeight: 1.15, src: cell(at[i][0], 'body.0') });
       fit(t, g.measure, 15); g.items.push(t);
       if (note || keeps(at[i][1])) g.items.push(text({ x: x + 76, y: y + rowH * 0.42, w: colW - 76, h: rowH * 0.45, size: Math.min(17, rowH * 0.24), font: g.fonts.body, color: g.bg.muted, text: note, role: 'body', src: cell(at[i][1], 'body.1') }));
       if (row < per - 1) g.items.push({ type: 'line', x1: x + 76, y1: y + rowH - 8, x2: x + colW, y2: y + rowH - 8, stroke: c.line, width: 1 });
+      stepFrom(g, from, step);
     });
   },
 
@@ -545,11 +581,13 @@ const LAYOUT_FUNCTIONS = {
     items.forEach(([when, what, detail], i) => {
       const x = X + i * stepW, cx = x + 12;
       const colour = i === n - 1 ? c.accent : c.primary;
+      const from = g.items.length, step = nextStep(g);
       g.items.push(text({ x, y: lineY - 64, w: stepW - 20, h: 40, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.base, 3), text: when ?? '', markdown: false, role: 'body', lineHeight: 1.1, src: cell(at[i][0], 'body.0', true) }));
       g.items.push({ type: 'ellipse', x: cx - 12, y: lineY - 12, w: 24, h: 24, fill: colour, stroke: g.bg.base === c.bg ? c.bg : null, strokeWidth: 4 });
       const t = text({ x, y: lineY + 34, w: stepW - 28, h: 64, size: 22, weight: 600, font: g.fonts.body, color: g.bg.ink, text: what ?? '', role: 'body', lineHeight: 1.2, src: cell(at[i][1], 'body.1') });
       fit(t, g.measure, 14); g.items.push(t);
       if (detail || keeps(at[i][2])) { const d = text({ x, y: lineY + 104, w: stepW - 28, h: H - lineY - 190, size: 16, font: g.fonts.body, color: g.bg.muted, text: detail, role: 'body', lineHeight: 1.35, src: cell(at[i][2], 'body.2') }); fit(d, g.measure, 12); g.items.push(d); }
+      stepFrom(g, from, step);
     });
   },
 
@@ -566,6 +604,7 @@ const LAYOUT_FUNCTIONS = {
     items.forEach(([head, detail], i) => {
       const x = X + (i % cols) * (w + gap), y = top + Math.floor(i / cols) * (h + gap);
       const accent = [c.primary, c.accent, c.secondary][i % 3];
+      const from = g.items.length, step = nextStep(g);
       const inner = card(g, x, y, w, h, { accentBar: !flat && theme.family === 'boardroom', accent });
       if (!flat && theme.family !== 'boardroom') g.items.push({ type: 'ellipse', x: inner.x, y: inner.y, w: 14, h: 14, fill: accent });
       const off = !flat && theme.family !== 'boardroom' ? 28 : 0;
@@ -573,6 +612,7 @@ const LAYOUT_FUNCTIONS = {
       heads.push(hp); g.items.push(hp);
       const dp = text({ x: inner.x, y: inner.y + off + 70, w: inner.w, h: inner.h - off - 70, size: 18, font: g.fonts.body, color: flat ? g.bg.muted : mix(c.onSurface, c.surface, 0.25), text: detail ?? '', role: 'body', lineHeight: 1.35, src: cell(at[i][1], 'body.1') });
       texts.push(dp); g.items.push(dp);
+      stepFrom(g, from, step);
     });
     for (const p of heads) fit(p, g.measure, 15);
     for (const p of texts) fit(p, g.measure, 12);
@@ -592,8 +632,11 @@ const LAYOUT_FUNCTIONS = {
     const widths = columnWidths(t, W - 2 * X, g.measure, size, g.fonts.body);
     const headFill = theme.family === 'minimal' || theme.family === 'editorial' ? null : c.primary;
     let x = X;
+    // A row comes on with its own click; the head is there from the start.
+    const base = g.steps, rowStep = r => g.build ? base + r + 1 : 0;
+    if (g.build) g.steps += t.rows.length;
     if (headFill) g.items.push({ type: 'rect', x: X, y: top, w: W - 2 * X, h: rowH, fill: headFill, radius: Math.min(theme.style.radius, 8) });
-    t.rows.forEach((_, r) => { if (r % 2 === 1) g.items.push({ type: 'rect', x: X, y: top + (r + 1) * rowH, w: W - 2 * X, h: rowH, fill: c.surface }); });
+    t.rows.forEach((_, r) => { if (r % 2 === 1) g.items.push({ type: 'rect', x: X, y: top + (r + 1) * rowH, w: W - 2 * X, h: rowH, fill: c.surface, step: rowStep(r) || undefined }); });
     if (!headFill) g.items.push({ type: 'line', x1: X, y1: top + rowH, x2: W - X, y2: top + rowH, stroke: c.ink, width: 1.5 });
     g.items.push({ type: 'line', x1: X, y1: top + rowsN * rowH, x2: W - X, y2: top + rowsN * rowH, stroke: c.line, width: 1 });
     t.head.forEach((name, i) => {
@@ -604,6 +647,7 @@ const LAYOUT_FUNCTIONS = {
       t.rows.forEach((row, r) => {
         const p = text({ x: x + 14, y: top + (r + 1) * rowH, w: widths[i] - 28, h: rowH, size, font: g.fonts.body, color: r % 2 === 1 ? c.onSurface : g.bg.ink, text: row[i], valign: 'middle', align, role: 'body', lineHeight: 1.15, weight: i === 0 ? 600 : 400, src: cell(t.at?.rows[r][i], `body.c${i}`) });
         fit(p, g.measure, 11);
+        if (rowStep(r)) p.step = rowStep(r);
         g.items.push(p);
       });
       x += widths[i];
@@ -620,7 +664,9 @@ const LAYOUT_FUNCTIONS = {
     if (takeaway) {
       const x = X + chartW + 48, w = W - X - x;
       g.items.push({ type: 'rect', x, y: top + 8, w: 6, h: 64, fill: c.accent });
+      const from = g.items.length - 1, step = nextStep(g);
       body(g, slide.body2, x + 26, top, w - 26, H - top - 90, { size: 26, role: 'body2', min: 15 });
+      stepFrom(g, from, step);
     }
   },
 
@@ -648,7 +694,7 @@ function imageSplit(g, side) {
   void ix;
   const x = side === 'left' ? half + 56 : g.X, w = half - 56 - g.X;
   const top = header(g, { x, w, titleSize: 38, minTop: 200 });
-  body(g, slide.body, x, top, w, H - top - 76, { size: Math.min(24, bodySize(paragraphs(slide.body))) });
+  body(g, slide.body, x, top, w, H - top - 76, { size: Math.min(24, bodySize(paragraphs(slide.body))), build: true });
 }
 
 function columnWidths(t, total, measure, size, font) {
@@ -666,6 +712,10 @@ function drawChart(g, type, data, x, y, w, h) {
   const { c } = g;
   const palette = g.theme.chart?.length ? g.theme.chart : [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.45)];
   const ink = g.bg.ink, muted = g.bg.muted;
+  // Built, a chart's marks come a click each: a doughnut's parts, one series' bars by label, more
+  // series by series. The axes, the grid and the labels are there from the start.
+  const base = g.steps;
+  const mark = (p, i) => { if (g.build) { p.step = base + i + 1; g.steps = Math.max(g.steps, p.step); } g.items.push(p); };
   // A doughnut shows one column, its first, and names its parts beside it: no series legend above.
   const legend = data.series.length > 1 && type !== 'Doughnut';
   if (legend) {
@@ -686,7 +736,7 @@ function drawChart(g, type, data, x, y, w, h) {
     const colours = values.map((_, i) => parts[i % parts.length]);
     values.forEach((v, i) => {
       const sweep = v / share * 360;
-      if (sweep > 0) g.items.push({ type: 'arc', cx, cy, r, inner: r * 0.58, start: at, end: at + Math.min(sweep, 359.99), fill: colours[i] });
+      if (sweep > 0) mark({ type: 'arc', cx, cy, r, inner: r * 0.58, start: at, end: at + Math.min(sweep, 359.99), fill: colours[i] }, i);
       at += sweep;
     });
     g.items.push(text({ x: cx - r * 0.5, y: cy - 30, w: r, h: 60, size: 40, weight: 700, font: g.fonts.heading, color: ink, align: 'center', valign: 'middle', text: formatNumber(total, data.unit), markdown: false, role: 'chart', lineHeight: 1 }));
@@ -696,9 +746,9 @@ function drawChart(g, type, data, x, y, w, h) {
     const lx = cx + r + 48, rowH = Math.min(44, h / values.length);
     data.labels.forEach((label, i) => {
       const ly = cy - (values.length * rowH) / 2 + i * rowH;
-      g.items.push({ type: 'rect', x: lx, y: ly + rowH / 2 - 8, w: 16, h: 16, fill: colours[i], radius: 4 });
-      g.items.push(text({ x: lx + 28, y: ly, w: x + w - lx - 28, h: rowH, size: Math.min(20, rowH * 0.5), font: g.fonts.body, color: ink, valign: 'middle', role: 'chart',
-        paragraphs: [{ runs: [{ text: label + '  ' }, { text: formatNumber(values[i], data.unit), b: true }], level: 0 }] }));
+      mark({ type: 'rect', x: lx, y: ly + rowH / 2 - 8, w: 16, h: 16, fill: colours[i], radius: 4 }, i);
+      mark(text({ x: lx + 28, y: ly, w: x + w - lx - 28, h: rowH, size: Math.min(20, rowH * 0.5), font: g.fonts.body, color: ink, valign: 'middle', role: 'chart',
+        paragraphs: [{ runs: [{ text: label + '  ' }, { text: formatNumber(values[i], data.unit), b: true }], level: 0 }] }), i);
     });
     return;
   }
@@ -730,10 +780,10 @@ function drawChart(g, type, data, x, y, w, h) {
     data.labels.forEach((label, i) => g.items.push(text({ x: px + i * dx - 60, y: py + ph + 10, w: 120, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: label, markdown: false, role: 'chart' })));
     data.series.forEach((s, j) => {
       const points = s.values.map((v, i) => [px + i * dx, py + ph - frac(v) * ph]);
-      g.items.push({ type: 'path', points, closed: false, stroke: palette[j % palette.length], width: 4 });
+      mark({ type: 'path', points, closed: false, stroke: palette[j % palette.length], width: 4 }, j);
       points.forEach(([cx, cy], i) => {
-        g.items.push({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.base === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 });
-        if (k === 1) g.items.push(text({ x: cx - 50, y: cy - 34, w: 100, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(s.values[i], data.unit), markdown: false, role: 'chart' }));
+        mark({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.base === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 }, j);
+        if (k === 1) mark(text({ x: cx - 50, y: cy - 34, w: 100, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(s.values[i], data.unit), markdown: false, role: 'chart' }), j);
       });
     });
     return;
@@ -746,14 +796,15 @@ function drawChart(g, type, data, x, y, w, h) {
       // Each bar runs from nought to its value, either way.
       const v = s.values[i], zero = frac(0), end = frac(v), len = Math.abs(end - zero) * (horizontal ? pw : ph);
       const fill = palette[j % palette.length];
+      const click = k === 1 ? i : j;
       if (horizontal) {
         const by = py + i * band + (band - inner) / 2 + j * barW, from = px + Math.min(zero, end) * pw;
-        g.items.push({ type: 'rect', x: from, y: by, w: Math.max(len, 1), h: barW - 3, fill, radius: Math.min(4, g.s.radius) });
-        if (k === 1) g.items.push(text({ x: v < 0 ? from - 98 : from + len + 8, y: by, w: 90, h: barW - 3, size: 15, weight: 700, font: g.fonts.body, color: ink, align: v < 0 ? 'right' : 'left', valign: 'middle', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
+        mark({ type: 'rect', x: from, y: by, w: Math.max(len, 1), h: barW - 3, fill, radius: Math.min(4, g.s.radius) }, click);
+        if (k === 1) mark(text({ x: v < 0 ? from - 98 : from + len + 8, y: by, w: 90, h: barW - 3, size: 15, weight: 700, font: g.fonts.body, color: ink, align: v < 0 ? 'right' : 'left', valign: 'middle', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }), click);
       } else {
         const bx = px + i * band + (band - inner) / 2 + j * barW, top = py + ph - Math.max(zero, end) * ph;
-        g.items.push({ type: 'rect', x: bx, y: top, w: barW - 4, h: Math.max(len, 1), fill, radius: Math.min(4, g.s.radius) });
-        if (k === 1) g.items.push(text({ x: bx - 20, y: v < 0 ? top + len + 4 : top - 26, w: barW + 36, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
+        mark({ type: 'rect', x: bx, y: top, w: barW - 4, h: Math.max(len, 1), fill, radius: Math.min(4, g.s.radius) }, click);
+        if (k === 1) mark(text({ x: bx - 20, y: v < 0 ? top + len + 4 : top - 26, w: barW + 36, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }), click);
       }
     });
   });

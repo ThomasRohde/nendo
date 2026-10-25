@@ -24,6 +24,11 @@
         <button type="button" id="held-put" class="primary-button">Put mine back</button>
         <button type="button" id="held-discard">Discard mine</button>
       </div>
+      <div id="rehearsed" class="held rehearsed" role="status" hidden>
+        <p id="rehearsed-text"></p>
+        <button type="button" id="rehearsed-keep" class="primary-button">Keep the times</button>
+        <button type="button" id="rehearsed-discard">Discard</button>
+      </div>
       <div id="stage-wrap" class="stage-wrap">
         <div id="stage" class="stage" aria-label="Current slide"></div>
         <p id="fit-warning" class="fit-warning" role="status" hidden></p>
@@ -73,6 +78,7 @@
         <button role="tab" id="tab-slide" aria-selected="true" aria-controls="pane-slide">Slide</button>
         <button role="tab" id="tab-design" aria-selected="false" aria-controls="pane-design">Design</button>
         <button role="tab" id="tab-asks" aria-selected="false" aria-controls="pane-asks">Agent</button>
+        <button role="tab" id="tab-check" aria-selected="false" aria-controls="pane-check">Check<span id="check-count" class="tab-count"></span></button>
       </div>
       <section id="pane-slide" role="tabpanel" aria-labelledby="tab-slide" class="pane">
         <div id="fit-card" class="fit-card" role="status"><span class="dot" aria-hidden="true"></span><span id="fit-text">Everything fits</span><span id="fit-layout" class="mono"></span></div>
@@ -94,6 +100,9 @@
           <input id="f-imageAlt" data-field="imageAlt" placeholder="What the picture shows" aria-label="Picture text">
         </div>
         <h3>Presenting</h3>
+        <div class="field"><span class="label">Points</span><div id="f-build" class="segmented" role="radiogroup" aria-label="Points"></div><small id="build-hint" class="hint"></small></div>
+        <div class="field"><span class="label">Transition</span><div id="f-transition" class="segmented" role="radiogroup" aria-label="Transition"></div></div>
+        <p id="slide-time" class="hint"></p>
         <label class="check switch"><input id="f-hidden" type="checkbox" role="switch"> Hide this slide when presenting</label>
         <h3>Design</h3>
         <div class="design-card">
@@ -124,9 +133,23 @@
         <div class="field"><label for="d-footer">Footer</label><input id="d-footer" data-deck="footer"></div>
         <div class="field"><span class="label">Shape</span><div id="d-aspect" class="segmented" role="radiogroup" aria-label="Shape"></div></div>
         <label class="check"><input id="d-numbers" type="checkbox"> Slide numbers</label>
+        <h3>Presenting</h3>
+        <div class="field"><span class="label">Transition</span><div id="d-transition" class="segmented" role="radiogroup" aria-label="Transition between slides"></div></div>
+        <div class="field"><label for="d-minutes">Talk length, in minutes</label><input id="d-minutes" type="number" min="1" max="600" step="1" inputmode="numeric" placeholder="No target"></div>
+        <p class="hint">The presenter view holds the talk to this length, using the times from a rehearsal where there are some.</p>
       </section>
       <section id="pane-asks" role="tabpanel" aria-labelledby="tab-asks" class="pane" hidden>
         <ol id="asks" class="asks"></ol>
+      </section>
+      <section id="pane-check" role="tabpanel" aria-labelledby="tab-check" class="pane" hidden>
+        <h3>Length</h3>
+        <p id="check-length" class="check-length"></p>
+        <div class="picture-row">
+          <button id="check-rehearse" type="button" class="ghost-button">Rehearse…</button>
+        </div>
+        <h3>Before you present</h3>
+        <p id="check-none" class="hint" hidden>Nothing to fix: every slide fits, has a title and has notes.</p>
+        <ol id="check-list" class="check-list"></ol>
       </section>
     </aside>
   </div>

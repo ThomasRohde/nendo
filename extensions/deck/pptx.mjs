@@ -124,10 +124,64 @@ function textBox(p, id, name, ctx) {
 
 const group = '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
 
-function slideXml(laid, hidden, ctx) {
+function slideXml(laid, hidden, ctx, transition = 'None') {
   let id = 2;
-  const body = laid.items.map(p => shape(p, id++, ctx)).join('');
-  return `${XML}<p:sld ${NS}${hidden ? ' show="0"' : ''}><p:cSld><p:bg><p:bgPr>${fill(laid.background)}<a:effectLst/></p:bgPr></p:bg><p:spTree>${group}${body}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+  const built = [];
+  const body = laid.items.map(p => {
+    const spid = id++, xml = shape(p, spid, ctx);
+    if (xml && laid.steps) built.push(...targetsOf(p, spid, xml));
+    return xml;
+  }).join('');
+  return `${XML}<p:sld ${NS}${hidden ? ' show="0"' : ''}><p:cSld><p:bg><p:bgPr>${fill(laid.background)}<a:effectLst/></p:bgPr></p:bg><p:spTree>${group}${body}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>${transitionXml(transition)}${timingXml(built, laid.steps)}</p:sld>`;
+}
+
+// ---- Transitions and builds --------------------------------------------------------------------
+// A slide's transition is PowerPoint's own of the same name, and its build is PowerPoint's fade
+// entrance on click: one click per step, a text box's paragraphs by their range.
+
+const TRANSITION_XML = { Fade: '<p:fade/>', Push: '<p:push dir="l"/>', Zoom: '<p:zoom dir="in"/>' };
+const transitionXml = kind => TRANSITION_XML[kind] ? `<p:transition spd="med">${TRANSITION_XML[kind]}</p:transition>` : '';
+
+/** What one drawn shape brings on, and when: [{spid, step, range: [st, end] | null, kind}]. */
+function targetsOf(p, spid, xml) {
+  const kind = xml.startsWith('<p:pic') ? 'pic' : xml.startsWith('<p:cxnSp') ? 'line' : p.type === 'text' ? 'text' : 'shape';
+  if (p.type === 'text' && p.paragraphs.some(para => para.step)) {
+    // Runs of paragraphs that come on together are one range each.
+    const out = [];
+    p.paragraphs.forEach((para, i) => {
+      const step = para.step ?? p.step ?? 1, last = out.at(-1);
+      if (last && last.step === step && last.range[1] === i - 1) last.range[1] = i; else out.push({ spid, step, range: [i, i], kind });
+    });
+    return out;
+  }
+  return p.step ? [{ spid, step: p.step, range: null, kind }] : [];
+}
+
+function timingXml(targets, steps) {
+  if (!targets.length) return '';
+  let id = 3;
+  const target = t => t.range ? `<p:spTgt spid="${t.spid}"><p:txEl><p:pRg st="${t.range[0]}" end="${t.range[1]}"/></p:txEl></p:spTgt>` : `<p:spTgt spid="${t.spid}"/>`;
+  const effect = (t, first) => `<p:par><p:cTn id="${id++}" presetID="10" presetClass="entr" presetSubtype="0" fill="hold"${t.kind === 'text' || t.kind === 'shape' ? ' grpId="0"' : ''} nodeType="${first ? 'clickEffect' : 'withEffect'}"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>`
+    + `<p:set><p:cBhvr><p:cTn id="${id++}" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl>${target(t)}</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>`
+    + `<p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="${id++}" dur="500"/><p:tgtEl>${target(t)}</p:tgtEl></p:cBhvr></p:animEffect></p:childTnLst></p:cTn></p:par>`;
+  const clicks = [];
+  for (let step = 1; step <= steps; step++) {
+    const now = targets.filter(t => t.step === step);
+    if (!now.length) continue;
+    const outer = id++, inner = id++;
+    const effects = now.map((t, i) => effect(t, i === 0)).join('');
+    clicks.push(`<p:par><p:cTn id="${outer}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="${inner}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${effects}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>`);
+  }
+  // A text shape built by paragraph says so; a shape without words is built with its fill. Pictures and lines need no entry.
+  const builds = [];
+  for (const t of targets) {
+    if (builds.some(b => b.spid === t.spid) || (t.kind !== 'text' && t.kind !== 'shape')) continue;
+    builds.push({ spid: t.spid, xml: t.kind === 'shape' ? `<p:bldP spid="${t.spid}" grpId="0" animBg="1"/>` : `<p:bldP spid="${t.spid}" grpId="0"${t.range ? ' build="p"' : ''}/>` });
+  }
+  return '<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>'
+    + clicks.join('')
+    + '</p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>'
+    + `${builds.length ? `<p:bldLst>${builds.map(b => b.xml).join('')}</p:bldLst>` : ''}</p:timing>`;
 }
 
 function notesXml(text) {
@@ -176,7 +230,7 @@ const rels = list => `${XML}<Relationships xmlns="http://schemas.openxmlformats.
 
 /**
  * Builds the .pptx bytes.
- * deck: {title, author}; theme: the resolved theme; slides: [{laid, hidden}] in order;
+ * deck: {title, author}; theme: the resolved theme; slides: [{laid, hidden, transition}] in order;
  * images: Map of a primitive's src to {bytes, ext: png|jpeg|gif, width, height}.
  */
 export function buildPptx({ deck = {}, theme, slides, images = new Map(), now = new Date() }) {
@@ -203,7 +257,7 @@ export function buildPptx({ deck = {}, theme, slides, images = new Map(), now = 
       const info = images.get(src);
       return { rel: byPath.get(m.path), width: info.width, height: info.height };
     } };
-    files.push({ name: `ppt/slides/slide${n}.xml`, data: slideXml(slide.laid, slide.hidden, ctx) });
+    files.push({ name: `ppt/slides/slide${n}.xml`, data: slideXml(slide.laid, slide.hidden, ctx, slide.transition) });
     files.push({ name: `ppt/slides/_rels/slide${n}.xml.rels`, data: rels(slideRels) });
     files.push({ name: `ppt/notesSlides/notesSlide${n}.xml`, data: notesXml(slide.laid.notes) });
     files.push({ name: `ppt/notesSlides/_rels/notesSlide${n}.xml.rels`, data: rels([['rId1', 'notesMaster', '../notesMasters/notesMaster1.xml'], ['rId2', 'slide', `../slides/slide${n}.xml`]]) });

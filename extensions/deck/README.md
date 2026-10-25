@@ -10,8 +10,8 @@ package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
 
 | Record type | What it holds |
 | --- | --- |
-| Decks (`dk.deck`) | Title, subtitle, author, date, audience, goal, shape (16:9 or 4:3), template, brand kit, footer, slide numbers, status |
-| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, chart kind, hidden, text format (JSON) |
+| Decks (`dk.deck`) | Title, subtitle, author, date, audience, goal, shape (16:9 or 4:3), template, brand kit, footer, slide numbers, status, transition, talk length in minutes |
+| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, chart kind, hidden, text format (JSON), build (all at once or one by one), transition (the deck's or its own), rehearsed seconds |
 | Templates (`dk.template`) | A family's shapes with its own fonts and seven colours; six are seeds. A Design's template also holds light or dark, a style, per-kind backgrounds (four background pictures as media), chart colours, the logo's place, its Brand kit and the kit it came from |
 | Brand kits (`dk.brand`) | Seven colour roles, three fonts, logo, logo on dark and mark (media fields), voice, tagline, the imported tokens |
 | Asks (`dk.ask`) | One request to the person's agent: scope, request, selection, status, progress, reply |
@@ -141,10 +141,33 @@ out of tokens, since that one may have written only some of the slides.
 
 Present builds the HTML export with the pictures' own URLs and shows it in a frame over the view.
 The exported HTML is one file with every picture the file holds inlined; a web picture stays linked
-by its address, and one linked from a folder on the computer is left out, which the export says: arrows, space and Page keys, `P` for the
-presenter view (this slide, the next, the notes and a clock), `G` for a grid, `F` for full screen,
-`B` for black, `#N` in the address for a slide, and one slide per page when printed. The PowerPoint
-export reads each embedded picture with `nendo.media.read`, and draws an SVG or WebP to PNG first.
+by its address, and one linked from a folder on the computer is left out, which the export says.
+
+- **Builds.** A slide set to *One by one* brings its points on one click at a time. `layout.mjs`
+  gives each primitive a `step`: a paragraph and the lines under it, a card, a big number, a table
+  row, a chart's category, series or doughnut part. `render.mjs` writes it as `data-step`, the stage
+  marks the first point of each click with its number, and the player and PowerPoint both count the
+  same clicks.
+- **Transitions.** The deck has one (None, Fade, Push, Zoom) and a slide may set its own. The player
+  draws them with the Web Animations API, and as a fade when the machine asks for reduced motion.
+- **The presenter console** (`P`): this slide as the audience sees it, the next point or slide,
+  the notes with their own size, a strip of slides, the talk's clock with pause and reset, the
+  slide's own time, the time of day, and the pace against the talk's length. Laser (`L`), pen
+  (`D`, `E` clears), black (`B`) and white (`W`) reach the audience. A number and Enter goes to a
+  slide; `G` opens a grid, `F` full screen, `#N` in the address a slide.
+- **The audience window.** In the HTML file opened in a browser, the console opens the slides in a
+  second window and keeps both in step; keys pressed in either drive the talk.
+- **Rehearse** opens the console with its clock running. Finish offers the seconds spent on each
+  slide, and Keep writes them in one step Nendo offers to undo. `export-html.mjs`'s `planOf` fits
+  those times, and the notes' spoken length for the rest, to the talk's length for the pace.
+- **The Check tab** (`check.mjs`): the talk's length against its target, from rehearsed times and
+  from the notes at 130 words a minute, then what to look at, worst first: text that runs over, a
+  slide with no title or an empty body, a picture still to place or without picture text, more than
+  60 words on a slide, a build with nothing to bring on, a slide with no notes. A click opens the slide.
+
+When printed, the HTML shows one slide per page with every point. The PowerPoint export writes each
+slide's transition and its clicks as on-click fade entrances, by paragraph for text. It reads each
+embedded picture with `nendo.media.read`, and draws an SVG or WebP to PNG first.
 
 ## Limits
 
@@ -167,5 +190,7 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
 - `Ctrl` `B` is Nendo's own key and never reaches the view, so Bold is in the text menu and its
   toolbar but has no key inside Nendo. Font, colour and highlight are the template's and the brand
   kit's, not a box's own; the text menu sets bold, italic, underline, size, alignment and lists.
+- Nendo opens no second window for a view, so the audience window is in the HTML export opened in a
+  browser; inside Nendo the console and the slides share the one frame.
 - A Markdown link keeps its address, on the stage and in both exports, only for `http:`, `https:`
   and `mailto:`; any other link is shown as its words alone, so nothing in a slide runs in the view's frame.

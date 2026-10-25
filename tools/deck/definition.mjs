@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { E, F, LAYOUT_IDS, CHARTS } from '../../extensions/deck/model.mjs';
+import { E, F, LAYOUT_IDS, CHARTS, TRANSITIONS, SLIDE_TRANSITIONS, BUILDS } from '../../extensions/deck/model.mjs';
 import { TEMPLATES } from '../../extensions/deck/themes.mjs';
 import { MODES, PLACEMENT_LABELS } from '../../extensions/deck/design.mjs';
 import { EXAMPLE_DECK, EXAMPLE_SLIDES } from './example.mjs';
@@ -291,6 +291,13 @@ export const STAGES = {
     mutations: () => chunk(designOperations(), 'Designs from Brandkits'),
   },
 
+  present: {
+    title: 'Deck: builds, transitions, rehearsed times and the talk length',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.schema(E.slide)).fields.some(f => f.fieldId === F.slide.build),
+    mutations: () => chunk(presentOperations(), 'Builds, transitions and timings'),
+  },
+
   search: {
     title: 'Deck: build the search index, so Find reads every slide',
     needs: ENTITIES,
@@ -308,7 +315,24 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design'];
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present'];
+
+/**
+ * How a talk is shown: a slide's points one click at a time, its transition (or the deck's), the
+ * seconds a rehearsal kept on it, and the deck's transition and target length in minutes.
+ */
+function presentOperations() {
+  const node = (page, fieldId, position) => op('ui.addNode', { surfaceId: SURFACE, nodeId: `${page}.${fieldId}`, parentNodeId: page, kind: 'fieldBinding', position, properties: { fieldId } });
+  return [
+    choice(E.slide, F.slide.build, 'Points', BUILDS),
+    choice(E.slide, F.slide.transition, 'Transition', SLIDE_TRANSITIONS),
+    integer(E.slide, F.slide.seconds, 'Rehearsed seconds'),
+    choice(E.deck, F.deck.transition, 'Transition', TRANSITIONS),
+    integer(E.deck, F.deck.minutes, 'Talk length (minutes)'),
+    node('dk.slide.page', F.slide.build, 10), node('dk.slide.page', F.slide.transition, 11), node('dk.slide.page', F.slide.seconds, 12),
+    node('dk.deck.page', F.deck.transition, 11), node('dk.deck.page', F.deck.minutes, 12),
+  ];
+}
 
 /**
  * A Template that names a Brand kit is a Design: the whole look one Brandkits export carries. Its
@@ -387,7 +411,7 @@ export function seedOperations() {
 // ---- What the fixture broker serves the view in tools/Review-Deck.ps1. -----------------------------
 
 export function fixture({ seeds = true } = {}) {
-  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations()].flatMap(m => m.operations);
+  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations()].flatMap(m => m.operations);
   const entities = schemaOps.filter(o => o.operationType === 'schema.createEntity').map(o => ({ entityId: o.payload.entityId, displayName: o.payload.displayName, hierarchy: null, fields: [] }));
   const byId = Object.fromEntries(entities.map(e => [e.entityId, e]));
   for (const o of schemaOps) {
