@@ -106,7 +106,7 @@ async function compare(file) {
   if (held && differ.length) problems.push(`the file's Deck package differs from the folder in ${differ.join(', ')}: run upgrade`);
   const full = await file.read.json('nendo://application/describe?include=newFile');
   const kept = (full.newFile?.types ?? []).reduce((n, t) => n + (t.kept ?? 0), 0);
-  if (kept < seedRecords().length) problems.push(`a new file would keep ${kept} records, fewer than the ${seedRecords().length} seeds`);
+  if (kept !== seedRecords().length) problems.push(`a new file would keep ${kept} records, not the ${seedRecords().length} seeds`);
   problems.push(...newFileProblems(full.newFile));
   const slides = (await file.read.records(E.slide)).filter(s => s.values['dk.slide.deck'] === EXAMPLE_ID);
   if (slides.length !== seedRecords().filter(r => r.entityId === E.slide).length) problems.push(`the example deck has ${slides.length} slides`);
