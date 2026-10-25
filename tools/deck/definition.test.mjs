@@ -19,7 +19,7 @@ const choicesOf = id => [...fieldOf(id).options, ...schemaOps().filter(o => o.op
 
 test('each stage fits a change set, and each mutation a call', async () => {
   for (const name of STAGE_ORDER) {
-    const mutations = await STAGES[name].mutations({ applicationId: 'app', read: { records: async () => [] } });
+    const mutations = await STAGES[name].mutations({ applicationId: 'app', read: { records: async id => id === E.deck ? [{ recordId: EXAMPLE_ID, recordVersion: 1, values: {} }] : [] } });
     const total = mutations.reduce((n, m) => n + m.operations.length, 0);
     assert.ok(mutations.every(m => m.operations.length <= 16), `${name}: a mutation over 16 operations`);
     assert.ok(total <= 128, `${name}: ${total} operations, over 128`);
@@ -105,9 +105,27 @@ function play(file, ops) {
   return out;
 }
 
+// The example deck as a person has used it: its template and transition changed.
+const DECK = { recordId: EXAMPLE_ID, recordVersion: 41, values: {} };
+
+test('an empty file is built with every choice a seed uses declared before the seeds are written', async () => {
+  const before = STAGE_ORDER.slice(0, STAGE_ORDER.indexOf('seed'));
+  const ops = [];
+  for (const name of before) ops.push(...(await STAGES[name].mutations({ applicationId: 'app' })).flatMap(m => m.operations));
+  const choices = new Map(ops.filter(o => o.operationType === 'schema.addField' && o.payload.presentation === 'singleChoice').map(o => [o.payload.fieldId, new Set(o.payload.options)]));
+  for (const o of ops.filter(o => o.operationType === 'schema.addChoice')) choices.get(o.payload.fieldId).add(o.payload.choiceId);
+  const fields = new Set(ops.filter(o => o.operationType === 'schema.addField').map(o => o.payload.fieldId));
+  for (const r of seedRecords()) for (const [fieldId, value] of Object.entries(r.values)) {
+    assert.ok(fields.has(fieldId), `${r.recordId}: ${fieldId} is written before a stage declares it`);
+    if (choices.has(fieldId) && value != null) assert.ok(choices.get(fieldId).has(value), `${r.recordId}: ${fieldId} is ${value}, which no stage before the seeds declares`);
+  }
+});
+
 test('the tour stage adds the new slides to an older example deck and keeps what the person changed', () => {
   const file = olderFile();
-  const ops = tourOperations(file);
+  const ops = tourOperations(file, DECK);
+  // A new slide names the deck at the version it stands at, not the version it was seeded at.
+  assert.ok(ops.filter(o => o.operationType === 'data.createRecord').every(o => o.payload.expectedTargetVersions[F.slide.deck] === 41));
   const after = play(file, ops);
   const seeds = seedRecords().filter(r => r.entityId === E.slide);
   // The four new slides are made, kept in new files, and stand between the slides around them.
@@ -127,13 +145,13 @@ test('the tour stage adds the new slides to an older example deck and keeps what
   assert.equal(after.find(s => s.recordId === exampleSlideId(2)).values[F.slide.order], 12);
   assert.equal(after.find(s => s.recordId === exampleSlideId(8)).values[F.slide.image], 'media:abc');
   // Played once, the stage has nothing more to do.
-  assert.deepEqual(tourOperations(after), []);
+  assert.deepEqual(tourOperations(after, DECK), []);
 });
 
 test('the tour stage leaves words the person rewrote', () => {
   const file = olderFile();
   file.find(s => s.recordId === exampleSlideId(11)).values[F.slide.body] = '- 3 | teams | mine';
-  const ops = tourOperations(file);
+  const ops = tourOperations(file, DECK);
   assert.ok(!ops.some(o => o.payload.recordId === exampleSlideId(11)), 'a rewritten slide is written over');
 });
 

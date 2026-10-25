@@ -305,7 +305,8 @@ export const STAGES = {
     title: 'Deck: the example deck shows the new layouts',
     needs: ENTITIES,
     appliedWhen: async read => (await read.records(E.slide)).some(s => s.recordId === exampleSlideId(Math.max(...EXAMPLE_SLIDES.map(x => x.n)))),
-    mutations: async ({ read }) => chunk(tourOperations((await read.records(E.slide)).filter(s => s.values[F.slide.deck] === EXAMPLE_ID)), 'The example deck'),
+    mutations: async ({ read }) => chunk(tourOperations((await read.records(E.slide)).filter(s => s.values[F.slide.deck] === EXAMPLE_ID),
+      (await read.records(E.deck)).find(d => d.recordId === EXAMPLE_ID)), 'The example deck'),
   },
 
   layouts: {
@@ -332,7 +333,9 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present', 'layouts', 'tour'];
+// The seeds come after every stage that declares a field or a choice they use. A built file has the
+// stages before them already, so the order only decides how an empty file is built.
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'format', 'design', 'present', 'layouts', 'seed', 'keep', 'search', 'tour'];
 
 /**
  * Four layouts and three charts more, as choices added to the slide's Layout and Chart, and the
@@ -453,12 +456,13 @@ const TOUR_WORDS = [
 
 /**
  * What brings an older file's example deck up to this one, given the deck's slides as the file
- * holds them. A seed slide it lacks is made, kept in new files, and placed between the slides
+ * holds them, and the deck. A seed slide it lacks is made, kept in new files, and placed between the slides
  * around it in the seed, at the orders those hold now; the slides already there keep their places.
  * The old words of TOUR_WORDS take the seed's. Nothing else is written: not the notes, the
  * pictures, the order the person gave a slide, or a slide of their own.
  */
-export function tourOperations(slides) {
+export function tourOperations(slides, deck) {
+  if (!deck) throw Error(`The file has no example deck (${EXAMPLE_ID}) to bring up to date.`);
   const held = new Map(slides.map(s => [s.recordId, s]));
   const seeds = seedRecords().filter(x => x.entityId === E.slide);
   const operations = [];
@@ -482,7 +486,7 @@ export function tourOperations(slides) {
       if (order === null) throw Error(`No room for ${seeds[k].recordId} between the orders ${before} and ${after}; move a slide to make room.`);
       orders.set(seeds[k].recordId, order); taken.add(order);
       operations.push(op('data.createRecord', { entityId: E.slide, recordId: seeds[k].recordId, values: { ...seeds[k].values, [F.slide.order]: order },
-        expectedTargetVersions: { [F.slide.deck]: 1 } }),
+        expectedTargetVersions: { [F.slide.deck]: deck.recordVersion } }),
         op('data.setKeptInNewFiles', { entityId: E.slide, recordId: seeds[k].recordId, kept: true }));
     }
     i = j - 1;
