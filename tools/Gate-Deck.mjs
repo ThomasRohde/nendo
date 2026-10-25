@@ -622,6 +622,20 @@ async page => {
     `The console must show this slide and the next in the slide's shape, inside the window: ${JSON.stringify(console1)}.`);
   assert(/^Next: point 2 of \d+$/.test(console1.nextLabel) && /left of 5:00$/.test(console1.pace) && console1.later.every(x => x.hidden === x.k > 1),
     `The console must name the next point, pace the talk against its five minutes, and show the slide as the audience sees it: ${JSON.stringify(console1)}.`);
+  // Black from the console's button shows on the console's slide, which stands where the slides would be.
+  const coverOf = () => show.evaluate(() => {
+    const now = document.getElementById('now').getBoundingClientRect(), c = document.getElementById('now-cover');
+    const r = c?.getBoundingClientRect();
+    return { shown: !!c && getComputedStyle(c).display !== 'none', covers: !!r && Math.abs(r.width - now.width) < 1 && Math.abs(r.height - now.height) < 1,
+      background: c ? getComputedStyle(c).backgroundColor : null, text: c?.textContent ?? null, pressed: document.getElementById('c-black').getAttribute('aria-pressed') };
+  });
+  await show.click('#c-black');
+  const blacked = await coverOf();
+  assert(blacked.shown && blacked.covers && /^rgba?\(0, 0, 0/.test(blacked.background) && /black screen/.test(blacked.text) && blacked.pressed === 'true',
+    `Black must cover the console's slide and say the audience sees black: ${JSON.stringify(blacked)}.`);
+  await show.click('#c-black');
+  const unblacked = await coverOf();
+  assert(!unblacked.shown && unblacked.pressed === 'false', `Black pressed again must show the slide: ${JSON.stringify(unblacked)}.`);
   // The laser follows the pointer over the console's slide, in the slide's own place.
   await show.locator('body').press('l');
   const nowBox = await show.locator('#now').boundingBox();

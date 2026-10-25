@@ -13,7 +13,7 @@
 | `P` | The presenter view |
 | `L` | A laser pointer that follows the mouse |
 | `D` | A pen to draw on the slide; `E` clears what you drew |
-| `B`, `W` | A black or a white screen, and back |
+| `B`, `W` | A black or a white screen, and back. In the presenter view, a notice over the slide says what the audience sees |
 | `T` | Pause the timer, and go on |
 | `G` | All slides as a grid; click one to go there |
 | `F` | Full screen |
