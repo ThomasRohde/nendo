@@ -4,7 +4,9 @@ Slide decks in one `.nendo` file. `workspace/Deck.nendo` opens on the Deck view 
 `extensionView` with `opensFile`). The package is `org.nendo.deck`; everything in this folder but
 `nendo-package.json` and `README.md` is what the file carries. `tools/Build-Deck.mjs` builds a Deck
 file from `tools/deck/definition.mjs` into an empty file Nendo has open, and brings a built file's
-package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
+package up to this folder with `upgrade`. Its `tour` stage adds the example slides a built file lacks
+and puts the example's new words over its old ones, and leaves anything the person changed;
+`tools/Review-Deck.ps1` is its lane.
 
 ## The records
 
@@ -17,8 +19,7 @@ package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
 | Asks (`dk.ask`) | One request to the person's agent: scope, request, selection, status, progress, reply |
 | Variants (`dk.variant`) | Another version of one slide from an ask: label, the slide fields it sets as JSON, why, status |
 
-The six templates and the example deck (sixteen slides, one per layout but Title only, Image left,
-Picture grid, Process and Cycle) are kept in
+The six templates and the example deck (twenty slides, one per layout but Image left) are kept in
 every new file. A person's own decks, kits and asks are not.
 
 ## One drawing, four outputs

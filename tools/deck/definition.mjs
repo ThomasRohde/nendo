@@ -301,6 +301,13 @@ export const STAGES = {
     mutations: () => chunk(presentOperations(), 'Builds, transitions and timings'),
   },
 
+  tour: {
+    title: 'Deck: the example deck shows the new layouts',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.records(E.slide)).some(s => s.recordId === exampleSlideId(Math.max(...EXAMPLE_SLIDES.map(x => x.n)))),
+    mutations: async ({ read }) => chunk(tourOperations((await read.records(E.slide)).filter(s => s.values[F.slide.deck] === EXAMPLE_ID)), 'The example deck'),
+  },
+
   layouts: {
     title: 'Deck: Title only, Picture grid, Process and Cycle, the pie, area and stacked charts, and the grid\'s pictures',
     needs: ENTITIES,
@@ -325,7 +332,7 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present', 'layouts'];
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design', 'present', 'layouts', 'tour'];
 
 /**
  * Four layouts and three charts more, as choices added to the slide's Layout and Chart, and the
@@ -419,13 +426,76 @@ export function seedRecords() {
     [F.deck.audience]: EXAMPLE_DECK.audience, [F.deck.goal]: EXAMPLE_DECK.goal, [F.deck.aspect]: '16:9', [F.deck.template]: templateRecordId('keynote'),
     [F.deck.footer]: EXAMPLE_DECK.footer, [F.deck.numbers]: true, [F.deck.status]: 'Ready',
   } });
-  EXAMPLE_SLIDES.forEach((s, i) => records.push({ entityId: E.slide, recordId: `dk.slide.example-${String(i + 1).padStart(2, '0')}`, values: {
+  EXAMPLE_SLIDES.forEach((s, i) => records.push({ entityId: E.slide, recordId: exampleSlideId(s.n), values: {
     [F.slide.deck]: EXAMPLE_ID, [F.slide.order]: (i + 1) * 10, [F.slide.layout]: s.layout, [F.slide.hidden]: false,
     ...(s.title ? { [F.slide.title]: s.title } : {}), ...(s.kicker ? { [F.slide.kicker]: s.kicker } : {}), ...(s.body ? { [F.slide.body]: s.body } : {}),
     ...(s.body2 ? { [F.slide.body2]: s.body2 } : {}), ...(s.notes ? { [F.slide.notes]: s.notes } : {}), ...(s.chart ? { [F.slide.chart]: s.chart } : {}),
     ...(s.imageAlt ? { [F.slide.imageAlt]: s.imageAlt } : {}),
   } }));
   return records;
+}
+
+export const exampleSlideId = n => `dk.slide.example-${String(n).padStart(2, '0')}`;
+
+/**
+ * The words in an older file's example slides that named seventeen layouts and four charts, by slide
+ * number and field, with the words they held. The tour stage writes the seed's words over them only
+ * where the file still holds these, so a slide the person has rewritten keeps their words.
+ */
+const TOUR_WORDS = [
+  [1, F.slide.body, 'Seventeen layouts, six templates, your brand'],
+  [11, F.slide.body, '- 17 | layouts | from title to closing\n- 6 | templates | each with its own decorations\n- 2 | exports | HTML and PowerPoint'],
+  [15, F.slide.title, 'This tour leans on text layouts'],
+  [15, F.slide.body, '| Kind | Slides |\n| --- | --- |\n| Text | 6 |\n| Feature | 4 |\n| Data | 4 |\n| Picture | 2 |'],
+  [15, F.slide.body2, 'A chart is a table in the body. Pick Column, Bar, Line or Doughnut.'],
+  [15, F.slide.chart, 'Bar'],
+];
+
+/**
+ * What brings an older file's example deck up to this one, given the deck's slides as the file
+ * holds them. A seed slide it lacks is made, kept in new files, and placed between the slides
+ * around it in the seed, at the orders those hold now; the slides already there keep their places.
+ * The old words of TOUR_WORDS take the seed's. Nothing else is written: not the notes, the
+ * pictures, the order the person gave a slide, or a slide of their own.
+ */
+export function tourOperations(slides) {
+  const held = new Map(slides.map(s => [s.recordId, s]));
+  const seeds = seedRecords().filter(x => x.entityId === E.slide);
+  const operations = [];
+  const orders = new Map(seeds.filter(r => held.has(r.recordId)).map(r => [r.recordId, held.get(r.recordId).values[F.slide.order]]));
+  const taken = new Set(slides.map(s => s.values[F.slide.order]));
+  // The free order nearest the one wanted, strictly between the two either side.
+  const free = (wanted, before, after) => {
+    for (let d = 0; d < after - before; d++) for (const o of [wanted - d, wanted + d]) if (o > before && o < after && !taken.has(o)) return o;
+    return null;
+  };
+  for (let i = 0; i < seeds.length; i++) {
+    if (held.has(seeds[i].recordId)) continue;
+    // A run of missing slides shares the gap between the held slides on either side of it.
+    let j = i;
+    while (j < seeds.length && !held.has(seeds[j].recordId)) j++;
+    const before = i > 0 ? orders.get(seeds[i - 1].recordId) : 0;
+    const after = j < seeds.length ? orders.get(seeds[j].recordId) : before + (j - i + 1) * 10;
+    const step = (after - before) / (j - i + 1);
+    for (let k = i; k < j; k++) {
+      const order = free(Math.round(before + step * (k - i + 1)), k > i ? orders.get(seeds[k - 1].recordId) : before, after);
+      if (order === null) throw Error(`No room for ${seeds[k].recordId} between the orders ${before} and ${after}; move a slide to make room.`);
+      orders.set(seeds[k].recordId, order); taken.add(order);
+      operations.push(op('data.createRecord', { entityId: E.slide, recordId: seeds[k].recordId, values: { ...seeds[k].values, [F.slide.order]: order },
+        expectedTargetVersions: { [F.slide.deck]: 1 } }),
+        op('data.setKeptInNewFiles', { entityId: E.slide, recordId: seeds[k].recordId, kept: true }));
+    }
+    i = j - 1;
+  }
+  const version = new Map(slides.map(s => [s.recordId, s.recordVersion]));
+  for (const [n, fieldId, was] of TOUR_WORDS) {
+    const slide = held.get(exampleSlideId(n));
+    const value = seeds.find(r => r.recordId === exampleSlideId(n)).values[fieldId] ?? null;
+    if (!slide || slide.values[fieldId] !== was || value === was) continue;
+    operations.push(op('data.setField', { entityId: E.slide, recordId: slide.recordId, fieldId, expectedRecordVersion: version.get(slide.recordId), value }));
+    version.set(slide.recordId, version.get(slide.recordId) + 1);
+  }
+  return operations;
 }
 
 const REFERENCES = { [E.template]: [], [E.deck]: [F.deck.template, F.deck.brand], [E.slide]: [F.slide.deck] };
