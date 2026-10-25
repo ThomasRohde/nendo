@@ -191,6 +191,12 @@ test('the tour stage leaves an older example slide the person deleted, and follo
   assert.ok(Number.isInteger(orderOf(18)) && orderOf(18) > orderOf(7) && orderOf(18) < orderOf(10), `Picture grid at ${orderOf(18)}`);
 });
 
+test('the tour stage runs once: a tour slide the person deleted later stays deleted', async () => {
+  const file = play(olderFile(), tourOperations(olderFile(), DECK)).filter(s => s.recordId !== exampleSlideId(20));
+  assert.ok(await STAGES.tour.appliedWhen({ records: async () => file }), 'the tour reads as not run once Cycle is deleted');
+  assert.ok(!tourOperations(file, DECK).some(o => o.operationType === 'data.createRecord'), 'a deleted tour slide is made again');
+});
+
 test('the tour stage leaves words the person rewrote', () => {
   const file = olderFile();
   file.find(s => s.recordId === exampleSlideId(11)).values[F.slide.body] = '- 3 | teams | mine';

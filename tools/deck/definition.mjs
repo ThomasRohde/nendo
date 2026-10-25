@@ -304,7 +304,8 @@ export const STAGES = {
   tour: {
     title: 'Deck: the example deck shows the new layouts',
     needs: ENTITIES,
-    appliedWhen: async read => (await read.records(E.slide)).some(s => s.recordId === exampleSlideId(Math.max(...EXAMPLE_SLIDES.map(x => x.n)))),
+    // Run once: any of its slides in the file, in any deck, says so, and one the person deleted since stays deleted.
+    appliedWhen: async read => tourRan(await read.records(E.slide)),
     // An empty file has no example deck yet, as in a dry run of the whole build: nothing to bring up.
     mutations: async ({ read }) => (await read.entities()).includes(E.deck)
       ? chunk(tourOperations(await read.records(E.slide), (await read.records(E.deck)).find(d => d.recordId === EXAMPLE_ID)), 'The example deck')
@@ -449,6 +450,8 @@ export const exampleSlideId = n => `dk.slide.example-${String(n).padStart(2, '0'
  */
 /** The example slides the tour adds: Title only, Picture grid, Process and Cycle. */
 const TOUR_SLIDES = [17, 18, 19, 20];
+/** Whether the tour has run on a file: it holds one of the tour's slides. */
+export const tourRan = slides => slides.some(s => TOUR_SLIDES.map(exampleSlideId).includes(s.recordId));
 const TOUR_WORDS = [
   [1, F.slide.body, 'Seventeen layouts, six templates, your brand'],
   [11, F.slide.body, '- 17 | layouts | from title to closing\n- 6 | templates | each with its own decorations\n- 2 | exports | HTML and PowerPoint'],
@@ -460,9 +463,10 @@ const TOUR_WORDS = [
 
 /**
  * What brings an older file's example deck up to this one, given every slide the file holds and the
- * example deck. A TOUR_SLIDES slide the file lacks is made, kept in new files, and placed just after
- * the nearest slide before it in the seed that the deck still holds, wherever the person has put that
- * one; with no room there, it goes at the end. An older example slide the person deleted stays
+ * example deck. On a file that holds none of them, the TOUR_SLIDES slides are made, kept in new
+ * files, and each placed just after the nearest slide before it in the seed that the deck still holds,
+ * wherever the person has put that one; with no room there, it goes at the end. Once the file holds
+ * one, a missing one is one the person deleted, and is not made again. An older example slide the person deleted stays
  * deleted, and one moved to another deck is theirs there. The slides already there keep their
  * places. A file without the example deck gets nothing. The old words of TOUR_WORDS take the seed's.
  * Nothing else is written: not the notes, the pictures, the order the person gave a slide, or a slide
@@ -470,7 +474,8 @@ const TOUR_WORDS = [
  */
 export function tourOperations(slides, deck) {
   if (!deck) return [];
-  const anywhere = new Set(slides.map(s => s.recordId));
+  // Once any of the tour's slides is in the file, a missing one is one the person deleted.
+  const ran = tourRan(slides);
   slides = slides.filter(s => s.values[F.slide.deck] === EXAMPLE_ID);
   const held = new Map(slides.map(s => [s.recordId, s]));
   const seeds = seedRecords().filter(x => x.entityId === E.slide);
@@ -478,7 +483,7 @@ export function tourOperations(slides, deck) {
   const orders = new Map(seeds.filter(r => held.has(r.recordId)).map(r => [r.recordId, held.get(r.recordId).values[F.slide.order]]));
   const taken = slides.map(s => s.values[F.slide.order]).filter(Number.isInteger);
   seeds.forEach((r, k) => {
-    if (!TOUR_SLIDES.includes(Number(r.recordId.slice(-2))) || anywhere.has(r.recordId)) return;
+    if (ran || !TOUR_SLIDES.includes(Number(r.recordId.slice(-2)))) return;
     // Halfway from the slide it follows to the next slide in the deck, or ten past that slide when
     // nothing follows it; before every slide when it follows none.
     const before = seeds.slice(0, k).reverse().find(x => orders.has(x.recordId));
