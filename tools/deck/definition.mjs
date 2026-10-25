@@ -441,6 +441,15 @@ export function seedRecords() {
   return records;
 }
 
+/**
+ * What stops the person making a new file from this one, from describe's newFile: each kept record
+ * that points at a record a new file leaves out, such as an example deck given a template of the
+ * person's own. Nendo refuses File > New while there is one.
+ */
+export function newFileProblems(newFile) {
+  return (newFile?.conflicts ?? []).map(c => `a new file keeps ${c.recordId} but leaves out ${c.targetRecordId}, which its ${c.fieldId} names: keep that one too, or point it at a kept one`);
+}
+
 export const exampleSlideId = n => `dk.slide.example-${String(n).padStart(2, '0')}`;
 
 /**

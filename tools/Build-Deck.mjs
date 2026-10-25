@@ -16,7 +16,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, PACKAGE_ID, PACKAGE_FOLDER, SKILL_PACKAGE_ID, VIEW_NODE, EXAMPLE_ID, seedRecords, packageFiles, fileMutations, skillPackage } from './deck/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, PACKAGE_ID, PACKAGE_FOLDER, SKILL_PACKAGE_ID, VIEW_NODE, EXAMPLE_ID, seedRecords, packageFiles, fileMutations, skillPackage, newFileProblems } from './deck/definition.mjs';
 import { E } from '../extensions/deck/model.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_DECK_TARGET || 'Deck.nendo';
@@ -107,6 +107,7 @@ async function compare(file) {
   const full = await file.read.json('nendo://application/describe?include=newFile');
   const kept = (full.newFile?.types ?? []).reduce((n, t) => n + (t.kept ?? 0), 0);
   if (kept !== seedRecords().length) problems.push(`a new file would keep ${kept} records, not the ${seedRecords().length} seeds`);
+  problems.push(...newFileProblems(full.newFile));
   const slides = (await file.read.records(E.slide)).filter(s => s.values['dk.slide.deck'] === EXAMPLE_ID);
   if (slides.length !== seedRecords().filter(r => r.entityId === E.slide).length) problems.push(`the example deck has ${slides.length} slides`);
   if (problems.length) { console.error(`Compare failed:\n  ${problems.join('\n  ')}`); process.exitCode = 1; return; }
