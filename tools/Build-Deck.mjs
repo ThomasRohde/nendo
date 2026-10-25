@@ -38,6 +38,7 @@ async function runStage(file, name, dryRun) {
   if (missing.length > 0 && !dryRun) fail(`Stage ${name} needs ${missing.join(', ')}, which an earlier stage makes.`);
   if (name === 'schema' && present.length > 0 && !dryRun) fail(`Refused: ${TARGET_FILE_NAME} already holds ${present.join(', ')}. Build only into an empty file.`);
   const mutations = await stage.mutations({ applicationId: file.manifest.applicationId, read: file.read });
+  if (mutations.length === 0) { console.log(`Stage           ${name}: nothing to send.`); return true; }
   return runChangeSet(file, name, stage.title, mutations, dryRun);
 }
 

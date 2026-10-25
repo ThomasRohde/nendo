@@ -19,7 +19,7 @@ const choicesOf = id => [...fieldOf(id).options, ...schemaOps().filter(o => o.op
 
 test('each stage fits a change set, and each mutation a call', async () => {
   for (const name of STAGE_ORDER) {
-    const mutations = await STAGES[name].mutations({ applicationId: 'app', read: { records: async id => id === E.deck ? [{ recordId: EXAMPLE_ID, recordVersion: 1, values: {} }] : [] } });
+    const mutations = await STAGES[name].mutations({ applicationId: 'app', read: { entities: async () => [E.deck, E.slide], records: async id => id === E.deck ? [{ recordId: EXAMPLE_ID, recordVersion: 1, values: {} }] : [] } });
     const total = mutations.reduce((n, m) => n + m.operations.length, 0);
     assert.ok(mutations.every(m => m.operations.length <= 16), `${name}: a mutation over 16 operations`);
     assert.ok(total <= 128, `${name}: ${total} operations, over 128`);
@@ -146,6 +146,26 @@ test('the tour stage adds the new slides to an older example deck and keeps what
   assert.equal(after.find(s => s.recordId === exampleSlideId(8)).values[F.slide.image], 'media:abc');
   // Played once, the stage has nothing more to do.
   assert.deepEqual(tourOperations(after, DECK), []);
+});
+
+test('the tour stage puts a new slide after the one it follows, wherever the person moved that one', () => {
+  const file = olderFile();
+  // Two columns moved above Bullets, and Bullets to the very end; Timeline and Cards with no room between them.
+  file.find(s => s.recordId === exampleSlideId(6)).values[F.slide.order] = 45;
+  file.find(s => s.recordId === exampleSlideId(5)).values[F.slide.order] = 500;
+  file.find(s => s.recordId === exampleSlideId(12)).values[F.slide.order] = 129;
+  const after = play(file, tourOperations(file, DECK));
+  const orderOf = n => after.find(s => s.recordId === exampleSlideId(n)).values[F.slide.order];
+  assert.ok(orderOf(17) > orderOf(5), 'Title only is not after Bullets');
+  assert.ok(orderOf(18) > orderOf(9) && orderOf(18) < orderOf(10), 'Picture grid is not between Full image and Quote');
+  assert.ok(orderOf(19) > orderOf(12) && orderOf(20) > orderOf(19), 'Process and Cycle do not follow Timeline');
+  assert.equal(new Set(after.map(s => s.values[F.slide.order])).size, after.length, 'two slides share an order');
+  assert.equal(orderOf(5), 500);
+});
+
+test('the tour stage has nothing to send to a file without the example deck, as an empty file in a dry run', async () => {
+  assert.deepEqual(tourOperations([], undefined), []);
+  assert.deepEqual(await STAGES.tour.mutations({ applicationId: 'app', read: { entities: async () => [], records: async () => { throw Error('NENDO_ENTITY_NOT_FOUND'); } } }), []);
 });
 
 test('the tour stage leaves words the person rewrote', () => {
