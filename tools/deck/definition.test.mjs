@@ -168,6 +168,18 @@ test('the tour stage has nothing to send to a file without the example deck, as 
   assert.deepEqual(await STAGES.tour.mutations({ applicationId: 'app', read: { entities: async () => [], records: async () => { throw Error('NENDO_ENTITY_NOT_FOUND'); } } }), []);
 });
 
+test('the tour stage leaves an example slide the person moved to another deck', () => {
+  const file = olderFile();
+  const moved = file.find(s => s.recordId === exampleSlideId(8));
+  moved.values[F.slide.deck] = 'dk.deck.mine';
+  const ops = tourOperations(file, DECK);
+  assert.ok(!ops.some(o => o.payload.recordId === moved.recordId), 'a slide moved to another deck is made again or written');
+  // Picture grid follows Full image, which still follows where Image right stood.
+  const after = play(file, ops);
+  const orderOf = n => after.find(s => s.recordId === exampleSlideId(n)).values[F.slide.order];
+  assert.ok(orderOf(18) > orderOf(9) && orderOf(18) < orderOf(10));
+});
+
 test('the tour stage leaves words the person rewrote', () => {
   const file = olderFile();
   file.find(s => s.recordId === exampleSlideId(11)).values[F.slide.body] = '- 3 | teams | mine';
