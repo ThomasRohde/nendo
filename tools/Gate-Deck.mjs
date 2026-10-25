@@ -230,10 +230,13 @@ async page => {
     document.querySelector('#stage [data-role="image"][data-slot="1"]').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
   });
   await settle(900);
-  // The lane's runner has no Node Buffer, so the chooser is answered in the frame: a click picks the
-  // place, and the file input then reports a file as a browser's chooser would.
+  // A real file chooser is a modal the lane's runner stops at, and it has no Node Buffer to answer
+  // one: the file input's own click is held, counted, and answered in the frame as a chooser would.
+  await frame.evaluate(() => { const input = document.getElementById('image-file'); window.choosers = 0; input.click = () => { window.choosers++; }; });
   const choose = async (open, name) => {
+    const opened = await frame.evaluate(() => window.choosers);
     await open();
+    await until(n => window.choosers > n, opened, 3000).catch(() => { throw Error(`Choosing picture ${name} must open the file chooser.`); });
     await frame.evaluate(async name => {
       const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 40 });
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
@@ -246,6 +249,7 @@ async page => {
   };
   await choose(() => frame.click('#pick-image4'), 'fourth.png');
   await choose(() => frame.click('#stage [data-role="image"][data-slot="1"]'), 'again.png');
+  await frame.evaluate(() => { delete document.getElementById('image-file').click; });
   const gridPuts = (await commits()).filter(c => c.recordId === pictureSlide).slice(before).map(c => `${c.fieldId} ${c.name}`);
   assert(JSON.stringify(gridPuts) === JSON.stringify(['dk.slide.image2 second.png', 'dk.slide.image4 fourth.png', 'dk.slide.image2 again.png']),
     `Each picture must go into the place it was dropped on or chosen for: ${JSON.stringify(gridPuts)}.`);
