@@ -6,7 +6,9 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const [wwwroot, out] = process.argv.slice(2);
+const [wwwroot, out, dataFile] = process.argv.slice(2);
+// A .nendo file to embed; the page hands its bytes to EngineProbe.RunAsync.
+const data = dataFile ? readFileSync(dataFile).toString('base64') : null;
 const framework = join(wwwroot, '_framework');
 const files = {};
 for (const name of readdirSync(framework)) {
@@ -36,8 +38,13 @@ const runtime = await dotnet.withResourceLoader((type, name) => {
 }).create();
 const exports = await runtime.getAssemblyExports(config.mainAssemblyName);
 window.nendoHost = exports.Host;
-const answer = exports.Host.Invoke(JSON.stringify({ method: 'session.getSnapshot' }));
-window.nendoProbe = { answer: JSON.parse(answer), startMs: Math.round(performance.now() - started) };
+const bootMs = Math.round(performance.now() - started);
+const data = document.getElementById('nendo-file');
+const answer = data
+  ? await exports.EngineProbe.RunAsync(Uint8Array.from(atob(data.textContent), c => c.charCodeAt(0)))
+  : exports.Host.Invoke(JSON.stringify({ method: 'session.getSnapshot' }));
+window.nendoSaved = data ? exports.EngineProbe.Saved() : null;
+window.nendoProbe = { answer: JSON.parse(answer), bootMs, startMs: Math.round(performance.now() - started) };
 document.getElementById('out').textContent = answer + '\\nstartMs=' + window.nendoProbe.startMs;
 `;
 
@@ -47,6 +54,7 @@ const html = `<!doctype html>
 <body>
 <pre id="out">Starting…</pre>
 <script type="application/json" id="nendo-runtime">${JSON.stringify({ files, config })}</script>
+${data ? `<script type="application/octet-stream" id="nendo-file">${data}</script>` : ''}
 <script type="module">${boot}</script>
 </body>
 </html>

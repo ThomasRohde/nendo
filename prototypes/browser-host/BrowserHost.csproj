@@ -12,6 +12,13 @@
     <TrimMode>partial</TrimMode>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Links SQLite's emscripten build into the runtime (needs the wasm-tools workload). -->
+    <WasmBuildNative>true</WasmBuildNative>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nendo.Engine\Nendo.Engine.csproj" />
+    <Compile Remove="VerifySaved\**" />
+  </ItemGroup>
 
 </Project>
