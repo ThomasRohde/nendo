@@ -42,6 +42,9 @@ Nendo's canonical artefact is one local `.nendo` SQLite file at rest.
   a current backup. Duplicate, Fork and New follow
   [ADR-0010](0010-file-identity-duplicate-fork-backup-and-restore.md); journal and
   close discipline follow [ADR-0011](0011-local-sqlite-journal-and-copy-discipline.md).
+- An application exported as a web page is a copy, like a CSV export, not a canonical
+  artefact. It holds no authority over any `.nendo` file, and its edits come back only as
+  changes Nendo validates and applies ([ADR-0035](0035-an-app-exported-as-one-web-page.md)).
 - Files in known sync-managed locations (OneDrive, Dropbox, Google Drive) are
   unsupported for writable use. Nendo warns where it can and makes no sync-safety
   claim.

@@ -65,6 +65,8 @@ holds the method table, refusals, limits and review wording.
   it into its new placeholder by mount key with `Element.moveBefore`, which keeps the
   document. Without `moveBefore` the frame reloads.
 - A frame starts when its placeholder comes into view.
+- In an application exported as a web page, a view runs in an opaque-origin frame and loads
+  its package from the page, under [ADR-0035](0035-an-app-exported-as-one-web-page.md).
 
 ### The host serves each view from the file
 

@@ -101,7 +101,10 @@ code in the file, with the full typed API
 the person's own installed agent from the Agent page, in a tab
 ([ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md)), and media fields:
 pictures, sound and video embedded in the file or linked by address
-([ADR-0031](decisions/0031-media-in-user-data.md), pictures first).
+([ADR-0031](decisions/0031-media-in-user-data.md), pictures first), and exporting an
+application as one web page that runs in a browser without Nendo, a copy whose edits come
+back as changes Nendo applies
+([ADR-0035](decisions/0035-an-app-exported-as-one-web-page.md)).
 
 **Out:** general scripting in formulas, extension code that runs without a view
 (a skill's script runs in the agent's client, never in Nendo:

@@ -45,3 +45,4 @@ itself, by topic, and the affected [contract](../contracts/) and
 | [0032](0032-a-views-runtime-events-reach-its-agent.md) | Accepted | A custom view's runtime events reach its agent |
 | [0033](0033-a-view-messages-the-launched-agent.md) | Accepted | A custom view messages the launched agent |
 | [0034](0034-device-state-layout.md) | Accepted | Device state is grouped by concern, one folder each |
+| [0035](0035-an-app-exported-as-one-web-page.md) | Accepted | An app exported as one web page that runs without Nendo; edits return as changes |
