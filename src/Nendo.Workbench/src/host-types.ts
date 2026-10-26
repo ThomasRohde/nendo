@@ -960,6 +960,12 @@ export interface WorkbenchClient {
   currentFileSession?(): string | null;
   /** A view package's files, for a host that cannot serve them from an origin of their own (ADR-0036). */
   readViewPackage?(packageId: string): Promise<Record<string, { mediaType: string; base64: string }>>;
+  /** A picture as a data URL, for a frame of a host whose picture addresses are never fetched (ADR-0036). */
+  pictureDataUrl?(address: string): Promise<string | null>;
+  /** Saves the open file where the person chooses; the browser host's way to keep a file. */
+  downloadOpenFile?(): Promise<void>;
+  /** Where the open file is kept: written back in place under this name, or held in the page only. */
+  keptAs?(): { inPlace: boolean; name: string | null };
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
   /** Listen for custom-view frames whose renderer ended. */

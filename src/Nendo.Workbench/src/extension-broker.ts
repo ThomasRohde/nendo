@@ -135,6 +135,8 @@ export interface BrokerDeps {
    * "null", so the broker knows a frame by the window it mounted alone.
    */
   opaqueOrigins?: boolean;
+  /** A picture's address the frame can load, for a host whose picture addresses are never fetched (ADR-0036). */
+  pictureUrl?(address: string): Promise<string | null>;
   /** A view stopped answering its pings, or answered again. */
   responsive?(mount: BrokerMount, responsive: boolean): void;
   /** A view connected, or connected again after reloading itself. */
@@ -838,7 +840,16 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   // img shows; read returns an embedded picture's bytes; put embeds a picture the view holds in its
   // package's name, sent in chunks the host stages, and may set a media field in the same revision.
   // No view reads a local file or the web through these.
-  'media.describe': read('media.describe', (p) => ({ address: textParam(p, 'address', 2048) })),
+  'media.describe': {
+    host: 'media.describe',
+    run: async ({ params, deps }) => {
+      const described = plainJson(await deps.request('media.describe', { address: textParam(params, 'address', 2048) })) as { url?: unknown } | null;
+      // A host with no media origin of its own hands the view the picture itself (ADR-0036).
+      if (deps.pictureUrl !== undefined && described !== null && typeof described.url === 'string' && described.url.startsWith('nendo-media:'))
+        described.url = await deps.pictureUrl(described.url);
+      return described;
+    },
+  },
   'media.read': {
     host: 'media.readWindow',
     run: async ({ params, deps }) => {

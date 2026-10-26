@@ -297,6 +297,7 @@ export function renderFileMenu(): void {
       ? item('file.newFile', escapeHtml(newFileMenuLabel(state.session.manifest?.newFileLabel)), 'This application, without this file’s work', 'file', local && state.session.capabilities.backup)
       : item('session.createFile', 'New file', 'Start with an empty workspace', 'file', client.mode !== 'unavailable')}
     ${item('session.openFile', 'Open file…', 'Choose a Nendo file', 'open', client.mode !== 'unavailable')}
+    ${client.mode === 'browser' ? item('download', 'Download file', downloadDetail(), 'export', state.session.fileName !== null) : ''}
     <div class="file-menu-divider"></div><p class="file-menu-label">Copies</p>
     ${item('file.backup', 'Create backup…', 'Save a recovery copy', 'backup', local && state.session.capabilities.backup)}
     ${item('file.duplicate', 'Duplicate…', 'Another copy of this application', 'duplicate', local && state.session.capabilities.backup)}
@@ -316,6 +317,12 @@ export function renderFileMenu(): void {
   wireFileActions(menu);
 }
 
+/** The browser host's file (ADR-0036): saved back where it came from, or held in this page until downloaded. */
+function downloadDetail(): string {
+  const kept = client.keptAs?.();
+  return kept?.inPlace === true && kept.name !== null ? `Changes are also saved to ${escapeHtml(kept.name)}` : 'This page holds the only copy until you download it';
+}
+
 export function fileActionButton(method: string, label: string, enabled: boolean, detail = '', glyph: IconName = 'file'): string {
   return `<button class="recovery-action" type="button" data-file-action="${method}" ${enabled ? '' : 'disabled'}>
     <span class="recovery-icon" aria-hidden="true">${icon(glyph)}</span>
@@ -333,6 +340,7 @@ export function wireFileActions(element: Element): void {
       // and a file's custom views are a panel of Studio's rather than a host dialog.
       if (method === 'about') openAboutFile();
       else if (method === 'customViews') void openCustomViews();
+      else if (method === 'download') void client.downloadOpenFile?.();
       else if (method === 'session.createFile' || method === 'session.openFile') void chooseFile(method, null);
       else void runFileAction(method, button.dataset.recentId);
     });

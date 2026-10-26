@@ -68,6 +68,8 @@ const notSettled = new Set([
   // A host's own method (its window, tabs, downloads, diagnostics, agents) that the browser host does not have
   // (ADR-0036). None is a journaled write.
   'not-in-this-host',
+  // The browser host refusing a file too large to open in a page (ADR-0036). A file action, not a journaled write.
+  'file-too-large',
 ]);
 
 test('every refusal the Engine or the host raises is classified for the save journal', () => {

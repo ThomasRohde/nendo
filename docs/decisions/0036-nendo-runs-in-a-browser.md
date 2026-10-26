@@ -73,6 +73,9 @@ with nothing installed.
   it read-only (the Web Locks API, keyed by application and instance ID).
 - The browser host opens files up to 256 MiB, and names the size when it refuses one. The file,
   a proposal clone and a backup share one WebAssembly memory.
+- The file's pictures are read from the file by the page. Their addresses (`nendo-media://`) are
+  never fetched: the page shows each from a blob URL, and hands a view a data URL, since a view's
+  opaque-origin frame cannot load the page's blobs.
 
 ### What the browser host does not do
 

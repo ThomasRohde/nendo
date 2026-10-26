@@ -7,44 +7,55 @@ async page => {
   const requests = [];
   try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { const url = request.url(); if (!/^(file|data|blob|about):/.test(url)) requests.push(url); });
-  page.on('dialog', dialog => { errors.push(`Browser dialog (${dialog.type()}): ${dialog.message()}`); dialog.dismiss().catch(() => {}); });
+  const watch = (target) => {
+    target.on('pageerror', error => errors.push(error.message));
+    // nendo-media: is the page's own picture address: the browser tries it and fails on the
+    // scheme without any network, then the page shows the picture from the file.
+    target.on('request', request => { const url = request.url(); if (!/^(file|data|blob|about|nendo-media):/.test(url)) requests.push(url); });
+    target.on('dialog', dialog => { errors.push(`Browser dialog (${dialog.type()}): ${dialog.message()}`); dialog.dismiss().catch(() => {}); });
+  };
+  watch(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  // Opening by drop rather than through the file chooser, which playwright-cli treats as a modal.
-  const open = async (base64, name) => {
-    await page.goto('__PAGE_URL__');
+  const ready = async (target) => {
+    await target.goto('__PAGE_URL__');
     // The host's version arrives with its first snapshot, which gives the page its file session.
-    await page.waitForFunction(() => /Nendo \d+\.\d+/.test(document.body.innerText), null, { timeout: 60000 });
-    await page.evaluate(({ base64, name }) => {
+    await target.waitForFunction(() => /Nendo \d+\.\d+/.test(document.body.innerText), null, { timeout: 60000 });
+  };
+  // Opening by drop rather than through the file chooser, which playwright-cli treats as a modal.
+  const drop = async (target, base64, name) => {
+    await target.evaluate(({ base64, name }) => {
       const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
       const transfer = new DataTransfer();
       transfer.items.add(new File([bytes], name));
       document.dispatchEvent(new DragEvent('dragenter', { dataTransfer: transfer, bubbles: true, cancelable: true }));
       document.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
     }, { base64, name });
-    await page.waitForSelector('[data-rail-place]', { timeout: 60000 });
+    await target.waitForSelector('[data-rail-place]', { timeout: 60000 });
   };
+  const clearFlagState = () => page.evaluate(() => {
+    const button = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Clear review flag');
+    return button === undefined ? 'missing' : button.disabled ? 'disabled' : 'enabled';
+  });
 
   // Station: its automatic action runs in the page once the person approves it.
-  await open('__STATION_BASE64__', 'Nendo Station.nendo');
+  await ready(page);
+  await drop(page, '__STATION_BASE64__', 'Nendo Station.nendo');
   assert(await page.isHidden('#nav-agent'), 'The Agent page is offered in a host with no agents.');
   checks.push('Station opens from a dropped file');
+  // The file's own picture is read from the file, never fetched.
+  await page.waitForFunction(() => document.querySelector('img[src^="blob:"]') !== null, null, { timeout: 15000 })
+    .catch(() => { throw Error('Station\'s picture was not shown from the file.'); });
+  checks.push('the file\'s picture is shown from the page');
   await page.waitForFunction(() => document.body.innerText.includes('Approval needed'), null, { timeout: 30000 });
   await page.click('#nav-health');
   await page.click('#approve-behaviour');
   await page.waitForFunction(() => !document.body.innerText.includes('Approval needed'), null, { timeout: 30000 });
   checks.push('automatic actions approved');
-  // Clear review flag is offered only while a system's flag is up.
-  const command = () => page.evaluate(() => {
-    const button = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Clear review flag');
-    return button === undefined ? 'missing' : button.disabled ? 'disabled' : 'enabled';
-  });
   await page.click('[data-rail-place="type:system"]');
   await page.click('[data-record-id="system.co2"]');
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Clear review flag'), null, { timeout: 15000 });
-  assert(await command() === 'enabled', `CO2 Scrubbing's review flag is not up to start with: ${await command()}.`);
+  assert(await clearFlagState() === 'enabled', `CO2 Scrubbing's review flag is not up to start with: ${await clearFlagState()}.`);
   await page.click('text=Clear review flag');
   await page.waitForFunction(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Clear review flag')?.disabled === true, null, { timeout: 15000 });
   checks.push('a command ran');
@@ -59,9 +70,33 @@ async page => {
   await page.waitForFunction(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Clear review flag')?.disabled === false, null, { timeout: 15000 })
     .catch(() => { throw Error('Editing the incident did not raise its system\'s review flag: the automatic action did not run in the page.'); });
   checks.push('an incident edit ran the automatic action');
+  // The approval is device state, kept in the page's IndexedDB: another visit does not ask again.
+  await ready(page);
+  await drop(page, '__STATION_BASE64__', 'Nendo Station.nendo');
+  await page.waitForTimeout(1500);
+  assert(!(await page.evaluate(() => document.body.innerText.includes('Approval needed'))), 'The approval did not outlast the visit.');
+  checks.push('the approval is kept across visits');
 
-  // Deck: its own view runs in an opaque-origin frame and writes through the broker.
-  await open('__DECK_BASE64__', 'Deck.nendo');
+  // Deck, opened through the File System Access picker so the page can write it back in place. The
+  // picker is the browser's own dialog, which no lane can drive; a handle stands in for it here and
+  // records what the page writes.
+  await page.addInitScript((base64) => {
+    const saved = { writes: 0, bytes: 0 };
+    window.__nendoSaved = saved;
+    window.showOpenFilePicker = async () => [{
+      kind: 'file', name: 'Deck.nendo',
+      requestPermission: async () => 'granted',
+      getFile: async () => new File([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], 'Deck.nendo'),
+      createWritable: async () => ({
+        write: async (data) => { saved.bytes = data.byteLength ?? data.size ?? 0; },
+        close: async () => { saved.writes += 1; },
+      }),
+    }];
+  }, '__DECK_BASE64__');
+  await ready(page);
+  await page.click('#file-menu summary');
+  await page.click('#file-actions [data-file-action="session.openFile"]');
+  await page.waitForSelector('[data-rail-place]', { timeout: 60000 });
   const deckPlace = await page.$$eval('[data-rail-place]', list => list.find(b => b.textContent.trim() === 'Deck')?.dataset.railPlace);
   await page.click(`[data-rail-place="${deckPlace}"]`);
   await page.waitForSelector('iframe.view-frame', { timeout: 15000 });
@@ -74,15 +109,29 @@ async page => {
   assert(before.origin === 'null', `Deck's frame has an origin of its own, not an opaque one: ${before.origin}.`);
   assert(before.slides > 0, 'Deck drew no slides.');
   checks.push('Deck\'s view draws in an opaque-origin frame');
+  const writesBefore = await page.evaluate(() => window.__nendoSaved.writes);
   await frame.click('#add-slide');
   await page.waitForSelector('[role="menuitem"]', { timeout: 10000 });
   await page.click('[role="menuitem"] >> nth=0');
   await frame.waitForFunction((n) => document.querySelectorAll('#slides > *').length === n + 1, before.slides, { timeout: 15000 })
     .catch(() => { throw Error('Adding a slide in Deck changed nothing.'); });
+  await page.waitForFunction((n) => window.__nendoSaved.writes > n && window.__nendoSaved.bytes > 0, writesBefore, { timeout: 15000 })
+    .catch(() => { throw Error('The new slide was not written back to the file the person opened.'); });
+  checks.push('Deck\'s view writes, and the page saves it in place');
   await page.click('#nav-history');
   await page.waitForFunction(() => document.body.innerText.includes('by the custom view Deck'), null, { timeout: 15000 })
     .catch(() => { throw Error('History does not show the view\'s write as the view\'s.'); });
-  checks.push('Deck\'s view writes, and History names it');
+  checks.push('History names the view');
+
+  // One tab writes a file at a time: a second tab opening the same instance gets it read-only.
+  const other = await page.context().newPage();
+  watch(other);
+  await ready(other);
+  await drop(other, '__DECK_BASE64__', 'Deck.nendo');
+  await other.waitForFunction(() => document.body.innerText.includes('open read-only here') || document.body.innerText.includes('Read-only'), null, { timeout: 15000 })
+    .catch(() => { throw Error('A second tab opened the same file for editing.'); });
+  await other.close();
+  checks.push('a second tab opens the file read-only');
 
   // A proposal is previewed on a clone in the page and promoted into the file.
   await page.click('#nav-structure');
@@ -95,11 +144,18 @@ async page => {
     .catch(() => { throw Error('The accepted rename did not reach the file.'); });
   checks.push('a proposal is promoted');
 
-  // The only addresses the page reaches are pictures linked into the files, from the media
-  // origin a Windows host serves (not yet served in the page).
-  const strays = requests.filter(url => !/^https:\/\/media-[0-9a-f]+\.example\//.test(url));
-  assert(strays.length === 0, `The page reached the network: ${JSON.stringify(strays.slice(0, 5))}.`);
+  // Download keeps a copy wherever the browser saves files.
+  await page.click('#file-menu summary');
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 15000 }),
+    page.click('#file-actions [data-file-action="download"]'),
+  ]);
+  assert(download.suggestedFilename() === 'Deck.nendo', `Download named the file ${download.suggestedFilename()}.`);
+  assert(await download.failure() === null, `Download failed: ${await download.failure()}.`);
+  checks.push('Download keeps a copy');
+
+  assert(requests.length === 0, `The page reached the network: ${JSON.stringify(requests.slice(0, 5))}.`);
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
-  return { complete: true, checks, errors, mediaRequests: requests.length };
+  return { complete: true, checks, errors };
   })(); } catch (error) { throw Error(`${error.message} [after: ${checks.at(-1) ?? 'nothing'}]`); }
 }

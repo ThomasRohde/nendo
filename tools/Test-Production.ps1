@@ -170,9 +170,9 @@ try {
     }
     Write-Host 'OK       the Debug Desktop output carries the Workbench this gate built'
 
-    # src\Shared and src\Nendo.Session are source the adapters compile in, so they are adapter code here.
+    # src\Shared and src\Nendo.Session are source the adapters compile in, so they are adapter code here, as is the browser host.
     $adapterFiles = @(
-        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.Session', 'src\Nendo.LocalMcp', 'src\Shared')) {
+        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.Session', 'src\Nendo.Browser', 'src\Nendo.LocalMcp', 'src\Shared')) {
             Get-ChildItem -LiteralPath (Join-Path $repoRoot $adapterRoot) -Recurse -File |
                 Where-Object {
                     $_.Extension -in @('.cs', '.csproj', '.xaml') -and
@@ -187,7 +187,7 @@ try {
             throw "SQLite escaped the Engine boundary: $($file.FullName)"
         }
     }
-    Write-Host "OK       Desktop, Session and local MCP storage boundary ($($adapterFiles.Count) source files)"
+    Write-Host "OK       Desktop, Session, browser host and local MCP storage boundary ($($adapterFiles.Count) source files)"
     # The transport envelopes in src\Shared stay out of the Engine (docs/contracts/scalars.md).
     $engineProject = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\Nendo.Engine\Nendo.Engine.csproj'))
     if ($engineProject -match '(?i)\.\.[\\/]Shared[\\/]') {

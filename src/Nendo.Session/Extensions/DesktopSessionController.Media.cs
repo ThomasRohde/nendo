@@ -18,8 +18,15 @@ internal sealed partial class DesktopSessionController
         var host = DesktopMediaOrigins.Host(manifest.ApplicationId, manifest.InstanceId);
         _mediaFolder = _currentPath is null ? null : Path.GetDirectoryName(Path.GetFullPath(_currentPath));
         _mediaHost = host;
-        return "https://" + host;
+        return MediaScheme() + host;
     }
+
+    /// <summary>
+    /// How the page addresses the open file's pictures: the Windows host answers an https origin of
+    /// its own; the browser host has no server, so its addresses are never fetched and the page
+    /// supplies the pictures itself (ADR-0036).
+    /// </summary>
+    private static partial string MediaScheme();
 
     /// <summary>One embedded picture's metadata, for a view's description.</summary>
     internal async Task<NendoMediaItem?> ReadMediaItemAsync(string sha256, CancellationToken cancellationToken) =>

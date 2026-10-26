@@ -110,6 +110,7 @@ export function installViewFrames(): void {
     running: () => state.session.extensions?.run === true,
     fileSessionId: () => client.currentFileSession?.() ?? state.session.fileSessionId,
     opaqueOrigins: client.readViewPackage !== undefined,
+    pictureUrl: client.pictureDataUrl === undefined ? undefined : (address) => client.pictureDataUrl!(address),
     context: (mount) => ({
       ...viewContext((mount as Mount).spec, state.session, currentTheme(), navigator.language || 'en', brokerMethodNames),
       place: placeOf(mount as Mount),
