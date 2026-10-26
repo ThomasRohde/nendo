@@ -1491,6 +1491,8 @@ async page => {
   const presentFrame = await frame.evaluate(() => { const f = document.getElementById('present-frame'); return { srcdoc: f.hasAttribute('srcdoc'), allow: f.allow }; });
   assert(presentFrame.srcdoc && /autoplay/.test(presentFrame.allow) && /encrypted-media/.test(presentFrame.allow),
     `Present must show the deck from its text, which sends the view's address, and let a video in it play: ${JSON.stringify(presentFrame)}.`);
+  const behind = await frame.evaluate(() => document.querySelectorAll('#stage .dk-v.playing, #stage .dk-v iframe').length);
+  assert(behind === 0, `Present must stop the video playing on the stage behind it: ${behind} still playing.`);
   const talk = frame.childFrames()[0];
   await talk.waitForFunction(() => !!window.deckPlayer, null, { timeout: 5000 });
   const atVideo = await talk.evaluate(() => window.deckPlayer.state().at);
@@ -1501,6 +1503,16 @@ async page => {
   const inTalk = await talk.evaluate(() => ({ at: window.deckPlayer.state().at, shown: window.deckPlayer.state().shown }));
   assert(inTalk.at === atVideo && inTalk.shown === 0 && players.length === requested + 1 && players.at(-1).referer?.startsWith(origin),
     `In Present a click on the video must play it, told the view's address, and not turn the slide: ${JSON.stringify({ inTalk, atVideo, players: players.slice(requested) })}.`);
+  // The presenter view and the slide grid copy the slide while its video plays; a copy shows the poster.
+  for (const key of ['p', 'g']) {
+    await talk.evaluate(k => window.deckPlayer.press(k), key);
+    await settle(300);
+    const copies = await talk.evaluate(() => ({ playing: document.querySelectorAll('.thumb .dk-v.playing, .thumb iframe').length, copies: document.querySelectorAll('.thumb .dk-v').length }));
+    await talk.evaluate(k => window.deckPlayer.press(k), key);
+    await settle(300);
+    assert(copies.copies > 0 && copies.playing === 0 && players.length === requested + 1,
+      `A copy of a slide whose video plays must show its poster, not start another player (key ${key}): ${JSON.stringify({ ...copies, requests: players.length - requested })}.`);
+  }
   // A click in YouTube's player takes the keys; they come back, so the next key turns the slide and stops the video.
   await talk.childFrames()[0].locator('body').click();
   await settle(400);

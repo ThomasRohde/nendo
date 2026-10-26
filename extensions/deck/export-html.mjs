@@ -243,6 +243,7 @@ function player(W, H) {
   /**
    * A copy of slide i in box, `count` points showing (all when null), fitted to the box's width.
    * A copy whose video is playing stays as it is, so a redraw of the console does not stop it.
+   * A new copy shows the poster, whatever the slide itself is playing: it never starts a player.
    */
   function thumb(i, box, count) {
     const kept = box.querySelector('.thumb');
@@ -256,6 +257,7 @@ function player(W, H) {
     const clone = slides[i].cloneNode(true);
     clone.dataset.i = String(i);
     clone.classList.remove('off'); clone.classList.add('thumb'); clone.removeAttribute('aria-label'); clone.removeAttribute('role'); clone.setAttribute('aria-hidden', 'true');
+    stopVideos(clone);
     showSteps(clone, count === null ? Infinity : count);
     clone.querySelectorAll('[data-step]').forEach(el => { el.style.transition = 'none'; });
     clone.style.transform = 'scale(' + (box.clientWidth / W) + ')';

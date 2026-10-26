@@ -1684,6 +1684,8 @@ async function present(fromHere = false, { rehearse = false } = {}) {
   const overlay = $('present');
   overlay.hidden = false;
   deck.presenting = true;
+  // Present has its own player for the video, so the stage's stops rather than play on behind it.
+  $('stage').querySelectorAll('.dk-v.playing').forEach(box => { box.querySelector('iframe')?.remove(); box.classList.remove('playing'); });
   $('present-frame').srcdoc = html;
   overlay.requestFullscreen?.().catch(() => {});
   $('present-frame').addEventListener('load', () => $('present-frame').contentWindow?.focus(), { once: true });
