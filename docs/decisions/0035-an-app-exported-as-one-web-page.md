@@ -47,11 +47,19 @@ no server.
 - **Download file** saves the page's working file as a `.nendo` file, which Nendo opens like any
   other.
 - **Apply changes from a web page** in Nendo opens a downloaded working file of a page exported
-  from this file. It checks the application ID and the export lineage, then replays the
-  revisions committed after the export against the active file, at their base versions, as a
-  proposal is promoted ([ADR-0007](0007-proposal-clone-validation-and-replay-promotion.md)). A
-  revision whose records moved on in Nendo since the export is shown and left out. Nothing is
-  applied that the active file's own validation refuses.
+  from this file. The working file must be of the same application, and its Duplicate transition
+  must name this file's instance at a point this file's history still holds; anything else is
+  refused with the working file named. The revisions after the transition are the page's. They
+  become one proposal ([ADR-0007](0007-proposal-clone-validation-and-replay-promotion.md)): one
+  mutation per revision, holding the operations its author made, at the record versions they
+  were written at, under the origin `host.web-page`. The page's automatic effects are left out
+  of it; this file's own actions make them again on the clone, as for any proposal.
+- A revision is left out, and named with its reason in the notice and in the proposal's review
+  (`NPROP013`), when its records changed in Nendo since the export, when it follows a revision
+  left out that wrote the same records, when it is a design change and Nendo's design changed
+  since the export, or when the active file's own validation refuses it. A revision an earlier
+  Apply already brought in is not replayed again. Nothing is applied until the person accepts
+  the proposal.
 
 ### Custom views in the page
 

@@ -1,6 +1,6 @@
 namespace Nendo.Session;
 
-internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv, NewFile, EmbedLinkedPictures }
+internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv, NewFile, EmbedLinkedPictures, ApplyWebPage }
 
 /// <param name="DroppedPath">
 /// Where a dropped file came from. Never read out of the request payload: the page
@@ -11,6 +11,9 @@ internal sealed record WorkbenchFileActionRequest(WorkbenchFileAction Action, st
 internal sealed record DesktopFileActionView(DesktopSessionView? Session, string? Notice)
 {
     public string? RefreshNotice { get; init; }
+
+    /// <summary>A proposal the action prepared for the person to review, such as a web page's changes.</summary>
+    public string? ProposalId { get; init; }
 
     internal static async Task<DesktopFileActionView> CaptureAsync(
         Func<CancellationToken, Task<DesktopSessionView>> refresh, string? notice,
@@ -69,6 +72,7 @@ internal sealed partial class WorkbenchProtocolHandler
             ["file.importCsv"] = WorkbenchFileAction.ImportCsv,
             ["file.exportCsv"] = WorkbenchFileAction.ExportCsv,
             ["file.embedLinkedPictures"] = WorkbenchFileAction.EmbedLinkedPictures,
+            ["file.applyWebPage"] = WorkbenchFileAction.ApplyWebPage,
         };
 
     private Task<DesktopFileActionView> RunFileActionAsync(WorkbenchFileAction action, string? recentId = null, string? droppedPath = null) =>
@@ -82,4 +86,31 @@ internal sealed partial class WorkbenchProtocolHandler
         // failed, return the known notice and an explicit unavailable view.
         return result.Session is { } snapshot ? snapshot : result;
     }
+}
+
+/// <summary>What Apply changes from a web page says once it has prepared them (ADR-0035).</summary>
+internal static class WebPageChangesNotice
+{
+    private const int NamedLeftOut = 3;
+
+    internal static string Describe(Nendo.Engine.NendoWebPageChanges changes)
+    {
+        var name = changes.WorkingFileName;
+        var said = changes.Proposal is not null
+            ? $"{Count(changes.Replayed, "change")} from {name} {(changes.Replayed == 1 ? "is" : "are")} ready to review."
+            : changes.LeftOut.Count == 0
+                ? $"Every change in {name} is already in this file."
+                : $"No change from {name} can be applied.";
+        if (changes.AlreadyApplied > 0 && (changes.Proposal is not null || changes.LeftOut.Count > 0))
+            said += $" {Count(changes.AlreadyApplied, "change")} {(changes.AlreadyApplied == 1 ? "was" : "were")} applied before.";
+        if (changes.LeftOut.Count > 0)
+        {
+            said += $" {changes.LeftOut.Count} left out: " + string.Join("; ", changes.LeftOut.Take(NamedLeftOut)
+                .Select(revision => $"{revision.Description} ({revision.Reason.TrimEnd('.')})"));
+            said += changes.LeftOut.Count > NamedLeftOut ? $"; and {changes.LeftOut.Count - NamedLeftOut} more." : ".";
+        }
+        return said;
+    }
+
+    private static string Count(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
 }

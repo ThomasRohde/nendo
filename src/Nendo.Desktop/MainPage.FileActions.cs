@@ -10,6 +10,7 @@ public sealed partial class MainPage
 {
     private bool _nativeFileActionRunning;
     private string? _fileActionNotice;
+    private string? _fileActionProposalId;
 
     /// <summary>
     /// A file action started or stopped. The window turns it into taskbar progress: a
@@ -39,6 +40,7 @@ public sealed partial class MainPage
             throw new NendoPreconditionException("file-action-busy", "Finish or cancel the current file action first.");
         NativeFileActionRunning = true;
         _fileActionNotice = null;
+        _fileActionProposalId = null;
         try
         {
             switch (request.Action)
@@ -61,9 +63,10 @@ public sealed partial class MainPage
                 case WorkbenchFileAction.ExportCsv: await ExportCsvNativeAsync(); break;
                 case WorkbenchFileAction.EmbedLinkedPictures: await EmbedLinkedPicturesNativeAsync(); break;
                 case WorkbenchFileAction.ResolveRecovery: await ResolveNativeRecoveryAsync(); break;
+                case WorkbenchFileAction.ApplyWebPage: await ApplyWebPageNativeAsync(); break;
                 default: throw new NendoValidationException("The file action is not supported.");
             }
-            return await DesktopFileActionView.CaptureAsync(_session.GetViewAsync, _fileActionNotice);
+            return await DesktopFileActionView.CaptureAsync(_session.GetViewAsync, _fileActionNotice) with { ProposalId = _fileActionProposalId };
         }
         finally
         {
@@ -275,6 +278,21 @@ public sealed partial class MainPage
         var plan = await _session.PrepareBackupAsync(destination, $"native-backup-{Guid.NewGuid():N}");
         var result = await _session.CreateBackupAsync(plan.PlanId);
         NativeNotice($"Backup created: {result.DestinationFileName}. Your open file was not changed.");
+    }
+
+    /// <summary>
+    /// Apply changes from a web page (ADR-0035): the person picks the page's downloaded working file,
+    /// and its changes come back as one proposal for them to review.
+    /// </summary>
+    private async Task ApplyWebPageNativeAsync()
+    {
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var picker = new FileOpenPicker(window.AppWindow.Id) { CommitButtonText = "Apply changes", FileTypeFilter = { ".nendo" } };
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+        var changes = await _session.PrepareWebPageChangesAsync(file.Path);
+        _fileActionProposalId = changes.Proposal?.ProposalId;
+        _fileActionNotice = WebPageChangesNotice.Describe(changes);
     }
 
     private async Task CopyNativeFileAsync(NendoIdentityCopyKind kind)

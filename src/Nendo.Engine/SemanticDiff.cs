@@ -353,6 +353,15 @@ internal static class SemanticDiff
                 PutExtensionFileOperation value => Entry("putExtensionFile", packages.Put(value), value.Reversibility, value.PackageId, value.Path),
                 RemoveExtensionFileOperation value => Entry("removeExtensionFile", packages.RemoveFile(value), value.Reversibility, value.PackageId, value.Path),
                 RemoveExtensionPackageOperation value => Entry("removeExtensionPackage", packages.Remove(value), value.Reversibility, value.PackageId),
+                // A web page's changes (ADR-0035) carry its pictures and its views' kept values too.
+                PutMediaOperation value => Entry("putMedia",
+                    $"Embed the picture {value.Name ?? value.Sha256[..12]} ({value.MediaType}, {value.ByteLength:N0} bytes) in the file.",
+                    value.Reversibility),
+                SetExtensionStateOperation value => Entry("setExtensionState",
+                    value.ValueJson is null
+                        ? $"Remove the value {value.Key} that the custom view package {value.PackageId} keeps."
+                        : $"Keep the value {value.Key} for the custom view package {value.PackageId}.",
+                    value.Reversibility, value.PackageId),
                 _ => throw new NendoValidationException(
                     $"Operation type {operation.OperationType} has no semantic diff mapping."),
             });

@@ -3,7 +3,7 @@ import { mainWindowOnly, windowRole } from './window-role';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError } from './shell';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon, type IconName } from './icons';
-import type { DesktopFileActionView, DesktopSessionView, RecentFiles } from './host';
+import type { DesktopFileActionView, DesktopSessionView, ProposalPreview, RecentFiles } from './host';
 import { state } from './app-state';
 import { recentFileState } from './recent-files';
 import { openHelp, prepareApplication, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
@@ -305,6 +305,7 @@ export function renderFileMenu(): void {
     <div class="file-menu-divider"></div><p class="file-menu-label">Data</p>
     ${item('file.importCsv', 'Import CSV…', 'Map fields and review batches of up to 100 new records', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${item('file.exportCsv', 'Export CSV…', 'Faithful UTF-8 values from one record type', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
+    ${client.mode === 'browser' ? '' : item('file.applyWebPage', 'Apply changes from a web page…', 'Review what was changed in a page exported from this file', 'data', local && state.session.capabilities.mutate)}
     ${state.session.entities.some(entity => !entity.retired && entity.fields.some(field => !field.retired && field.presentation === 'media'))
       ? item('file.embedLinkedPictures', 'Embed linked pictures…', 'Copy a record type’s linked picture files into this file', 'data', local && state.session.capabilities.mutate)
       : ''}
@@ -448,4 +449,15 @@ export async function showFileActionOutcome(result: DesktopFileActionView): Prom
   if (result.notice) announce(result.notice);
 
   if (refreshNotice !== null) showOutcomeRefreshNotice(result.notice ?? 'Check the file status.', refreshNotice);
+  // A proposal the action prepared, such as a web page's changes, opens for review.
+  if (result.proposalId) {
+    try {
+      state.proposal = await client.request<ProposalPreview>('proposal.get', { proposalId: result.proposalId });
+      state.proposalReturnView = state.view === 'proposal' ? 'use' : state.view;
+      state.view = 'proposal';
+      rerender();
+    } catch (error) {
+      showError(messageFor(error));
+    }
+  }
 }

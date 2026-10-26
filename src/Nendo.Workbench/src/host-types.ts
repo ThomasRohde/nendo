@@ -242,7 +242,7 @@ export function fileCapabilities(enabled: boolean): FileCapabilities {
   return { readData: enabled, readHistory: enabled, backup: enabled, export: enabled, customSurfaces: enabled, mutate: enabled, agentAccess: enabled };
 }
 
-export interface DesktopFileActionView { session: DesktopSessionView | null; notice: string | null; refreshNotice?: string | null }
+export interface DesktopFileActionView { session: DesktopSessionView | null; notice: string | null; refreshNotice?: string | null; proposalId?: string | null }
 export interface RecentFiles { files: Array<{ id: string; fileName: string; state: string; lastOpened: string }>; notice: string | null }
 
 export type AgentAccessMode = 'off' | 'inspect' | 'editData' | 'shapeApp' | 'unattended';

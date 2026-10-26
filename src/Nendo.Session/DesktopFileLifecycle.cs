@@ -190,6 +190,10 @@ internal sealed partial class DesktopSessionController
     internal Task<NendoIdentityCopyResult> CreateIdentityCopyAsync(string planId, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.CreateIdentityCopyAsync(planId, cancellationToken), cancellationToken);
 
+    // Apply changes from a web page (ADR-0035): native selection supplies the downloaded working file.
+    internal Task<NendoWebPageChanges> PrepareWebPageChangesAsync(string path, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.PrepareWebPageChangesAsync(path, cancellationToken), cancellationToken);
+
     // A new file of the same application (ADR-0022): what it would keep, then the file itself.
     internal Task<NendoNewFilePreview> PreviewNewFileAsync(CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.PreviewNewFileAsync(cancellationToken), cancellationToken);

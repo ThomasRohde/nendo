@@ -39,7 +39,7 @@ public sealed class WorkbenchCancellationTests
                      WorkbenchMethods.SessionCreateFile, WorkbenchMethods.SessionOpenFile,
                      WorkbenchMethods.FileBackup, WorkbenchMethods.FileRestore,
                      WorkbenchMethods.FileDiagnostics, WorkbenchMethods.AppearanceSet,
-                     "file.importCsv", "file.exportCsv", "file.embedLinkedPictures",
+                     "file.importCsv", "file.exportCsv", "file.embedLinkedPictures", "file.applyWebPage",
                  })
         {
             Assert.IsFalse(WorkbenchProtocolHandler.RunsOffUiThread(Message(method)), method);

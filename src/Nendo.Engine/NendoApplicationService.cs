@@ -70,6 +70,10 @@ public sealed partial class NendoApplicationService
         CancellationToken cancellationToken = default) =>
         _coordinator.PrepareIdentityCopyAsync(kind, destinationPath, requestId, cancellationToken);
 
+    /// <summary>Prepares a downloaded web page's changes as one proposal (ADR-0035).</summary>
+    public Task<NendoWebPageChanges> PrepareWebPageChangesAsync(string workingFilePath, CancellationToken cancellationToken = default) =>
+        _coordinator.PrepareWebPageChangesAsync(workingFilePath, cancellationToken);
+
     public Task<NendoIdentityCopyResult> CreateIdentityCopyAsync(
         string planId, CancellationToken cancellationToken = default) =>
         _coordinator.CreateIdentityCopyAsync(planId, cancellationToken);

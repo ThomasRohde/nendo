@@ -329,6 +329,13 @@ precondition, then replays the exact validated operations against the active fil
 Preview and promotion use the same interpreter and validation version
 ([ADR-0007](decisions/0007-proposal-clone-validation-and-replay-promotion.md)).
 
+**Apply changes from a web page** ([ADR-0035](decisions/0035-an-app-exported-as-one-web-page.md))
+is a proposal too. `PrepareWebPageChangesAsync` reads a downloaded working file read-only,
+checks its Duplicate transition against this file, and rebuilds each revision after it from
+the stored operations, refusing any that does not rebuild to the same canonical form. A
+revision whose records Nendo changed since the export, or that this file's validation refuses,
+is left out and listed; the rest wait for review like any other proposal.
+
 Below Unattended there is no MCP accept or promote tool; acceptance is native-owned. The
 Workbench review calls `PromoteProposalAsync` with the reviewed digest, which the write
 gate verifies before replay. At Unattended, `nendo.change_set.accept` calls the same
