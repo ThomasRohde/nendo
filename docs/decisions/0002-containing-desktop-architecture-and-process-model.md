@@ -29,6 +29,10 @@ renderer may receive storage or generic privileged calls.
   the renderer, and offers **Restart without custom views**. It is not a second
   editor stack.
 - Web assets are local and offline under a restrictive content-security policy.
+- The same Workbench also runs in the browser host, a page that carries the Engine on
+  WebAssembly and answers the same bridge vocabulary
+  ([ADR-0036](0036-nendo-runs-in-a-browser.md)). The Windows host remains the one with
+  agent access, windows and operating-system integration.
 - Frameworks, the grid and packaging are decided elsewhere
   ([ADR-0015](0015-host-owned-database-studio-and-ag-grid-community.md),
   [ADR-0017](0017-production-composition-and-build-layout.md)) and may not weaken
