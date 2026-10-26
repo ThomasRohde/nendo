@@ -99,6 +99,11 @@
           </div>
           <input id="f-imageAlt" data-field="imageAlt" placeholder="What the picture shows" aria-label="Picture text">
         </div>
+        <div class="field" data-uses="video">
+          <label for="f-video">Video</label>
+          <input id="f-video" data-field="video" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false">
+          <small id="video-hint" class="hint">A YouTube link. The video plays from YouTube and is never copied into the file, so it needs the internet when you show it.</small>
+        </div>
         <div class="field" data-uses="pictures">
           <span class="label">More pictures</span>
           <div class="picture-row"><button id="pick-image2" type="button" class="ghost-button">Choose picture 2…</button><button id="clear-image2" type="button" class="ghost-button" aria-label="Remove picture 2">Remove</button></div>
@@ -181,7 +186,7 @@
     </div>
   </section>
 
-  <div id="present" class="present" hidden><iframe id="present-frame" title="Presenting" allow="fullscreen"></iframe></div>
+  <div id="present" class="present" hidden><iframe id="present-frame" title="Presenting" allow="fullscreen; autoplay; encrypted-media; picture-in-picture"></iframe></div>
   <p id="toast" class="toast" role="status" aria-live="polite"></p>
   <p id="announce" class="sr-only" aria-live="polite"></p>
   <script src="/_nendo/api.js"></script>

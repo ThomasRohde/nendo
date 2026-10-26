@@ -3,10 +3,10 @@
 // same primitives from layout.mjs. The person's own agent writes whole decks, reworks one slide
 // as variants, or runs a mission, through nendo.assistant.ask; its work lands as records.
 
-import { E, F, LAYOUTS, LAYOUT_IDS, CHARTS, PICTURES, TRANSITIONS, SLIDE_TRANSITIONS, BUILDS, transitionOf, layoutOf, slideFrom, sortSlides, reorder } from './model.mjs';
+import { E, F, LAYOUTS, LAYOUT_IDS, CHARTS, PICTURES, TRANSITIONS, SLIDE_TRANSITIONS, BUILDS, transitionOf, layoutOf, slideFrom, sortSlides, reorder, videoOf } from './model.mjs';
 import { TEMPLATES, resolveTheme, sizeOf, webFonts, BRAND_ROLES, normalHex } from './themes.mjs';
 import { layoutSlide } from './layout.mjs';
-import { slideHtml, SLIDE_CSS } from './render.mjs';
+import { slideHtml, SLIDE_CSS, playVideo } from './render.mjs';
 import { canvasMeasure, forgetMeasurements } from './measure.mjs';
 import { buildPptx } from './pptx.mjs';
 import { buildHtml } from './export-html.mjs';
@@ -127,6 +127,8 @@ const designsOf = () => deck.templates.filter(t => v(t, F.template.brand) && dec
 async function resolveMedia() {
   const addresses = new Set();
   for (const s of deck.slides) for (const key of PICTURES) if (s[key]) addresses.add(s[key]);
+  // A video with no picture of its own shows YouTube's poster for it.
+  for (const s of deck.slides) { const poster = !s.image && videoOf(s.video)?.poster; if (poster) addresses.add(poster); }
   for (const variant of deck.variants) { try { const c = JSON.parse(v(variant, F.variant.changes) ?? '{}'); if (c.image) addresses.add(c.image); } catch { /* shown as text */ } }
   const brand = deck.theme?.brand;
   if (brand?.logo) addresses.add(brand.logo);
@@ -163,7 +165,7 @@ function laid(slide, theme = deck.theme, editing = true, number = null) {
   const n = number ?? numberOf(slide);
   // The field being edited keeps its box while it is empty.
   const keep = editing ? editor?.keep() ?? null : null;
-  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, ...PICTURES.map(k => slide[k]), slide.chart, slide.imageAlt, slide.notes, slide.format, slide.build, n, editing, keep, theme]);
+  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, ...PICTURES.map(k => slide[k]), slide.video, slide.chart, slide.imageAlt, slide.notes, slide.format, slide.build, n, editing, keep, theme]);
   let hit = laidCache.get(key);
   if (!hit) {
     if (laidCache.size > 600) laidCache.clear();
@@ -186,6 +188,25 @@ function scaled(slideLaid, width) {
   box.innerHTML = slideHtml(slideLaid, { urlFor, className: 'scaled' });
   box.firstElementChild.style.transform = `scale(${width / slideLaid.W})`;
   return box;
+}
+
+/**
+ * A video playing on the stage goes on playing through a redraw of the same slide: its box is
+ * parked outside the stage with moveBefore, which keeps the player's document, and takes the new
+ * drawing's place for it when the video and its box are the same. Anything else stops it.
+ */
+const parking = () => $('video-parking') ?? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'video-parking', hidden: true }));
+function parkVideo(stage, slide) {
+  const box = stage.querySelector('.dk-v.playing');
+  if (!box || typeof box.moveBefore !== 'function' || stage.dataset.slide !== slide.id) { stage.dataset.slide = slide.id; return null; }
+  parking().moveBefore(box, null);
+  return box;
+}
+function adoptVideo(stage, box) {
+  const same = [...stage.querySelectorAll('.dk-v')].find(v => v.dataset.embed === box.dataset.embed && v.getAttribute('style') === box.getAttribute('style'));
+  if (same) same.parentElement.moveBefore(box, same);
+  same?.remove();
+  if (!same) box.remove();
 }
 
 function drawAll() {
@@ -291,13 +312,15 @@ function drawStage({ ifChanged = false } = {}) {
   const strip = $('layout-strip');
   const availW = wrap.clientWidth - 48, availH = wrap.clientHeight - 34 - 12 - strip.offsetHeight;
   const scale = Math.max(0.1, Math.min(availW / l.W, availH / l.H));
-  const pictures = l.items.filter(p => p.type === 'image').map(p => urlFor(p.src)).join('\n');
+  const pictures = l.items.filter(p => p.type === 'image' || p.type === 'video').map(p => urlFor(p.src ?? p.poster)).join('\n');
   if (ifChanged && drawn && drawn.l === l && drawn.scale === scale && drawn.pictures === pictures && stage.firstElementChild) return;
   drawn = { l, scale, pictures };
   stage.style.width = `${l.W * scale}px`; stage.style.height = `${l.H * scale}px`;
   strip.style.width = `${Math.max(l.W * scale, Math.min(availW, 480))}px`;
+  const playing = parkVideo(stage, slide);
   stage.innerHTML = slideHtml(l, { urlFor, className: 'scaled' });
   stage.firstElementChild.style.transform = `scale(${scale})`;
+  if (playing) adoptVideo(stage, playing);
   deck.stageScale = scale;
   editor?.attach();
   drawStepMarks(stage, slide, l);
@@ -447,7 +470,11 @@ function drawSlidePane(slide) {
   const planned = deck.check?.seconds?.[deck.slides.filter(s => !s.hidden).findIndex(s => s.id === slide.id)];
   $('slide-time').textContent = slide.hidden ? 'Hidden: Present leaves this slide out.' : slide.seconds ? `Rehearsed: ${clock(slide.seconds)} on this slide.` : planned ? `About ${clock(planned)} on this slide${slide.notes ? ', from the notes' : ''}. Rehearse to time it.` : '';
   const grid = slide.layout === 'Picture grid';
-  $('l-image').textContent = grid ? 'Picture 1' : 'Picture';
+  const videoSlide = slide.layout === 'Video';
+  $('l-image').textContent = grid ? 'Picture 1' : videoSlide ? 'Poster (shown until the video plays)' : 'Picture';
+  const video = videoOf(slide.video);
+  $('video-hint').textContent = slide.video && !video ? 'This is not a YouTube link. Paste the address of a YouTube video, such as https://youtu.be/…'
+    : `A YouTube link${video?.start ? `, starting at ${clock(video.start)}` : ''}. The video plays from YouTube and is never copied into the file, so it needs the internet when you show it.`;
   PICTURES.forEach((key, i) => {
     const pick = $(i ? `pick-image${i + 1}` : 'pick-image'), clear = $(i ? `clear-image${i + 1}` : 'clear-image');
     clear.hidden = !slide[key];
@@ -617,9 +644,9 @@ function drawVariants() {
     return card;
   }));
 }
-const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'image2', 'image3', 'image4', 'imageAlt', 'hidden', 'format', 'build', 'transition', 'seconds'];
-// A variant writes words and how they come on, never a picture, a size, a transition or a time: those are the person's.
-const VARIANT_FIELDS = EDITABLE.filter(k => !PICTURES.includes(k) && !['format', 'transition', 'seconds'].includes(k));
+const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'image2', 'image3', 'image4', 'imageAlt', 'video', 'hidden', 'format', 'build', 'transition', 'seconds'];
+// A variant writes words and how they come on, never a picture, a video, a size, a transition or a time: those are the person's.
+const VARIANT_FIELDS = EDITABLE.filter(k => !PICTURES.includes(k) && !['video', 'format', 'transition', 'seconds'].includes(k));
 /** The slide fields a variant changes, by the slide model's names; anything else is dropped. */
 export function pick(changes) {
   const out = {};
@@ -656,7 +683,7 @@ function drawAsk() {
 
 const SLIDE_FIELD = { layout: F.slide.layout, title: F.slide.title, kicker: F.slide.kicker, body: F.slide.body, body2: F.slide.body2, notes: F.slide.notes,
   chart: F.slide.chart, image: F.slide.image, image2: F.slide.image2, image3: F.slide.image3, image4: F.slide.image4, imageAlt: F.slide.imageAlt,
-  hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format,
+  video: F.slide.video, hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format,
   build: F.slide.build, transition: F.slide.transition, seconds: F.slide.seconds };
 const toValues = changes => Object.fromEntries(Object.entries(changes).map(([k, val]) => [SLIDE_FIELD[k], val === '' ? null : val]));
 
@@ -670,6 +697,8 @@ function edit(changes, { now = false } = {}) {
   deck.pending.set(slide.id, pending);
   keepDrafts();
   redrawSoon();
+  // A new video link brings YouTube's poster for it.
+  if ('video' in changes) resolveMedia().then(() => redrawSoon());
   if (now) save.flush(); else save();
 }
 /** Typing in the inspector is a new change: it ends what Ctrl Y could put back. */
@@ -1313,6 +1342,15 @@ async function putPicture(file, slide = currentSlide(), slot = 0) {
   } catch (error) { problem(error, 'The picture could not be put in the file'); }
 }
 
+/** A YouTube link as the slide's video; a slide whose layout plays none becomes a Video slide. */
+function putVideo(link) {
+  const slide = currentSlide();
+  if (!slide || nendo.context?.readOnly) return;
+  if (!videoOf(link)) { toast('That link is not a YouTube video. Deck plays videos from YouTube.'); return; }
+  typed({ video: link.trim(), ...(layoutOf(slide.layout).uses.includes('video') ? {} : { layout: 'Video' }) }, { now: true });
+  toast('The video is on the slide. Click it to play it from YouTube.');
+}
+
 /** Which of the slide's pictures the file chooser fills when it answers. */
 let pictureSlot = 0;
 function choosePicture(slot) {
@@ -1545,7 +1583,7 @@ async function rasterise(blob, width = 1600) {
 }
 function addressesOf(laidSlides) {
   const set = new Set();
-  for (const l of laidSlides) for (const p of l.items) if (p.type === 'image' && p.src) set.add(p.src);
+  for (const l of laidSlides) for (const p of l.items) if (p.type === 'image' && p.src) set.add(p.src); else if (p.type === 'video' && p.poster) set.add(p.poster);
   return set;
 }
 const dataUrl = blob => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
@@ -1605,10 +1643,25 @@ async function exportPptx() {
       } else images.set(address, await rasterise(blob));
     } catch { missing.push(address); }
   }
+  // A video's poster YouTube does not let a page read is drawn instead: PowerPoint's online video
+  // needs a picture to stand in for the player until it plays.
+  for (const p of slides.flatMap(s => s.laid.items).filter(p => p.type === 'video' && !images.has(p.poster))) {
+    try { images.set(p.poster, await rasterise(new Blob([posterSvg(p.alt)], { type: 'image/svg+xml' }), 1280)); } catch { continue; /* the box that opens YouTube stands in */ }
+    const at = missing.indexOf(p.poster);
+    if (at >= 0) missing.splice(at, 1);
+  }
   const d = currentDeck();
   const bytes = buildPptx({ deck: { title: v(d, F.deck.title), author: v(d, F.deck.author) }, theme: deck.theme, slides, images });
   download(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }), fileName('pptx'));
   if (missing.length) toast(`${missing.length} picture${missing.length > 1 ? 's are' : ' is'} linked, not in the file, so PowerPoint leaves ${missing.length > 1 ? 'them' : 'it'} out.`);
+}
+/** A poster for a video whose own cannot be read: dark, a play button and the video's name. */
+function posterSvg(name) {
+  const words = String(name ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]).slice(0, 80);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><rect width="1280" height="720" fill="#0f0f10"/>`
+    + `<rect x="560" y="300" width="160" height="112" rx="34" fill="#e00"/><path d="M620 330 L676 356 L620 382 Z" fill="#fff"/>`
+    + `<text x="640" y="480" fill="#ddd" font-family="Segoe UI, sans-serif" font-size="34" text-anchor="middle">${words}</text>`
+    + '<text x="640" y="530" fill="#999" font-family="Segoe UI, sans-serif" font-size="24" text-anchor="middle">Plays from YouTube</text></svg>';
 }
 async function exportNotes() {
   await flushAll();
@@ -1618,20 +1671,20 @@ async function exportNotes() {
   download(new Blob([lines.join('\n')], { type: 'text/markdown' }), fileName('md').replace(/\.md$/, ' - notes.md'));
 }
 
-let presentUrl = null;
 /** Present, from the start or from this slide; a rehearsal starts the console's clock and keeps the time on each slide. */
 async function present(fromHere = false, { rehearse = false } = {}) {
   await flushAll();
   const shown = deck.slides.filter(s => !s.hidden);
   if (!shown.length) { toast('There is no slide to show: every slide is hidden.'); return; }
   const start = fromHere ? Math.max(0, shown.findIndex(s => s.id === deck.slideId)) : 0;
-  if (presentUrl) URL.revokeObjectURL(presentUrl);
   deck.rehearsing = rehearse ? shown.map(s => s.id) : null;
-  presentUrl = URL.createObjectURL(new Blob([await htmlDocument({ embedded: true, start, rehearse })], { type: 'text/html' }));
+  // The deck is the frame's own text, not a blob: a page made from text sends the view's address
+  // with its requests, and YouTube's player plays only for a page that says where it is.
+  const html = await htmlDocument({ embedded: true, start, rehearse });
   const overlay = $('present');
   overlay.hidden = false;
   deck.presenting = true;
-  $('present-frame').src = presentUrl;
+  $('present-frame').srcdoc = html;
   overlay.requestFullscreen?.().catch(() => {});
   $('present-frame').addEventListener('load', () => $('present-frame').contentWindow?.focus(), { once: true });
 }
@@ -1641,6 +1694,8 @@ function stopPresenting(index, timings = null) {
   const ran = deck.rehearsing;
   deck.rehearsing = null;
   if (ran && Array.isArray(timings)) offerTimings(ran, timings);
+  // A frame's text outranks its address, so the text goes for the frame to empty.
+  $('present-frame').removeAttribute('srcdoc');
   $('present-frame').src = 'about:blank';
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   const shown = deck.slides.filter(s => !s.hidden);
@@ -2031,8 +2086,11 @@ function wire() {
   });
   stage.addEventListener('click', e => {
     if (e.target.closest('.dk-t[data-field]')) return;
+    // A video plays on the stage, from YouTube, as it will when the deck is shown.
+    const video = e.target.closest('.dk-v');
+    if (video) { playVideo(video); return; }
     const role = e.target.closest('[data-role]')?.dataset.role;
-    const field = { title: 'f-title', kicker: 'f-kicker', body: 'f-body', body2: 'f-body2', image: 'pick-image', hint: 'pick-image' }[role];
+    const field = { title: 'f-title', kicker: 'f-kicker', body: 'f-body', body2: 'f-body2', image: 'pick-image', hint: 'pick-image', video: 'f-video' }[role];
     if (!field) return;
     deck.tab = 'slide'; drawInspector();
     // A picture, or its place, opens the chooser for that one of the slide's pictures.
@@ -2041,9 +2099,17 @@ function wire() {
     const el = $(field); if (!el.closest('[hidden]')) el.focus();
   });
   for (const target of [$('stage-wrap')]) {
-    target.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); stage.classList.add('drop'); } });
+    target.addEventListener('dragover', e => { if ([...e.dataTransfer.types].some(type => type === 'Files' || type === 'text/uri-list')) { e.preventDefault(); stage.classList.add('drop'); } });
     target.addEventListener('dragleave', () => stage.classList.remove('drop'));
-    target.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); stage.classList.remove('drop'); putPicture(e.dataTransfer.files[0], currentSlide(), dropSlot(e.target)); });
+    target.addEventListener('drop', e => {
+      stage.classList.remove('drop');
+      if (e.dataTransfer.files.length) { e.preventDefault(); putPicture(e.dataTransfer.files[0], currentSlide(), dropSlot(e.target)); return; }
+      // A YouTube link dragged from the browser is the slide's video.
+      const link = (e.dataTransfer.getData('text/uri-list') || '').split(/\r?\n/).find(line => line && !line.startsWith('#'));
+      if (!link) return;
+      e.preventDefault();
+      putVideo(link);
+    });
   }
   new ResizeObserver(() => drawStage()).observe($('stage-wrap'));
   new ResizeObserver(debounce(() => drawSorter(), 120)).observe($('slides'));

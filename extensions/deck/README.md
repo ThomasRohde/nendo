@@ -13,7 +13,7 @@ and puts the example's new words over its old ones, and leaves anything the pers
 | Record type | What it holds |
 | --- | --- |
 | Decks (`dk.deck`) | Title, subtitle, author, date, audience, goal, shape (16:9 or 4:3), template, brand kit, footer, slide numbers, status, transition, talk length in minutes |
-| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, three more pictures for a Picture grid (media fields), chart kind, hidden, text format (JSON), build (all at once or one by one), transition (the deck's or its own), rehearsed seconds |
+| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, three more pictures for a Picture grid (media fields), video (a YouTube link, as text), chart kind, hidden, text format (JSON), build (all at once or one by one), transition (the deck's or its own), rehearsed seconds |
 | Templates (`dk.template`) | A family's shapes with its own fonts and seven colours; six are seeds. A Design's template also holds light or dark, a style, per-kind backgrounds (four background pictures as media), chart colours, the logo's place, its Brand kit and the kit it came from |
 | Brand kits (`dk.brand`) | Seven colour roles, three fonts, logo, logo on dark and mark (media fields), voice, tagline, the imported tokens |
 | Asks (`dk.ask`) | One request to the person's agent: scope, request, selection, status, progress, reply |
@@ -25,7 +25,7 @@ every new file. A person's own decks, kits and asks are not.
 ## One drawing, four outputs
 
 `layout.mjs` turns a slide and a resolved theme into primitives: rectangles, ellipses, lines, paths,
-arcs, pictures and text boxes with paragraphs of runs. It fits each text box by shrinking its size,
+arcs, pictures, videos and text boxes with paragraphs of runs. It fits each text box by shrinking its size,
 never below a floor, and marks a box that still runs over. Everything else draws those primitives:
 
 - `render.mjs` as absolutely placed HTML, for the stage, the thumbnails, the layout and template
@@ -141,7 +141,9 @@ out of tokens, since that one may have written only some of the slides.
 
 ## Present and export
 
-Present builds the HTML export with the pictures' own URLs and shows it in a frame over the view.
+Present builds the HTML export with the pictures' own URLs and shows it in a frame over the view,
+as the frame's own text (`srcdoc`) rather than a blob: a page made from text sends the view's
+address with its requests, and YouTube's player plays only for a page that sends one.
 The exported HTML is one file with every picture the file holds inlined; a web picture stays linked
 by its address, and one linked from a folder on the computer is left out, which the export says.
 
@@ -159,6 +161,17 @@ by its address, and one linked from a folder on the computer is left out, which 
   (`D`, `E` clears), black (`B`) and white (`W`) reach the audience; the console's slide shows a
   black or white screen as a notice over it. A number and Enter goes to a
   slide; `G` opens a grid, `F` full screen, `#N` in the address a slide.
+- **Videos.** A Video slide's link (`dk.slide.video`) is text, never media: `model.mjs`'s `videoOf`
+  reads a YouTube address in its usual shapes, with its start time. `render.mjs` draws the video as
+  its poster (the slide's Picture, else YouTube's own) and a play button, carrying the player's
+  address and the video's page, so a thumbnail, a slide not yet reached and a printed page load
+  nothing from YouTube. A click puts YouTube's privacy-enhanced player in the poster's place
+  (`playVideo` on the stage, the player's own copy in the HTML file); a redraw of the stage keeps
+  it playing by parking it with `moveBefore`, and the player takes it away when the slide turns.
+  After a click in YouTube's player the player gives the keys back, so the next key still turns
+  the slide. A file opened from a folder sends YouTube no address, so there a click opens the
+  video on YouTube. PowerPoint gets its own online video: the poster as the picture and an
+  external link to YouTube's player, with a drawn poster when YouTube's cannot be read.
 - **The audience window.** In the HTML file opened in a browser, the console opens the slides in a
   second window and keeps both in step; keys pressed in either drive the talk.
 - **Rehearse** opens the console with its clock running. Finish offers the seconds spent on each
@@ -166,7 +179,8 @@ by its address, and one linked from a folder on the computer is left out, which 
   those times, and the notes' spoken length for the rest, to the talk's length for the pace.
 - **The Check tab** (`check.mjs`): the talk's length against its target, from rehearsed times and
   from the notes at 130 words a minute, then what to look at, worst first: text that runs over, a
-  slide with no title or an empty body, a picture still to place or without picture text, more than
+  slide with no title or an empty body, a picture still to place or without picture text, a Video
+  slide with no YouTube link (and, for one with a link, that the room needs the internet), more than
   60 words on a slide, a build with nothing to bring on, a slide with no notes. A click opens the slide.
 
 When printed, the HTML shows one slide per page with every point. The PowerPoint export writes each
@@ -179,6 +193,9 @@ embedded picture with `nendo.media.read`, and draws an SVG or WebP to PNG first.
   view and in the HTML file when online; PowerPoint substitutes a font it does not have.
 - A picture only linked by URL is drawn on the stage but left out of the PowerPoint file, which
   says so.
+- A video is YouTube's only, and plays only online. In the audience window the video plays on the
+  audience's screen and the console keeps its poster. PowerPoint's playback of the online video
+  is checked against its XML and in LibreOffice; no lane opens it in PowerPoint.
 - Charts are column, bar, line, area, stacked column, pie and doughnut, from a Markdown table;
   there is no chart editor. A pie or a doughnut draws the table's first number column; a doughnut
   names it under the total.

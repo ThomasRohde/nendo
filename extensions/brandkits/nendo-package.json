@@ -1,7 +1,7 @@
 {
   "packageId": "app.brandkits.view",
   "title": "Brandkits",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "entryPoint": "index.html",
   "description": "Professional brand kits with the launched agent: ask for a whole kit or one part, watch it land, pick from its variants, and see every contrast ratio worked out by WCAG 2.2. Slides in the kit's look, drawn as Deck draws them, export to Deck as a Deck design."
 }
