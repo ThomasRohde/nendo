@@ -69,6 +69,18 @@ public static partial class BrowserHost
         }
     }
 
+    /// <summary>
+    /// Opens the file a page carries (ADR-0035), or the working copy the page kept of it, when the
+    /// page starts. Answers the open's notice, or empty.
+    /// </summary>
+    [JSExport]
+    public static async Task<string> OpenCarriedAsync(byte[] bytes, string name)
+    {
+        Handler();
+        var path = await WriteIntoPageAsync(name, bytes);
+        return await OpenWithOneWriterAsync(path) ?? string.Empty;
+    }
+
     /// <summary>The open file's bytes as they stand, for the page to download; empty when nothing is open.</summary>
     [JSExport]
     public static byte[] ReadOpenFile() =>

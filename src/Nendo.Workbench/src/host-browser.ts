@@ -1,5 +1,6 @@
 import { DesktopWorkbenchClient, type WebViewBridge } from './host-desktop';
 import { protocolVersion } from './host';
+import type { KeptAs } from './host-types';
 
 /**
  * The browser host (ADR-0036): the same Engine and protocol handler, compiled to WebAssembly and
@@ -13,6 +14,9 @@ import { protocolVersion } from './host';
 
 /** The page carries the runtime's files here, gzipped and base64, with the runtime's boot config. */
 export const browserRuntimeId = 'nendo-runtime';
+
+/** An exported page (ADR-0035) carries its file here, gzipped and base64, named by `data-name`. */
+const carriedFileId = 'nendo-file';
 
 /** The largest file the page opens; the runtime refuses one too. */
 const maximumFileBytes = 256 * 1024 * 1024;
@@ -31,6 +35,7 @@ interface BrowserHostExports {
   ReadMediaAsync(address: string): Promise<string>;
   ExportDeviceState(): string;
   ImportDeviceState(state: string): void;
+  OpenCarriedAsync(bytes: Uint8Array, name: string): Promise<string>;
 }
 
 interface DotnetRuntime {
@@ -59,12 +64,17 @@ export function carriesBrowserRuntime(): boolean {
 }
 
 /**
- * The file the person opened and how the page keeps it: in place through its handle, or in the page
- * only. `picked` waits for the open it was picked for; `baseline` marks a file just opened, whose
- * bytes are as it came in and need no write back.
+ * The file the person opened and how the page keeps it: in place through its handle, as the working
+ * copy of the file the page carries (in IndexedDB under `carried`), or in the page only. `picked`
+ * waits for the open it was picked for; `baseline` marks a file just opened, whose bytes are as it
+ * came in and need no write back; `stored` is false once the browser would not keep the working copy.
  */
-const kept: { handle: WritableFileHandle | null; picked: WritableFileHandle | null; name: string | null; baseline: boolean } =
-  { handle: null, picked: null, name: null, baseline: false };
+const kept: {
+  handle: WritableFileHandle | null; picked: WritableFileHandle | null; name: string | null; baseline: boolean;
+  carried: string | null; stored: boolean; notice: string | null;
+} = { handle: null, picked: null, name: null, baseline: false, carried: null, stored: true, notice: null };
+
+const visitOnly = 'This browser does not keep this file, so your changes last only this visit. Download the file to keep them.';
 
 export class BrowserWorkbenchClient extends DesktopWorkbenchClient {
   private readonly runtime: RuntimeBridge;
@@ -97,8 +107,13 @@ export class BrowserWorkbenchClient extends DesktopWorkbenchClient {
     window.setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
   }
 
-  keptAs(): { inPlace: boolean; name: string | null } {
-    return { inPlace: kept.handle !== null, name: kept.name };
+  keptAs(): { held: KeptAs; name: string | null } {
+    return { held: kept.handle !== null ? 'inPlace' : kept.carried === null ? 'page' : kept.stored ? 'browser' : 'visit', name: kept.name };
+  }
+
+  async startNotice(): Promise<string | null> {
+    await this.runtime.host;
+    return kept.notice;
   }
 }
 
@@ -166,23 +181,31 @@ class RuntimeBridge implements WebViewBridge {
     kept.picked = null;
     kept.name = name;
     kept.baseline = true;
+    // Another file is not the page's own: its working copy is no longer what the page keeps.
+    kept.carried = null;
   }
 
   private save(host: BrowserHostExports): void {
     // The first read after an open is the file as it came in: nothing to write back.
     if (kept.baseline) { host.ReadOpenFileIfChanged(); kept.baseline = false; return; }
     const handle = kept.handle;
-    if (handle === null) return;
+    const carried = kept.carried;
+    if (handle === null && carried === null) return;
     const bytes = host.ReadOpenFileIfChanged();
     if (bytes.length === 0) return;
-    this.saving = this.saving.then(async () => {
-      const writable = await handle.createWritable();
-      await writable.write(bytes as BufferSource);
-      await writable.close();
-    }).catch(() => {
-      // A save the browser refused leaves the file where it was; Download still keeps a copy.
-      kept.handle = null;
-    });
+    if (handle !== null) {
+      this.saving = this.saving.then(async () => {
+        const writable = await handle.createWritable();
+        await writable.write(bytes as BufferSource);
+        await writable.close();
+      }).catch(() => {
+        // A save the browser refused leaves the file where it was; Download still keeps a copy.
+        kept.handle = null;
+      });
+    } else if (carried !== null) {
+      // The page's own file: its working copy, kept by this browser for the next visit.
+      this.saving = this.saving.then(async () => { kept.stored = await writeStored('files', carried, bytes); });
+    }
   }
 
   private keepDeviceState(host: BrowserHostExports): void {
@@ -235,8 +258,9 @@ async function bootRuntime(): Promise<BrowserHostExports> {
   const exports = await runtime.getAssemblyExports(config.mainAssemblyName);
   const host = exports.Nendo.Browser.BrowserHost;
   // Kept device state comes back before any file opens, so an approval given on an earlier visit holds.
-  const state = await readDeviceState();
-  if (state !== null) host.ImportDeviceState(state);
+  const state = await readStored('device', 'state');
+  if (typeof state === 'string') host.ImportDeviceState(state);
+  await openCarriedFile(host);
   void navigator.storage?.persist?.().catch(() => false);
   watchPictures(host);
   return host;
@@ -298,24 +322,26 @@ function releaseWriterLock(): void {
   releaseHeldLock = null;
 }
 
-const deviceStore = { database: 'nendo-browser-host', store: 'device', key: 'state' };
-
-function openDeviceStore(): Promise<IDBDatabase> {
+/** The page's own storage: device state, and the working copy of each exported page's file. */
+function openPageStore(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(deviceStore.database, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(deviceStore.store);
+    const request = indexedDB.open('nendo-browser-host', 2);
+    request.onupgradeneeded = () => {
+      for (const store of ['device', 'files'])
+        if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store);
+    };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB is unavailable.'));
   });
 }
 
-/** The device state an earlier visit kept, or null when there is none or the browser keeps no storage. */
-async function readDeviceState(): Promise<string | null> {
+/** What an earlier visit kept, or null when there is none or the browser keeps no storage. */
+async function readStored(store: 'device' | 'files', key: string): Promise<unknown> {
   try {
-    const database = await openDeviceStore();
-    return await new Promise<string | null>((resolve) => {
-      const request = database.transaction(deviceStore.store, 'readonly').objectStore(deviceStore.store).get(deviceStore.key);
-      request.onsuccess = () => resolve(typeof request.result === 'string' ? request.result : null);
+    const database = await openPageStore();
+    return await new Promise<unknown>((resolve) => {
+      const request = database.transaction(store, 'readonly').objectStore(store).get(key);
+      request.onsuccess = () => resolve(request.result ?? null);
       request.onerror = () => resolve(null);
     });
   } catch {
@@ -323,13 +349,50 @@ async function readDeviceState(): Promise<string | null> {
   }
 }
 
-async function writeDeviceState(state: string): Promise<void> {
+/** Keeps a value for the next visit; false when the browser would not, so it lasts this visit only. */
+async function writeStored(store: 'device' | 'files', key: string, value: unknown): Promise<boolean> {
   try {
-    const database = await openDeviceStore();
-    database.transaction(deviceStore.store, 'readwrite').objectStore(deviceStore.store).put(state, deviceStore.key);
+    const database = await openPageStore();
+    return await new Promise<boolean>((resolve) => {
+      const transaction = database.transaction(store, 'readwrite');
+      transaction.objectStore(store).put(value, key);
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => resolve(false);
+      transaction.onabort = () => resolve(false);
+    });
   } catch {
-    // Without storage the device state lasts the visit, as it would in a private window.
+    return false;
   }
+}
+
+async function writeDeviceState(state: string): Promise<void> {
+  await writeStored('device', 'state', state);
+}
+
+/**
+ * An exported page opens the file it carries as it starts, or the working copy this browser kept of
+ * it on an earlier visit. The copy is keyed by the carried file's digest, so each exported page has
+ * its own, and a new export starts from what it carries.
+ */
+async function openCarriedFile(host: BrowserHostExports): Promise<void> {
+  const element = document.getElementById(carriedFileId);
+  if (element === null) return;
+  const carried = (element.textContent ?? '').trim();
+  const name = element.dataset.name ?? 'file.nendo';
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(carried)));
+  const key = 'page-file:' + [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  const stored = await readStored('files', key);
+  const bytes = stored instanceof Uint8Array ? stored
+    : new Uint8Array(await new Response(new Blob([Uint8Array.from(atob(carried), (c) => c.charCodeAt(0))]).stream()
+      .pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  const opened = await host.OpenCarriedAsync(bytes, name);
+  kept.handle = null;
+  kept.name = name;
+  kept.carried = key;
+  kept.baseline = true;
+  // A browser that keeps nothing holds the working copy for this visit only.
+  kept.stored = stored instanceof Uint8Array || await writeStored('files', key, bytes);
+  kept.notice = [opened, kept.stored ? '' : visitOnly].filter((text) => text !== '').join(' ') || null;
 }
 
 async function readPicture(host: BrowserHostExports, address: string): Promise<{ mediaType: string; base64: string } | null> {

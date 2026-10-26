@@ -154,6 +154,126 @@ async page => {
   assert(await download.failure() === null, `Download failed: ${await download.failure()}.`);
   checks.push('Download keeps a copy');
 
+  // An exported page (ADR-0035) carries its file and keeps the working copy in this browser's
+  // IndexedDB. Leaving the page releases its writer lock on Deck, which an exported Deck takes.
+  await page.goto('about:blank');
+  const openExported = async (target, url) => {
+    await target.goto(url);
+    await target.waitForSelector('[data-rail-place]', { timeout: 60000 });
+  };
+  // The working copies as they stand, so a reload waits for the write the edit made to settle.
+  const keptCopies = (target) => target.evaluate(() => new Promise((resolve) => {
+    const request = indexedDB.open('nendo-browser-host');
+    request.onerror = () => resolve('none');
+    request.onsuccess = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains('files')) { resolve('none'); return; }
+      const all = database.transaction('files', 'readonly').objectStore('files').getAll();
+      all.onsuccess = () => resolve(all.result.map((bytes) => `${bytes.length}:${bytes.reduce((sum, b, i) => (sum + b * (i % 251 + 1)) % 1000000007, 0)}`).join('|'));
+      all.onerror = () => resolve('none');
+    };
+  }));
+  const keptSettles = async (target, before, what) => {
+    let last = before, steady = 0;
+    for (let i = 0; i < 120 && steady < 4; i++) {
+      await target.waitForTimeout(250);
+      const now = await keptCopies(target);
+      steady = now !== before && now === last ? steady + 1 : 0;
+      last = now;
+    }
+    assert(steady >= 4, `This browser did not keep ${what}.`);
+  };
+  const exported = await page.context().newPage();
+  watch(exported);
+  await exported.setViewportSize({ width: 1440, height: 900 });
+  await openExported(exported, '__STATION_PAGE_URL__');
+  checks.push('an exported page opens the file it carries');
+  const stationKept = await keptCopies(exported);
+  await exported.click('[data-rail-place="type:incident"]');
+  await exported.click('[data-record-id="incident.001"]');
+  await exported.selectOption('select[name="incidentSeverity"]', { label: 'Elevated' });
+  await exported.click('text=Save changes');
+  await exported.waitForFunction(() => !document.body.innerText.includes('Saving'), null, { timeout: 15000 });
+  await exported.click('#nav-data');
+  await exported.click('[data-entity-id="incident"]');
+  const titleCell = '.ag-row[row-id="incident.002"] .ag-cell[col-id="incidentTitle"]';
+  await exported.waitForSelector(titleCell, { timeout: 15000 });
+  await exported.dblclick(titleCell);
+  await exported.waitForSelector('.ag-cell-inline-editing input', { timeout: 10000 });
+  await exported.keyboard.press('Control+a');
+  await exported.keyboard.type('Kept across visits');
+  await exported.keyboard.press('Enter');
+  await exported.waitForFunction((cell) => document.querySelector(cell)?.textContent?.trim() === 'Kept across visits', titleCell, { timeout: 15000 })
+    .catch(() => { throw Error('The list edit did not save.'); });
+  await keptSettles(exported, stationKept, 'the record page and list edits');
+  await openExported(exported, '__STATION_PAGE_URL__');
+  await exported.click('[data-rail-place="type:incident"]');
+  await exported.click('[data-record-id="incident.001"]');
+  const severity = await exported.$eval('select[name="incidentSeverity"]', (select) => select.selectedOptions[0]?.textContent?.trim());
+  assert(severity === 'Elevated', `The record page edit did not survive a reload: the severity is ${severity}.`);
+  await exported.click('#nav-data');
+  await exported.click('[data-entity-id="incident"]');
+  await exported.waitForFunction((cell) => document.querySelector(cell)?.textContent?.trim() === 'Kept across visits', titleCell, { timeout: 15000 })
+    .catch(() => { throw Error('The list edit did not survive a reload.'); });
+  checks.push('a record page edit and a list edit survive a reload');
+  await exported.click('#file-menu summary');
+  const keptDetail = await exported.textContent('#file-actions [data-file-action="download"]');
+  assert(keptDetail.includes('This browser keeps your changes'), `Download does not say the browser keeps the changes: ${keptDetail}.`);
+  const [stationDownload] = await Promise.all([
+    exported.waitForEvent('download', { timeout: 15000 }),
+    exported.click('#file-actions [data-file-action="download"]'),
+  ]);
+  assert(stationDownload.suggestedFilename() === 'Nendo Station.nendo', `Download named the file ${stationDownload.suggestedFilename()}.`);
+  await stationDownload.saveAs('__DOWNLOAD_PATH__');
+  checks.push('the exported page downloads its working file');
+  await exported.close();
+
+  const deckExport = await page.context().newPage();
+  watch(deckExport);
+  await deckExport.setViewportSize({ width: 1440, height: 900 });
+  const deckFrame = async () => {
+    const place = await deckExport.$$eval('[data-rail-place]', list => list.find(b => b.textContent.trim() === 'Deck')?.dataset.railPlace);
+    await deckExport.click(`[data-rail-place="${place}"]`);
+    await deckExport.waitForSelector('iframe.view-frame', { timeout: 15000 });
+    const name = await deckExport.$eval('iframe.view-frame', e => e.name);
+    let found = null;
+    for (let i = 0; i < 120 && found === null; i++) { found = deckExport.frame({ name }); if (found === null) await deckExport.waitForTimeout(250); }
+    assert(found !== null, 'The exported Deck\'s frame never started.');
+    await found.waitForFunction(() => /^\d+ slides?$/.test(document.getElementById('deck-count')?.textContent ?? ''), null, { timeout: 30000 });
+    return found;
+  };
+  await openExported(deckExport, '__DECK_PAGE_URL__');
+  let slidesFrame = await deckFrame();
+  const slidesBefore = await slidesFrame.evaluate(() => document.querySelectorAll('#slides > *').length);
+  const deckKept = await keptCopies(deckExport);
+  await slidesFrame.click('#add-slide');
+  await deckExport.waitForSelector('[role="menuitem"]', { timeout: 10000 });
+  await deckExport.click('[role="menuitem"] >> nth=0');
+  await slidesFrame.waitForFunction((n) => document.querySelectorAll('#slides > *').length === n + 1, slidesBefore, { timeout: 15000 })
+    .catch(() => { throw Error('Adding a slide in the exported Deck changed nothing.'); });
+  await keptSettles(deckExport, deckKept, 'Deck\'s new slide');
+  await openExported(deckExport, '__DECK_PAGE_URL__');
+  slidesFrame = await deckFrame();
+  const slidesAfter = await slidesFrame.evaluate(() => document.querySelectorAll('#slides > *').length);
+  assert(slidesAfter === slidesBefore + 1, `Deck's new slide did not survive a reload: ${slidesBefore} slides before, ${slidesAfter} after.`);
+  checks.push('Deck\'s view write survives a reload');
+  await deckExport.close();
+
+  // A browser that refuses storage holds the page's changes for the visit only, and says so.
+  const refused = await page.context().newPage();
+  watch(refused);
+  await refused.addInitScript(() => {
+    IDBFactory.prototype.open = function () { throw new DOMException('Storage is refused here.', 'SecurityError'); };
+  });
+  await openExported(refused, '__STATION_PAGE_URL__');
+  await refused.waitForFunction(() => document.body.innerText.includes('your changes last only this visit'), null, { timeout: 15000 })
+    .catch(() => { throw Error('A refused storage did not show the visit-only notice.'); });
+  await refused.click('#file-menu summary');
+  const visitDetail = await refused.textContent('#file-actions [data-file-action="download"]');
+  assert(visitDetail.includes('Your changes last only this visit'), `Download does not say the changes last this visit only: ${visitDetail}.`);
+  await refused.close();
+  checks.push('a refused storage shows the visit-only notice');
+
   assert(requests.length === 0, `The page reached the network: ${JSON.stringify(requests.slice(0, 5))}.`);
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, errors };

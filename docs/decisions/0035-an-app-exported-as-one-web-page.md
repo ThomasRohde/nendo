@@ -37,10 +37,13 @@ no server.
 
 ### Where edits go
 
-- The page keeps its working file in the browser's IndexedDB, keyed by the instance ID, and
-  writes it after each committed revision. Reopening the page continues from there. The page asks
-  for persistent storage, and says so when the browser refuses and edits are held for the visit
-  only.
+- The page carries its file in a `nendo-file` script element, gzipped and base64, and opens it as
+  it starts.
+- The page keeps its working file in the browser's IndexedDB, keyed by a digest of the file it
+  carries, so each exported page has its own and a new export starts from what it carries. It
+  writes the working file after each answer that changed it. Reopening the page continues from
+  there. The page asks for persistent storage. When the browser will not store the working file,
+  the page says that edits are held for the visit only, and **Download file** says so too.
 - **Download file** saves the page's working file as a `.nendo` file, which Nendo opens like any
   other.
 - **Apply changes from a web page** in Nendo opens a downloaded working file of a page exported

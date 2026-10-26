@@ -13,6 +13,9 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
 export type WorkbenchMode = 'desktop' | 'browser' | 'preview' | 'unavailable';
 
+/** How the browser host keeps the open file (ADR-0035, ADR-0036). */
+export type KeptAs = 'inPlace' | 'browser' | 'visit' | 'page';
+
 /**
  * Whether the host holds a real file and answers the whole protocol for it: the Windows host, and
  * the browser host that runs the same Engine in the page (ADR-0036). Only the Windows host owns a
@@ -964,8 +967,13 @@ export interface WorkbenchClient {
   pictureDataUrl?(address: string): Promise<string | null>;
   /** Saves the open file where the person chooses; the browser host's way to keep a file. */
   downloadOpenFile?(): Promise<void>;
-  /** Where the open file is kept: written back in place under this name, or held in the page only. */
-  keptAs?(): { inPlace: boolean; name: string | null };
+  /**
+   * Where the browser host keeps the open file: written back in place under this name, as an
+   * exported page's working copy in this browser or for this visit only, or in the page only.
+   */
+  keptAs?(): { held: KeptAs; name: string | null };
+  /** What the host has to say once it has started: an exported page held for this visit only (ADR-0035). */
+  startNotice?(): Promise<string | null>;
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
   /** Listen for custom-view frames whose renderer ended. */

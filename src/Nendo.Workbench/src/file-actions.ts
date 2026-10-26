@@ -317,10 +317,18 @@ export function renderFileMenu(): void {
   wireFileActions(menu);
 }
 
-/** The browser host's file (ADR-0036): saved back where it came from, or held in this page until downloaded. */
+/**
+ * The browser host's file (ADR-0035, ADR-0036): saved back where it came from, kept by this browser
+ * as an exported page's working copy, or held in this page until downloaded.
+ */
 function downloadDetail(): string {
   const kept = client.keptAs?.();
-  return kept?.inPlace === true && kept.name !== null ? `Changes are also saved to ${escapeHtml(kept.name)}` : 'This page holds the only copy until you download it';
+  switch (kept?.held) {
+    case 'inPlace': return `Changes are also saved to ${escapeHtml(kept.name ?? 'the file')}`;
+    case 'browser': return 'This browser keeps your changes for this page; download to keep them anywhere else';
+    case 'visit': return 'Your changes last only this visit; download to keep them';
+    default: return 'This page holds the only copy until you download it';
+  }
 }
 
 export function fileActionButton(method: string, label: string, enabled: boolean, detail = '', glyph: IconName = 'file'): string {

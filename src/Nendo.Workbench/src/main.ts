@@ -466,6 +466,9 @@ async function initialise(): Promise<void> {
     await refreshDerived();
     if (state.compilation?.isValid) state.view = 'use';
     render();
+    // An exported page says when this browser will not keep its changes (ADR-0035).
+    const startNotice = await client.startNotice?.();
+    if (startNotice) showOutcome(startNotice);
     // A window opened for a tab moved out of another shows that tab's place.
     if (client.mode === 'desktop') {
       const start = await client.request<TabWindowStart>('window.takeTab');
