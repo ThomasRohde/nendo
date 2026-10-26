@@ -23,6 +23,9 @@ function Invoke-Checked([string]$File, [string[]]$Arguments, [string]$What) {
 }
 
 New-Item -ItemType Directory -Force $output | Out-Null
+# Publishing over an earlier runtime leaves that build's fingerprinted files beside the new ones,
+# and the page carries every file in the folder.
+if (Test-Path -LiteralPath $runtime) { Remove-Item -LiteralPath $runtime -Recurse -Force }
 Invoke-Checked 'dotnet' @('publish', (Join-Path $repoRoot 'src/Nendo.Browser/Nendo.Browser.csproj'), '-c', 'Release', '-o', $runtime, '--nologo') 'Browser host publish'
 $npm = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
 $npx = if ($IsWindows) { 'npx.cmd' } else { 'npx' }

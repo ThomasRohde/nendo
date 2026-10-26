@@ -61,7 +61,10 @@ deliberately with its focused tests.
 - **Nendo.Browser** is the browser host: the Engine and Nendo.Session built for
   `browser-wasm`, with SQLite's emscripten build linked in by the `wasm-tools` workload. It
   exports the bridge's one method and the page's file hand-offs; the Workbench reaches it through
-  its browser client ([ADR-0036](0036-nendo-runs-in-a-browser.md)).
+  its browser client ([ADR-0036](0036-nendo-runs-in-a-browser.md)). `tools/Build-BrowserHost.ps1`
+  publishes it into an empty folder and packs it with the Workbench into one page, which the
+  Desktop payload carries as `WebPage/Nendo.html` for Export → Web page
+  ([ADR-0035](0035-an-app-exported-as-one-web-page.md)).
 - **Nendo.Desktop** is the WinUI 3 executable: application and window lifetime, file
   pickers, the native recovery surface, WebView2, theme and title-bar integration, agent
   access, and starting and stopping local adapters. It contains no SQL.

@@ -23,10 +23,17 @@ no server.
 
 ### What the page is
 
-- **Export → Web page** in the Desktop host writes the page where the person picks. The file
+- **File → Web page…** in the Desktop host offers both directions: export this file as a page,
+  or apply the changes made in one.
+- **Export** writes the page where the person picks, after saying
+  that the page holds a copy of every record. It never replaces an existing file. The file
   inside is a Duplicate ([ADR-0010](0010-file-identity-duplicate-fork-backup-and-restore.md)):
-  the same application, a new instance, made with the host's copy discipline. The page records
-  the change sequence it was exported at.
+  the same application, a new instance, made with the host's copy discipline. The Duplicate's
+  identity transition records the instance and change sequence it was exported from, and that
+  is the export point Apply changes reads.
+- The page's runtime is the browser host page, built with Nendo and shipped in its payload as
+  `WebPage/Nendo.html`, so an installed Nendo exports with no network. Exporting carries the
+  Duplicate into a copy of it.
 - The page runs the real Engine. Calculations, automatic actions (after the approval the browser
   asks for, as Nendo does), commands, Studio, history and custom views work as in Nendo. Agent
   access does not exist in the page.

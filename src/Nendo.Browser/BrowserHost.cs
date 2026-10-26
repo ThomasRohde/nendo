@@ -21,7 +21,7 @@ public static partial class BrowserHost
     private const string DeviceStateRoot = "/device";
 
     /// <summary>The largest file the page opens: the file, a proposal clone and a backup share one WebAssembly memory.</summary>
-    internal const long MaximumFileBytes = 256L * 1024 * 1024;
+    internal const long MaximumFileBytes = NendoWebPageExport.MaximumFileBytes;
 
     private static DesktopSessionController? _session;
     private static WorkbenchProtocolHandler? _handler;

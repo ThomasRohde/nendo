@@ -1,6 +1,6 @@
 namespace Nendo.Session;
 
-internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv, NewFile, EmbedLinkedPictures, ApplyWebPage }
+internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv, NewFile, EmbedLinkedPictures, WebPage }
 
 /// <param name="DroppedPath">
 /// Where a dropped file came from. Never read out of the request payload: the page
@@ -72,7 +72,7 @@ internal sealed partial class WorkbenchProtocolHandler
             ["file.importCsv"] = WorkbenchFileAction.ImportCsv,
             ["file.exportCsv"] = WorkbenchFileAction.ExportCsv,
             ["file.embedLinkedPictures"] = WorkbenchFileAction.EmbedLinkedPictures,
-            ["file.applyWebPage"] = WorkbenchFileAction.ApplyWebPage,
+            ["file.webPage"] = WorkbenchFileAction.WebPage,
         };
 
     private Task<DesktopFileActionView> RunFileActionAsync(WorkbenchFileAction action, string? recentId = null, string? droppedPath = null) =>

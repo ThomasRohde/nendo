@@ -11,8 +11,13 @@ if (!out) throw new Error('Usage: pack-browser-host.mjs <workbench page> <runtim
 
 const framework = join(wwwroot, '_framework');
 const files = {};
+const builds = new Map();
 for (const name of readdirSync(framework)) {
   if (name.endsWith('.gz') || name.endsWith('.br') || name.endsWith('.map')) continue;
+  // One build of each file: a second fingerprint of the same name is a stale build the page would carry for nothing.
+  const unprinted = name.replace(/\.[a-z0-9]{10}(\.[a-z]+)$/, '$1');
+  if (builds.has(unprinted)) throw new Error(`${framework} holds two builds of ${unprinted}: ${builds.get(unprinted)} and ${name}. Publish into an empty folder.`);
+  builds.set(unprinted, name);
   files[name] = gzipSync(readFileSync(join(framework, name)), { level: 9 }).toString('base64');
 }
 const dotnetJs = readFileSync(join(framework, 'dotnet.js'), 'utf8');

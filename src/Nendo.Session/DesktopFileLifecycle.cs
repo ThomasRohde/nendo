@@ -190,6 +190,22 @@ internal sealed partial class DesktopSessionController
     internal Task<NendoIdentityCopyResult> CreateIdentityCopyAsync(string planId, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.CreateIdentityCopyAsync(planId, cancellationToken), cancellationToken);
 
+    // Export → Web page (ADR-0035): native selection supplies where the page goes, the host its runtime.
+    internal async Task ExportWebPageAsync(string templatePath, string destination, CancellationToken cancellationToken = default)
+    {
+        RequireWritableLocation(destination);
+        var fileName = Path.GetFileName(_currentPath) ?? throw new NendoPreconditionException("no-file", "Open a file to export it as a web page.");
+        // Refused before the copy is made: a copy that cannot be opened in a page is not worth the wait.
+        if (File.Exists(_currentPath) && new FileInfo(_currentPath).Length is var length && length > NendoWebPageExport.MaximumFileBytes)
+            throw new NendoPreconditionException("file-too-large",
+                $"{fileName} is {length / (1024.0 * 1024):0.#} MiB; a web page opens files of up to {NendoWebPageExport.MaximumFileBytes / (1024 * 1024)} MiB.");
+        await QueryAsync(async service =>
+        {
+            await NendoWebPageExport.ExportAsync(service, fileName, templatePath, destination, cancellationToken);
+            return true;
+        }, cancellationToken);
+    }
+
     // Apply changes from a web page (ADR-0035): native selection supplies the downloaded working file.
     internal Task<NendoWebPageChanges> PrepareWebPageChangesAsync(string path, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.PrepareWebPageChangesAsync(path, cancellationToken), cancellationToken);

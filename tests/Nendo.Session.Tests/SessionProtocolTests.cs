@@ -81,22 +81,4 @@ public sealed class SessionProtocolTests
         });
         return JsonNode.Parse(WorkbenchProtocolHandler.Serialize(await handler.HandleAsync(request)))!;
     }
-
-    private sealed class Workspace : IAsyncDisposable
-    {
-        private readonly string _root = Path.Combine(Path.GetTempPath(), "nendo-session-tests", Guid.NewGuid().ToString("N"));
-
-        internal Workspace() => Directory.CreateDirectory(_root);
-
-        internal string FilePath => Path.Combine(_root, "session.nendo");
-
-        internal string DeviceState => Path.Combine(_root, "device-state");
-
-        public ValueTask DisposeAsync()
-        {
-            try { Directory.Delete(_root, recursive: true); }
-            catch (IOException) { }
-            return ValueTask.CompletedTask;
-        }
-    }
 }

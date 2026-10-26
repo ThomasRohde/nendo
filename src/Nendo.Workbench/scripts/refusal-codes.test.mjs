@@ -71,7 +71,7 @@ const notSettled = new Set([
   // The browser host refusing a file too large to open in a page (ADR-0036). A file action, not a journaled write.
   'file-too-large',
   // Apply changes from a web page (ADR-0035): a file action preparing a proposal, not a journaled write.
-  'web-page-other-application', 'web-page-not-exported-here', 'web-page-no-changes', 'web-page-changes-refused', 'web-page-unreplayable',
+  'web-page-runtime-missing', 'web-page-other-application', 'web-page-not-exported-here', 'web-page-no-changes', 'web-page-changes-refused', 'web-page-unreplayable',
 ]);
 
 test('every refusal the Engine or the host raises is classified for the save journal', () => {

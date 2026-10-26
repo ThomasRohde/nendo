@@ -188,6 +188,12 @@ async page => {
   await exported.setViewportSize({ width: 1440, height: 900 });
   await openExported(exported, '__STATION_PAGE_URL__');
   checks.push('an exported page opens the file it carries');
+  // The page carries a Duplicate, a new instance, so its automatic actions are approved for it afresh.
+  await exported.waitForFunction(() => document.body.innerText.includes('Approval needed'), null, { timeout: 30000 })
+    .catch(() => { throw Error('The exported Station did not ask to approve its automatic actions.'); });
+  await exported.click('#nav-health');
+  await exported.click('#approve-behaviour');
+  await exported.waitForFunction(() => !document.body.innerText.includes('Approval needed'), null, { timeout: 30000 });
   const stationKept = await keptCopies(exported);
   await exported.click('[data-rail-place="type:incident"]');
   await exported.click('[data-record-id="incident.001"]');

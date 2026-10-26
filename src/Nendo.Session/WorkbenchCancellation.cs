@@ -159,7 +159,7 @@ internal static partial class WorkbenchMethods
         "file.importCsv",
         "file.exportCsv",
         "file.embedLinkedPictures",
-        "file.applyWebPage",
+        "file.webPage",
         AppearanceSet,
         AppearanceGet,
         WindowSetTitleBarControls,

@@ -63,7 +63,7 @@ public sealed partial class MainPage
                 case WorkbenchFileAction.ExportCsv: await ExportCsvNativeAsync(); break;
                 case WorkbenchFileAction.EmbedLinkedPictures: await EmbedLinkedPicturesNativeAsync(); break;
                 case WorkbenchFileAction.ResolveRecovery: await ResolveNativeRecoveryAsync(); break;
-                case WorkbenchFileAction.ApplyWebPage: await ApplyWebPageNativeAsync(); break;
+                case WorkbenchFileAction.WebPage: await WebPageNativeAsync(); break;
                 default: throw new NendoValidationException("The file action is not supported.");
             }
             return await DesktopFileActionView.CaptureAsync(_session.GetViewAsync, _fileActionNotice) with { ProposalId = _fileActionProposalId };
@@ -278,6 +278,45 @@ public sealed partial class MainPage
         var plan = await _session.PrepareBackupAsync(destination, $"native-backup-{Guid.NewGuid():N}");
         var result = await _session.CreateBackupAsync(plan.PlanId);
         NativeNotice($"Backup created: {result.DestinationFileName}. Your open file was not changed.");
+    }
+
+    /// <summary>
+    /// The File menu's Web page… (ADR-0035): export this file as a page, or apply the changes made
+    /// in one. One entry for both keeps the menu within a window's height.
+    /// </summary>
+    private async Task WebPageNativeAsync()
+    {
+        var content = new TextBlock
+        {
+            Text = "Export this file as one web page that opens in any browser with nothing installed, or apply the changes made in such a page from the file it downloaded.",
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var dialog = NativeDialog("Web page", content);
+        dialog.PrimaryButtonText = "Export…";
+        dialog.SecondaryButtonText = "Apply changes…";
+        dialog.CloseButtonText = "Cancel";
+        dialog.IsSecondaryButtonEnabled = (await _session.GetDefinitionViewAsync()).Capabilities.Mutate;
+        switch (await dialog.ShowAsync())
+        {
+            case ContentDialogResult.Primary: await ExportWebPageNativeAsync(); break;
+            case ContentDialogResult.Secondary: await ApplyWebPageNativeAsync(); break;
+        }
+    }
+
+    /// <summary>
+    /// Export → Web page (ADR-0035): one page, written where the person picks, that opens this
+    /// application in a browser with a Duplicate of the file in it. The runtime ships with Nendo.
+    /// </summary>
+    private async Task ExportWebPageNativeAsync()
+    {
+        var view = await _session.GetDefinitionViewAsync();
+        var destination = await PickNewDestinationAsync("Export as web page", $"{Path.GetFileNameWithoutExtension(view.FileName)}.html", ".html");
+        if (destination is null) return;
+        if (!await ConfirmNativeAsync("Export this file as a web page?",
+            "The page holds a copy of every record in this file. Anyone who opens it can read them, and can change their own copy. " +
+            "Their changes reach this file only when you apply them with Apply changes from a web page.", "Export")) return;
+        await _session.ExportWebPageAsync(Path.Combine(AppContext.BaseDirectory, "WebPage", "Nendo.html"), destination);
+        NativeNotice($"Web page written: {Path.GetFileName(destination)}. It opens in a browser with nothing installed.");
     }
 
     /// <summary>

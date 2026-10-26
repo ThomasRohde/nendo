@@ -62,7 +62,7 @@
 .look-refusal { width: auto; margin: 8px 0 0; }
 .outline-icon { display: block; width: 21px; height: 21px; flex: 0 0 21px; }
 .file-menu-panel button:not(:disabled):hover { background: var(--surface-soft); }
-.file-menu-divider { height: 1px; margin: 5px; background: var(--line); }
+.file-menu-divider { height: 1px; margin: 4px 5px; background: var(--line); }
 .file-notice { margin: 0 0 12px; padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface-raised); overflow-wrap: anywhere; }
 .recent-files { width: min(460px, 100%); text-align: left; margin-top: 24px; }
 .recent-files h3 { font-size: 14px; color: var(--muted); margin: 0 0 6px; }

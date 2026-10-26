@@ -289,6 +289,18 @@ try {
         if ($null -eq $property) { return $null }
         return [string]$property.$Name
     }
+    # Export -> Web page writes the installed page runtime with a file in it (ADR-0035): an installed
+    # Nendo exports with no network only if the page arrived whole.
+    $webPage = Join-Path $installRoot 'WebPage/Nendo.html'
+    $shipped = @($manifest.files | Where-Object { ($_.path -replace '/', '\') -eq 'WebPage\Nendo.html' })
+    if ($shipped.Count -ne 1 -or -not (Test-Path -LiteralPath $webPage -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $webPage).Hash -ne $shipped[0].sha256) {
+        throw 'The installed Nendo carries no whole WebPage\Nendo.html, so Export -> Web page has no runtime to write.'
+    }
+    $pageText = [IO.File]::ReadAllText($webPage)
+    if (-not $pageText.Contains('id="nendo-runtime"') -or -not $pageText.Contains('<script type="module">')) {
+        throw 'The installed WebPage\Nendo.html carries no runtime, or no module script to carry a file beside.'
+    }
     $expectedCommand = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" "%1"'
     $expectedIcon = '"' + (Join-Path $installRoot 'Assets\DocumentIcon.ico') + '",0'
     $association = [ordered]@{

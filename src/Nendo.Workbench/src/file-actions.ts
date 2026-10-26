@@ -302,10 +302,10 @@ export function renderFileMenu(): void {
     ${item('file.backup', 'Create backup…', 'Save a recovery copy', 'backup', local && state.session.capabilities.backup)}
     ${item('file.duplicate', 'Duplicate…', 'Another copy of this application', 'duplicate', local && state.session.capabilities.backup)}
     ${item('file.fork', 'Fork…', 'Start a separate application', 'fork', local && state.session.capabilities.backup)}
+    ${client.mode === 'browser' ? '' : item('file.webPage', 'Web page…', 'Export this app as one page, or apply changes made in one', 'export', local && state.session.capabilities.backup)}
     <div class="file-menu-divider"></div><p class="file-menu-label">Data</p>
     ${item('file.importCsv', 'Import CSV…', 'Map fields and review batches of up to 100 new records', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${item('file.exportCsv', 'Export CSV…', 'Faithful UTF-8 values from one record type', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
-    ${client.mode === 'browser' ? '' : item('file.applyWebPage', 'Apply changes from a web page…', 'Review what was changed in a page exported from this file', 'data', local && state.session.capabilities.mutate)}
     ${state.session.entities.some(entity => !entity.retired && entity.fields.some(field => !field.retired && field.presentation === 'media'))
       ? item('file.embedLinkedPictures', 'Embed linked pictures…', 'Copy a record type’s linked picture files into this file', 'data', local && state.session.capabilities.mutate)
       : ''}
