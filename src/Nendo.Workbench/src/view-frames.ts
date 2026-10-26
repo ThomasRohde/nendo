@@ -6,6 +6,7 @@ import { hostKeys, type CommandSource, type Json, type ViewTheme } from './exten
 import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView, undoOfferFromView } from './extension-ui';
 import type { ProposalPreview } from './host';
 import { WorkbenchHostError } from './host-types';
+import { opaqueFrameSandbox, viewFrameDocument } from './view-frame-loader';
 import { navigationTrail } from './navigation-trail';
 import { content, focusWithoutInteraction, refreshChrome, root, showKeptAlert } from './shell';
 import type { PaletteCommand } from './shortcuts';
@@ -108,6 +109,7 @@ export function installViewFrames(): void {
     mounts: () => [...mounts.values()].filter((mount) => mount.frame !== null),
     running: () => state.session.extensions?.run === true,
     fileSessionId: () => client.currentFileSession?.() ?? state.session.fileSessionId,
+    opaqueOrigins: client.readViewPackage !== undefined,
     context: (mount) => ({
       ...viewContext((mount as Mount).spec, state.session, currentTheme(), navigator.language || 'en', brokerMethodNames),
       place: placeOf(mount as Mount),
@@ -533,8 +535,12 @@ function start(mount: Mount): void {
   if (stage === null || mount.frame !== null) return;
   const frameId = newMountId();
   const frame = document.createElement('iframe');
-  for (const [name, value] of frameAttributes({ mountId: frameId, origin: mount.origin, entryPoint: mount.entryPoint, title: mount.spec.title }))
-    frame.setAttribute(name, value);
+  // A host with no origin to serve packages from hands the frame its package instead (ADR-0036).
+  const opaque = client.readViewPackage !== undefined;
+  for (const [name, value] of frameAttributes({ mountId: frameId, origin: mount.origin, entryPoint: mount.entryPoint, title: mount.spec.title })) {
+    if (opaque && name === 'src') continue;
+    frame.setAttribute(name, opaque && name === 'sandbox' ? opaqueFrameSandbox(value) : value);
+  }
   frame.className = 'view-frame';
   frame.addEventListener('load', () => {
     if (mount.frame !== frame) return;
@@ -548,6 +554,26 @@ function start(mount: Mount): void {
   mount.restarting = false;
   stage.prepend(frame);
   markState(mount);
+  if (opaque) void loadPackage(mount, frame);
+}
+
+/** Fills an opaque-origin frame with its package, the view API and the loader that runs them. */
+async function loadPackage(mount: Mount, frame: HTMLIFrameElement): Promise<void> {
+  try {
+    const files = await client.readViewPackage!(mount.spec.packageId);
+    if (mount.frame !== frame) return;
+    frame.srcdoc = viewFrameDocument(files, mount.entryPoint, viewApiSource());
+  } catch (error) {
+    if (mount.frame !== frame) return;
+    frame.srcdoc = `<!doctype html><meta charset="utf-8"><p>${error instanceof Error ? error.message.replaceAll('<', '&lt;') : 'The view could not be loaded.'}</p>`;
+  }
+}
+
+/** The view API the page carries, for a host that cannot serve it at /_nendo/api.js. */
+function viewApiSource(): string {
+  const carried = document.getElementById('nendo-view-api')?.textContent;
+  if (!carried) throw new Error('This page carries no view API, so its views cannot run.');
+  return JSON.parse(carried) as string;
 }
 
 function observe(element: HTMLElement): void {

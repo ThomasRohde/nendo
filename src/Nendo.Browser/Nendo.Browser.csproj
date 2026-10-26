@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <!-- ADR-0036. The browser host: the Engine and Nendo.Session on WebAssembly, answering the
+       Workbench's bridge from inside the page. Needs the wasm-tools workload, which links
+       SQLite's emscripten build into the runtime. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WasmBuildNative>true</WasmBuildNative>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The Engine and the bridge serialize JSON by reflection, as Desktop does. -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Trim the framework only: Nendo's own types keep the metadata that reflection reads. -->
+    <TrimMode>partial</TrimMode>
+    <!-- Partial trimming keeps those assemblies whole, so the analysis's warnings about reflection
+         describe code that is not removed. Desktop is not trimmed at all, for the same reason. -->
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nendo.Engine\Nendo.Engine.csproj" />
+    <ProjectReference Include="..\Nendo.Session\Nendo.Session.csproj" />
+  </ItemGroup>
+
+</Project>

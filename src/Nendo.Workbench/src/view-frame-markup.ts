@@ -1,5 +1,5 @@
 import { escapeAttribute, escapeHtml } from './format';
-import type { ExtensionOffReason, ExtensionPackageView, ExtensionRuntimeView, SurfaceNodePlan, WorkbenchMode } from './host-types';
+import { hostsAFile, type ExtensionOffReason, type ExtensionPackageView, type ExtensionRuntimeView, type SurfaceNodePlan, type WorkbenchMode } from './host-types';
 import type { ViewSpec } from './extension-model';
 import { icon } from './icons';
 import { byteSize } from './package-diff-markup';
@@ -156,7 +156,7 @@ export function viewNotice(extensions: ExtensionRuntimeView | null | undefined, 
   const pkg = extensions.packages.find((candidate) => candidate.packageId === packageId);
   if (pkg === undefined) return { kind: 'missing' };
   if (isSkillPackage(pkg)) return { kind: 'skill' };
-  if (mode !== 'desktop') return { kind: 'preview' };
+  if (!hostsAFile(mode)) return { kind: 'preview' };
   if (!isViewOrigin(pkg.origin) || pkg.entryPoint === null) return { kind: 'unservable' };
   return { kind: 'run', pkg: { ...pkg, origin: pkg.origin, entryPoint: pkg.entryPoint } };
 }

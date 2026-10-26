@@ -261,7 +261,7 @@ test('History says nothing of its Undo beside an entry it already undid, or wher
   const operation = { operationId: 'o', operationType: 'ui.setProperty', reversibility: 'reversibleWithRetainedState', canonicalJson: '{}' };
   assert.equal(historyReversibilityLabel(operation, null), 'Can be undone if nothing has changed it since');
   assert.match(operationDetailsMarkup([operation], [], null), /Can be undone if nothing has changed it since<\/li>/);
-  assert.match(source('view-history.ts'), /historyUndoOffer\(revision, state\.history, client\.mode === 'desktop'\)/, 'History does not ask whether the host computed the offer');
+  assert.match(source('view-history.ts'), /historyUndoOffer\(revision, state\.history, hostsAFile\(client\.mode\)\)/, 'History does not ask whether the host computed the offer');
 });
 
 test('the Agent page’s review uses the same marks as Studio’s', () => {

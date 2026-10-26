@@ -26,6 +26,7 @@ Directory.Packages.props
 src/
   Nendo.Engine/
   Nendo.Session/
+  Nendo.Browser/
   Nendo.Desktop/
   Nendo.LocalMcp/
   Nendo.Workbench/
@@ -37,7 +38,7 @@ tests/
   Nendo.LocalMcp.Tests/
 ```
 
-`Nendo.slnx` lists the eight .NET projects. A project is added only when a production
+`Nendo.slnx` lists the nine .NET projects. A project is added only when a production
 milestone uses it, never as empty scaffolding. `prototypes/` stays outside the solution,
 and production code and tests never reference a prototype project; proven logic is ported
 deliberately with its focused tests.
@@ -57,6 +58,10 @@ deliberately with its focused tests.
   browser host references the project. What only a host does is a partial method each build
   implements, and the project's `Host/` folder is its own build's implementation. It
   contains no SQL.
+- **Nendo.Browser** is the browser host: the Engine and Nendo.Session built for
+  `browser-wasm`, with SQLite's emscripten build linked in by the `wasm-tools` workload. It
+  exports the bridge's one method and the page's file hand-offs; the Workbench reaches it through
+  its browser client ([ADR-0036](0036-nendo-runs-in-a-browser.md)).
 - **Nendo.Desktop** is the WinUI 3 executable: application and window lifetime, file
   pickers, the native recovery surface, WebView2, theme and title-bar integration, agent
   access, and starting and stopping local adapters. It contains no SQL.

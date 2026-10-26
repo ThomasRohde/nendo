@@ -43,6 +43,9 @@ internal sealed class DesktopDeviceStateLock : IDisposable
 
     internal static DesktopDeviceStateLock Enter(string document, bool required = false)
     {
+        // A browser page is the only process that writes its device state (ADR-0036), and it
+        // has no named mutexes: there is no one to serialize with.
+        if (OperatingSystem.IsBrowser()) return new DesktopDeviceStateLock(null);
         Mutex? mutex = null;
         try
         {

@@ -33,7 +33,6 @@ public sealed class SessionProtocolTests
     [DataRow("agentSession.read")]
     [DataRow("diagnostics.titleBar")]
     [DataRow("downloads.show")]
-    [DataRow("session.getRecentFiles")]
     public async Task AWindowsHostsMethodIsRefusedByName(string method)
     {
         await using var workspace = new Workspace();
@@ -44,6 +43,18 @@ public sealed class SessionProtocolTests
         var answer = await AskAsync(handler, method, created.FileSessionId);
         Assert.IsFalse(answer["ok"]!.GetValue<bool>());
         Assert.AreEqual("not-in-this-host", answer["error"]!["code"]!.GetValue<string>(), answer.ToJsonString());
+    }
+
+    [TestMethod]
+    public async Task APageHasNoRecentFiles()
+    {
+        await using var workspace = new Workspace();
+        await using var session = new DesktopSessionController(deviceStateRoot: workspace.DeviceState);
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
+
+        var answer = await AskAsync(handler, "session.getRecentFiles", null);
+        Assert.IsTrue(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+        Assert.AreEqual(0, answer["result"]!["files"]!.AsArray().Count);
     }
 
     [TestMethod]

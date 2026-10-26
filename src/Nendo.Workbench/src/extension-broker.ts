@@ -130,6 +130,11 @@ export interface BrokerDeps {
   ui: BrokerUi;
   /** The launched agent; optional, so a host without one refuses `assistant.*` as unavailable. */
   assistant?: BrokerAssistant;
+  /**
+   * Whether frames run with an opaque origin, as in the browser host (ADR-0036): each says
+   * "null", so the broker knows a frame by the window it mounted alone.
+   */
+  opaqueOrigins?: boolean;
   /** A view stopped answering its pings, or answered again. */
   responsive?(mount: BrokerMount, responsive: boolean): void;
   /** A view connected, or connected again after reloading itself. */
@@ -1234,7 +1239,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       // Only a frame this Workbench mounted, and only from the origin it was mounted at. A
       // frame that has navigated elsewhere keeps its window but not its origin.
       const mount = mountFor(event.source);
-      if (mount === null || event.origin !== mount.origin || !deps.running() || mount.fileSessionId !== deps.fileSessionId()) return;
+      if (mount === null || event.origin !== (deps.opaqueOrigins ? 'null' : mount.origin) || !deps.running() || mount.fileSessionId !== deps.fileSessionId()) return;
       const previous = connections.get(mount.key);
       if (previous !== undefined) close(previous);
       const channel = new MessageChannel();
@@ -1248,7 +1253,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       };
       connections.set(mount.key, connection);
       channel.port1.onmessage = (message: MessageEvent) => heard(connection, message.data);
-      (event.source as Window).postMessage({ nendo: 'connect', apiVersion, context } satisfies ConnectMessage, mount.origin, [channel.port2]);
+      (event.source as Window).postMessage({ nendo: 'connect', apiVersion, context } satisfies ConnectMessage, deps.opaqueOrigins ? '*' : mount.origin, [channel.port2]);
       deps.connected?.(mount);
       report(connection, { kind: 'loaded' });
     },

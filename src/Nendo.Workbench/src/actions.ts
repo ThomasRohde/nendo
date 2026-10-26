@@ -21,7 +21,7 @@ import { effectiveSurfaceQuery, recordPlanOf, recordsForEntity, selectedSurfaceN
 import { openingFileView } from './file-view-model';
 import { readsOwnRecords } from './surface-model';
 import {
-  WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopOperationView, type DesktopPromotionView,
+  WorkbenchHostError, hostsAFile, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopOperationView, type DesktopPromotionView,
   type DesktopSessionView, type HelpPagesView, type HistoryFoldPreview, type HistoryFoldResult, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
   type StoredOperationSnapshot,
 } from './host';
@@ -769,7 +769,7 @@ export async function openHelp(topicId = ''): Promise<void> {
   const opening = ++helpOpenings;
   // What the first draw settled on, so a topic picked while the file was read is left alone.
   const settled = state.helpTopicId;
-  if (client.mode === 'desktop' && !state.actionInFlight) {
+  if (hostsAFile(client.mode) && !state.actionInFlight) {
     state.actionInFlight = true;
     setBusy(true);
     try { state.session = await client.request<DesktopSessionView>('session.getSnapshot'); await refreshDerived(); }

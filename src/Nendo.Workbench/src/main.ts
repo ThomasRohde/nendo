@@ -417,6 +417,8 @@ function updateChrome(): void {
 
   navigation.use.disabled = !validUse;
   navigation.agent.disabled = !state.session.capabilities.agentAccess;
+  // Agents connect to the Windows host (ADR-0009, ADR-0030); the browser host has none to offer (ADR-0036).
+  navigation.agent.hidden = client.mode === 'browser';
   navigation.data.disabled = navigation.structure.disabled = !state.session.capabilities.readData;
   navigation.surfaces.disabled = !state.session.capabilities.customSurfaces;
   navigation.history.disabled = !state.session.capabilities.readHistory;

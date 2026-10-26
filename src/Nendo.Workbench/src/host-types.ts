@@ -11,7 +11,16 @@ import type { PendingMutation } from './pending-mutations';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
-export type WorkbenchMode = 'desktop' | 'preview' | 'unavailable';
+export type WorkbenchMode = 'desktop' | 'browser' | 'preview' | 'unavailable';
+
+/**
+ * Whether the host holds a real file and answers the whole protocol for it: the Windows host, and
+ * the browser host that runs the same Engine in the page (ADR-0036). Only the Windows host owns a
+ * window, tabs, native pickers and agents.
+ */
+export function hostsAFile(mode: WorkbenchMode): boolean {
+  return mode === 'desktop' || mode === 'browser';
+}
 
 export interface ManifestSnapshot {
   formatIdentifier: string;
@@ -949,6 +958,8 @@ export interface WorkbenchClient {
   request<T>(method: string, payload?: Record<string, unknown>): Promise<T>;
   /** The file session requests go out under now; it moves before the renderer redraws. */
   currentFileSession?(): string | null;
+  /** A view package's files, for a host that cannot serve them from an origin of their own (ADR-0036). */
+  readViewPackage?(packageId: string): Promise<Record<string, { mediaType: string; base64: string }>>;
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
   /** Listen for custom-view frames whose renderer ended. */

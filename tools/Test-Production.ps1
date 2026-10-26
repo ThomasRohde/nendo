@@ -87,6 +87,7 @@ $plannedSteps = @(
     , @('view.manuscript', 'Manuscript')
     , @('agent-chat', 'Agent conversation')
     , @('workbench-shell', 'Workbench shell')
+    , @('browser-host', 'Browser host')
     , @('repository', 'Repository')
 )
 # Earlier runs' logs and run folders go first; anything written in the last 12 hours stays.
@@ -502,6 +503,9 @@ try {
     Write-Host '== Workbench shell =='
     Enter-GateStep 'workbench-shell'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-WorkbenchShell.ps1')) 'Workbench shell, Use screens and Agent page'
+    # ADR-0036. The browser host as one page from disk: the Engine on WebAssembly behind the Workbench.
+    Enter-GateStep 'browser-host'
+    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-BrowserHost.ps1'), '-SkipWorkbenchBuild') 'Browser host'
 
     Write-Host '== Repository =='
     Enter-GateStep 'repository'

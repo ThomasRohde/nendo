@@ -57,7 +57,7 @@ interface PendingRequest {
   timeout: number | null;
 }
 
-interface WebViewBridge {
+export interface WebViewBridge {
   postMessage(message: unknown): void;
   /**
    * The same message with objects from outside the page attached — here, a file the
@@ -98,7 +98,6 @@ export function hostTimeoutMs(method: string): number | null {
 }
 
 export class DesktopWorkbenchClient implements WorkbenchClient {
-  readonly mode = 'desktop' as const;
   private readonly pending = new Map<string, PendingRequest>();
   private fileSessionId: string | null = null;
 
@@ -124,7 +123,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     removeItem: key => window.localStorage.removeItem(key),
   });
 
-  constructor(private readonly bridge: WebViewBridge) {
+  /**
+   * `browser` when the bridge is the browser host's runtime in this page (ADR-0036): the same
+   * protocol and journal, without the Windows host's window, tabs and agents.
+   */
+  constructor(private readonly bridge: WebViewBridge, readonly mode: 'desktop' | 'browser' = 'desktop') {
     bridge.addEventListener('message', (event) => this.receive(event.data));
   }
 

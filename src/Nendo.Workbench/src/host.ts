@@ -1,6 +1,7 @@
 import { DesktopWorkbenchClient, UnavailableWorkbenchClient } from './host-desktop';
 import { PreviewWorkbenchClient } from './host-preview';
 import type { WorkbenchClient } from './host-types';
+import { BrowserWorkbenchClient, carriesBrowserRuntime } from './host-browser';
 
 /**
  * Which host the Workbench is talking to, and which protocol it speaks.
@@ -19,6 +20,9 @@ export function createWorkbenchClient(): WorkbenchClient {
   const bridge = window.chrome?.webview;
   if (bridge !== undefined) {
     return new DesktopWorkbenchClient(bridge);
+  }
+  if (carriesBrowserRuntime()) {
+    return new BrowserWorkbenchClient();
   }
   if (new URLSearchParams(window.location.search).has('preview')) {
     return new PreviewWorkbenchClient();

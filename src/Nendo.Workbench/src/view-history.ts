@@ -4,7 +4,7 @@ import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { canCompensate, counted, escapeAttribute, escapeHtml, foldDate, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
 import { historyUndoOffer, operationDetailsMarkup } from './history-markup';
-import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
+import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError, hostsAFile } from './host';
 import { icon } from './icons';
 import { content, rerender, setBusy, showError } from './shell';
 /**
@@ -48,7 +48,7 @@ function drawDetails(revisionId: string, page: ReadPage<StoredOperationSnapshot>
   if (!slot) return;
   // A create or a restore reads as History undoes it only where History offers that Undo.
   const revision = state.history.find(item => item.revisionId === revisionId);
-  const offered = historyUndoOffer(revision, state.history, client.mode === 'desktop');
+  const offered = historyUndoOffer(revision, state.history, hostsAFile(client.mode));
   slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities, offered)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
   slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
   slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));
