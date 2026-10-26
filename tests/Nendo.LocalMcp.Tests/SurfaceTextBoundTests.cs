@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Nendo.Engine;
 
 namespace Nendo.LocalMcp.Tests;
 

@@ -1,0 +1,854 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Nendo.Engine;
+
+namespace Nendo.Session;
+
+internal static partial class WorkbenchMethods
+{
+    internal const string SessionGetSnapshot = "session.getSnapshot";
+    internal const string SessionCreateFile = "session.createFile";
+    internal const string SessionOpenFile = "session.openFile";
+    internal const string DataCreateRecord = "data.createRecord";
+    internal const string DataDeleteRecord = "data.deleteRecord";
+    internal const string DataSetKeptInNewFiles = "data.setKeptInNewFiles";
+    internal const string DataSetField = "data.setField";
+    internal const string DataSetFields = "data.setFields";
+    internal const string DataExecuteCommand = "data.executeCommand";
+    internal const string DataGetReceipt = "data.getReceipt";
+    internal const string CompensationGetReceipt = "history.getCompensationReceipt";
+    internal const string ProposalGetReceipt = "proposal.getReceipt";
+    internal const string SemanticCompile = "semantic.compile";
+    internal const string ProposalPrepareChangeSet = "proposal.prepareChangeSet";
+    internal const string ProposalGet = "proposal.get";
+    internal const string ProposalReadPackageFile = "proposal.readPackageFile";
+    internal const string ProposalPromote = "proposal.promote";
+    internal const string ProposalReject = "proposal.reject";
+    internal const string HistoryGet = "history.get";
+    internal const string HistoryQuery = "history.query";
+    internal const string HistoryOperations = "history.operations";
+    internal const string DataQueryRecordWindow = "data.queryRecordWindow";
+    internal const string DataQueryRecords = "data.queryRecords";
+    internal const string DataCountRecords = "data.countRecords";
+    internal const string DataAggregateRecords = "data.aggregateRecords";
+    internal const string DataGroupAggregateRecords = "data.groupAggregateRecords";
+    internal const string DataBucketAggregateRecords = "data.bucketAggregateRecords";
+    internal const string DataCellAggregateRecords = "data.cellAggregateRecords";
+    internal const string DataTreeRecords = "data.treeRecords";
+    internal const string DataSearchRecords = "data.searchRecords";
+    internal const string DataBuildSearchIndex = "data.buildSearchIndex";
+    internal const string DataMoveRecord = "data.moveRecord";
+    internal const string DataWriteRecords = "data.writeRecords";
+    internal const string DataUndoRecordWrites = "data.undoRecordWrites";
+    internal const string HealthVerify = "health.verify";
+    internal const string HistoryCompensate = "history.compensate";
+    internal const string HistoryFoldPreview = "history.foldPreview";
+    internal const string HistoryFold = "history.fold";
+    internal const string AppearanceSet = "appearance.set";
+    internal const string AppearanceGet = "appearance.get";
+    internal const string AgentGetStatus = "agent.getStatus";
+    internal const string AgentSetMode = "agent.setMode";
+    internal const string AgentRevokeEditing = "agent.revokeEditing";
+    internal const string AgentGetProposal = "agent.getProposal";
+    internal const string AgentSetSettings = "agent.setSettings";
+
+    // Approving and withdrawing approval for a file's automatic actions. These reach
+    // the device's own approval store, which is why they exist only here: an agent
+    // speaks the MCP surface, which has no equivalent and must never gain one.
+    internal const string BehaviourApprove = "behaviour.approve";
+    internal const string BehaviourRevoke = "behaviour.revoke";
+}
+
+/// <summary>
+/// A refusal. <c>RecordId</c> names the record it is about, where there is one the Workbench
+/// should name by its label (a duplicate unique value, ADR-0020); it is left out otherwise.
+/// </summary>
+internal sealed record WorkbenchError(
+    string Code,
+    string Message,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RecordId = null);
+
+internal sealed record WorkbenchResponse(
+    int ProtocolVersion,
+    string RequestId,
+    bool Ok,
+    object? Result,
+    WorkbenchError? Error);
+
+/// <summary>
+/// A message the host sends without being asked.
+/// <para>
+/// The first of its kind on this bridge, and shaped so it cannot be mistaken for a
+/// reply: it carries an <c>event</c> name where a response carries a
+/// <c>requestId</c>, so a renderer that predates it matches nothing and drops it.
+/// It is a nudge, not a channel — it carries a view name and no data, because
+/// anything it carried would be state the renderer had not asked for and could not
+/// place in its own ordering of reads.
+/// </para>
+/// </summary>
+internal sealed record WorkbenchEvent(int ProtocolVersion, string Event, object? Payload);
+
+/// <summary>The closed set of unsolicited event names.</summary>
+internal static class WorkbenchEvents
+{
+    /// <summary>Show a Workbench view. Payload is one route name from the closed set.</summary>
+    internal const string Navigate = "navigate";
+
+    /// <summary>
+    /// The open file moved. Payload is the change sequence it reached, and nothing else:
+    /// not what changed, not who changed it, and no record contents. It is a nudge to
+    /// look again, and the renderer decides when looking is safe.
+    /// </summary>
+    internal const string FileChanged = "fileChanged";
+
+    /// <summary>
+    /// A package this device develops from a folder changed there (ADR-0013). Payload is
+    /// the package ID and nothing else; the renderer reloads that package's views.
+    /// </summary>
+    internal const string ExtensionDevelopmentChanged = "extensionDevelopmentChanged";
+    internal const string ExtensionSettingsChanged = "extensionSettingsChanged";
+
+    /// <summary>
+    /// An agent started or finished a call. Payload is whether work is running, the
+    /// client's display name and the tool or resource it named -- no handle, no lease, no
+    /// record. It is the one event here that exists for the person rather than for the
+    /// renderer's own reads: while an agent holds the Engine gate the window cannot
+    /// answer, and nothing on any screen said why.
+    /// </summary>
+    internal const string AgentActivity = "agentActivity";
+
+    /// <summary>
+    /// The renderer behind one or more custom views ended. Payload is the file session and the
+    /// frame names (<c>nendo-view-…</c>) the browser reported; the Workbench says so in each
+    /// view's own place and offers Reload. The Workbench itself is unaffected.
+    /// </summary>
+    internal const string ExtensionFramesFailed = "extensionFramesFailed";
+
+    /// <summary>
+    /// The window's title bar changed shape: a new display scale, and so a new height or a
+    /// new width kept for Windows' own buttons. Payload is the title bar in CSS pixels, the same
+    /// answer <c>window.setTitleBarControls</c> gives.
+    /// </summary>
+    internal const string TitleBarChanged = "titleBarChanged";
+
+    /// <summary>
+    /// A tab of another window of this file was let go over this window's tabs (ADR-0002).
+    /// Payload is its trail, opaque as <c>window.detachTab</c> received it, and <c>x</c>, where it
+    /// was let go in the page's pixels from the left.
+    /// </summary>
+    internal const string TabArrived = "tabArrived";
+
+    /// <summary>
+    /// A tab dragged from another window of this file is held over this window's tabs at <c>x</c>
+    /// in the page's pixels, or no longer (<c>x</c> null), so the strip shows where it would land.
+    /// </summary>
+    internal const string TabDropTarget = "tabDropTarget";
+
+    /// <summary>
+    /// A file a view downloaded is saved. WebView2's downloads panel is never shown, so this
+    /// is how the person hears of it. Payload is an identifier for <c>downloads.show</c>, the file's
+    /// name and its folder's name.
+    /// </summary>
+    internal const string DownloadSaved = "downloadSaved";
+
+    /// <summary>
+    /// The agent launched from the Agent page said something, asked something or changed state
+    /// (ADR-0030). Payload is the conversation's revision and nothing else: the tab reads what
+    /// changed after the revision it holds, with <c>agentSession.read</c>.
+    /// </summary>
+    internal const string AgentSessionChanged = "agentSessionChanged";
+
+    /// <summary>
+    /// The device's theme preference changed in another window of this file. Payload is the
+    /// preference, <c>system</c>, <c>light</c> or <c>dark</c>; the page draws it without saving it again.
+    /// </summary>
+    internal const string AppearanceChanged = "appearanceChanged";
+}
+
+internal sealed record ExtensionFramesFailedPayload(string FileSessionId, IReadOnlyList<string> Frames);
+
+/// <summary>What the renderer draws while an agent is working. Bounded by the adapter.</summary>
+internal sealed record AgentActivityPayload(bool Busy, string Client, string Activity);
+
+internal sealed record CreateRecordPayload(
+    string EntityId,
+    string RecordId,
+    IReadOnlyDictionary<string, JsonElement> Values,
+    string IdempotencyKey,
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+
+internal sealed record DeleteRecordPayload(string EntityId, string RecordId, long ExpectedRecordVersion, string IdempotencyKey);
+
+/// <summary>A record's own mark for a new file of the application (ADR-0022): true, false or null to follow its type.</summary>
+internal sealed record SetKeptInNewFilesPayload(string EntityId, string RecordId, bool? Kept, string IdempotencyKey);
+
+internal sealed record SetFieldPayload(
+    string EntityId,
+    string RecordId,
+    string FieldId,
+    long ExpectedRecordVersion,
+    JsonElement Value,
+    string IdempotencyKey,
+    long? ExpectedTargetRecordVersion = null);
+
+internal sealed record ExecuteCommandPayload(
+    string CommandId,
+    string RecordId,
+    long ExpectedRecordVersion,
+    string IdempotencyKey,
+    string? EntityId = null);
+
+internal sealed record SetFieldsPayload(
+    string EntityId,
+    string RecordId,
+    long ExpectedRecordVersion,
+    IReadOnlyDictionary<string, JsonElement> Values,
+    string IdempotencyKey,
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+
+internal sealed record MoveRecordPayload(
+    string EntityId,
+    string RecordId,
+    long ExpectedRecordVersion,
+    string? ParentRecordId,
+    long? ExpectedParentVersion,
+    string? BeforeRecordId,
+    string IdempotencyKey);
+
+/// <summary>One record's part of <c>data.writeRecords</c>: <c>kind</c> is create, update or delete.</summary>
+internal sealed record RecordWritePayload(
+    string Kind,
+    string EntityId,
+    string RecordId,
+    IReadOnlyDictionary<string, JsonElement>? Values = null,
+    long? ExpectedRecordVersion = null,
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+
+internal sealed record WriteRecordsPayload(
+    IReadOnlyList<RecordWritePayload> Writes,
+    string IdempotencyKey,
+    string? Label = null);
+
+/// <summary>A view undoing a batch it wrote, or with <c>redo</c> redoing an undo (ADR-0023).</summary>
+internal sealed record UndoRecordWritesPayload(
+    string RevisionId,
+    string IdempotencyKey,
+    bool Redo = false,
+    string? Label = null);
+
+internal sealed record CanonicalMutationPayload(
+    string IdempotencyKey,
+    string Description,
+    IReadOnlyList<NendoCanonicalOperationRequest> Operations);
+
+internal sealed record PrepareChangeSetPayload(
+    string ProposalId,
+    string Title,
+    IReadOnlyList<CanonicalMutationPayload> Mutations);
+
+internal sealed record ProposalIdPayload(string ProposalId);
+internal sealed record ProposalAcceptancePayload(string ProposalId, string? ExpectedOperationDigest);
+internal sealed record ProposalFilePayload(string ProposalId, string ReviewedDigest, string PackageId, string Path, long Offset, int Length);
+
+internal sealed record CompensationPayload(string RevisionId, string IdempotencyKey);
+
+internal sealed record AppearancePayload(string Preference, string Effective);
+
+internal sealed record AgentModePayload(string Mode);
+
+internal sealed record AgentSettingsPayload(
+    bool LeaseExpiry,
+    int LeaseExpirySeconds,
+    bool FixedPort,
+    int Port);
+
+internal sealed partial class WorkbenchProtocolHandler
+{
+    /// <summary>What a host answered for a method it owns, or that it did not own it.</summary>
+    private readonly record struct HostAnswer(bool Handled, object? Result)
+    {
+        internal static HostAnswer NotHandled => new(false, null);
+    }
+
+    /// <summary>A host's methods answered before the file binding: they check their own file session.</summary>
+    private partial Task<HostAnswer> HandleUnboundHostMethodAsync(string method, JsonElement root, JsonElement payload, CancellationToken cancellationToken);
+
+    /// <summary>Whether a host's method needs no file session, like its window's.</summary>
+    private partial bool IsHostIndependent(string method);
+
+    /// <summary>Every method the shared dispatch does not answer; refuses one the host does not own either.</summary>
+    private partial Task<object?> HandleHostMethodAsync(string method, JsonElement payload, int protocolVersion, CancellationToken cancellationToken);
+
+    /// <summary>Refuses a method that only the main window may send; a host with one page has nothing to refuse.</summary>
+    partial void RefuseOutsideTheMainWindow(string method);
+
+    internal const int MaximumMessageCharacters = 262_144;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new WorkbenchScalarJsonConverter() },
+    };
+    private readonly DesktopSessionController _session;
+    private readonly Action<AppearancePayload> _applyAppearance;
+    private readonly Func<DesktopAppearanceView>? _getAppearance;
+    private readonly Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? _fileActions;
+    private readonly IWorkbenchExtensionHost? _extensionHost;
+    private readonly IWorkbenchWindowHost? _windowHost;
+
+    internal WorkbenchProtocolHandler(
+        DesktopSessionController session,
+        Action<AppearancePayload> applyAppearance,
+        Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? fileActions = null,
+        Func<DesktopAppearanceView>? getAppearance = null,
+        IWorkbenchExtensionHost? extensionHost = null,
+        IWorkbenchWindowHost? windowHost = null)
+    {
+        _extensionHost = extensionHost;
+        _windowHost = windowHost;
+        _session = session;
+        _applyAppearance = applyAppearance;
+        _getAppearance = getAppearance;
+        _fileActions = fileActions;
+    }
+
+    /// <param name="droppedPath">
+    /// The file Windows says arrived with this message, when one did. Supplied by the
+    /// host from the shell's own file object rather than read out of the payload, so
+    /// that "open this dropped file" cannot become "open any path I name".
+    /// </param>
+    internal async Task<WorkbenchResponse> HandleAsync(
+        string messageJson,
+        string? droppedPath = null,
+        CancellationToken cancellationToken = default,
+        string? droppedPicture = null)
+    {
+        string requestId = "invalid-request";
+        var responseProtocolVersion = DesktopShellContract.BridgeProtocolVersion;
+        try
+        {
+            if (messageJson.Length > MaximumMessageCharacters)
+            {
+                return Failure(
+                    requestId,
+                    "request-too-large",
+                    "The Workbench request is larger than the supported limit.");
+            }
+            using var document = JsonDocument.Parse(messageJson, new JsonDocumentOptions
+            {
+                AllowTrailingCommas = false,
+                CommentHandling = JsonCommentHandling.Disallow,
+                MaxDepth = 16,
+            });
+            var root = document.RootElement;
+            var protocolVersion = RequiredInt32(root, "protocolVersion");
+            requestId = RequiredString(root, "requestId", 120);
+            var method = RequiredString(root, "method", 120);
+            var payload = root.TryGetProperty("payload", out var value)
+                ? value
+                : JsonSerializer.SerializeToElement(new { });
+            if (!DesktopShellContract.IsSupportedBridgeProtocol(protocolVersion))
+            {
+                // One answer for every other version, older or newer. Nothing below has run:
+                // no file binding, no file action, no read.
+                return Failure(requestId, "unsupported-protocol",
+                    $"This Workbench speaks bridge protocol {protocolVersion}; this host serves protocol " +
+                    $"{DesktopShellContract.BridgeProtocolVersion} only.");
+            }
+            responseProtocolVersion = protocolVersion;
+            RefuseOutsideTheMainWindow(method);
+
+            // Stopping a request is bookkeeping about requests, so it is answered
+            // here rather than travelling through the file-session binding and the
+            // service gate that the request it is stopping already holds.
+            if (method == WorkbenchMethods.RequestCancel)
+            {
+                return new WorkbenchResponse(responseProtocolVersion, requestId, true,
+                    await CancelRequestAsync(payload, cancellationToken), null);
+            }
+
+            // Everything below runs under this request's own cancellation, so a
+            // later request.cancel naming it reaches the work itself rather than
+            // only the message loop that started it.
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var inFlight = TrackRequest(requestId, cancellation);
+            cancellationToken = cancellation.Token;
+
+            // A custom view's write arrives through the Workbench's broker, named for the
+            // view's package (ADR-0013). It is admitted on the record writes alone,
+            // and becomes the origin History attributes the write to.
+            var writer = ExtensionWriter(payload, method);
+
+            // A host's methods that check their own file session, such as the launched agent's
+            // conversation (ADR-0030): the tab must keep reading while an agent's write holds the
+            // request gate. After the actor check, so a custom view's request is refused like any other.
+            var unbound = await HandleUnboundHostMethodAsync(method, root, payload, cancellationToken);
+            if (unbound.Handled)
+            {
+                return new WorkbenchResponse(responseProtocolVersion, requestId, true, unbound.Result, null);
+            }
+
+            // The renderer sends the opaque file generation it actually rendered, so it
+            // cannot silently follow a native file switch. The controller checks this under
+            // its gate, including after every interactive picker/confirmation wait.
+            var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet
+                or WorkbenchMethods.SessionGetRecentFiles or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar
+                or WorkbenchMethods.DiagnosticsResizeWindow || IsHostIndependent(method);
+            var expectedSession = independent ? null : RequiredString(root, "fileSessionId", 120);
+            using var projection = _session.BindReadProjection(root.TryGetProperty("boundedRead", out var boundedRead) &&
+                boundedRead.ValueKind == JsonValueKind.True);
+            using var binding = independent ? null : _session.BindFileRequest(expectedSession!);
+            if (binding is not null) await _session.ValidateFileRequestAsync(cancellationToken);
+
+            object? result;
+            if (FileMethods.TryGetValue(method, out var fileAction))
+            {
+                if (fileAction == WorkbenchFileAction.OpenDropped && droppedPath is null)
+                {
+                    throw new NendoValidationException("No file arrived with that request.");
+                }
+                result = await RunFileActionAsync(fileAction,
+                    fileAction == WorkbenchFileAction.OpenRecent ? RequiredString(payload, "recentId", 120) : null,
+                    fileAction == WorkbenchFileAction.OpenDropped ? droppedPath : null);
+            }
+            else
+            {
+                result = method switch
+                {
+                    WorkbenchMethods.SessionGetSnapshot => await _session.GetViewAsync(cancellationToken),
+                    WorkbenchMethods.ExtensionSettingsSet => await _session.SetExtensionSettingAsync(
+                        RequiredString(payload, "scope", 16), RequiredBoolean(payload, "enabled"), cancellationToken),
+                    WorkbenchMethods.ExtensionImport => await ImportExtensionAsync(cancellationToken),
+                    WorkbenchMethods.ExtensionExport => await ExportExtensionAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionRemove => await _session.PrepareExtensionRemovalAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionStateRead => await ReadExtensionStateAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.ExtensionStateSet => await SetExtensionStateAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.HelpReadPages => await _session.ReadHelpPagesAsync(cancellationToken),
+                    WorkbenchMethods.ExtensionEventsReport => _session.ReportViewEvent(
+                        RequiredString(payload, "packageId", 120), ViewEventFrom(payload)),
+                    WorkbenchMethods.ExtensionDevelopLink => await LinkExtensionFolderAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionDevelopStop => await _session.UnlinkExtensionFolderAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionDevelopSave => await _session.PrepareDevelopmentSaveAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.SessionCreateFile => await RunSessionFileActionAsync(WorkbenchFileAction.Create),
+                    WorkbenchMethods.SessionOpenFile => await RunSessionFileActionAsync(WorkbenchFileAction.Open),
+                    WorkbenchMethods.DataCreateRecord => await CreateGenericRecordAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataSetKeptInNewFiles => await SetKeptInNewFilesAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaEmbed => await EmbedMediaAsync(payload, droppedPicture, cancellationToken),
+                    WorkbenchMethods.LookEmbedIcon => await EmbedIconAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaLink => await LinkMediaAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaEmbedCopy => await EmbedMediaCopyAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaSaveCopy => await SaveMediaCopyAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaReveal => RevealMedia(payload),
+                    WorkbenchMethods.MediaDescribe => await DescribeMediaAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaReadWindow => await ReadMediaWindowAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaStage => StageViewMedia(payload, writer),
+                    WorkbenchMethods.MediaCommit => await CommitViewMediaAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataMoveRecord => await MoveGenericRecordAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataWriteRecords => await WriteGenericRecordsAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataUndoRecordWrites => await UndoGenericRecordWritesAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataExecuteCommand => await ExecuteGenericCommandAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), false, cancellationToken),
+                    WorkbenchMethods.CompensationGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), true, cancellationToken),
+                    WorkbenchMethods.ProposalGetReceipt => await _session.GetProposalReceiptAsync(RequiredString(payload, "proposalId", 80), cancellationToken),
+                    WorkbenchMethods.SemanticCompile => await _session.CompileSemanticUiAsync(cancellationToken),
+                    WorkbenchMethods.ProposalPrepareChangeSet => await PrepareChangeSetAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.ProposalGet => await GetProposalAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.ProposalReadPackageFile => await ReadProposalPackageFileAsync(payload, cancellationToken),
+                    WorkbenchMethods.ProposalPromote => await PromoteProposalAsync(payload, cancellationToken),
+                    WorkbenchMethods.ProposalReject => await RejectProposalAsync(payload, cancellationToken),
+                    WorkbenchMethods.HistoryGet => await _session.GetHistoryAsync(cancellationToken),
+                    WorkbenchMethods.HistoryQuery => await _session.QueryHistoryAsync(Deserialize<NendoHistoryQuery>(payload), cancellationToken),
+                    WorkbenchMethods.HistoryOperations => await _session.QueryRevisionOperationsAsync(Deserialize<NendoRevisionOperationsQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataQueryRecordWindow => await _session.QueryRecordWindowAsync(Deserialize<NendoRecordWindowQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataQueryRecords => await _session.QueryRecordsAsync(Deserialize<NendoRecordQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataCountRecords => await _session.CountRecordsAsync(Deserialize<NendoRecordCountQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataAggregateRecords => await _session.AggregateRecordsAsync(Deserialize<NendoRecordAggregateQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataGroupAggregateRecords => await _session.GroupAggregateRecordsAsync(Deserialize<NendoRecordGroupedAggregateQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataBucketAggregateRecords => await _session.BucketAggregateRecordsAsync(Deserialize<NendoRecordDateBucketQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataCellAggregateRecords => await _session.CellAggregateRecordsAsync(Deserialize<NendoRecordCellAggregateQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataTreeRecords => await _session.TreeRecordsAsync(Deserialize<NendoTreeQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataSearchRecords => await _session.SearchRecordsAsync(Deserialize<NendoSearchQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataBuildSearchIndex => await _session.BuildSearchIndexAsync(RequiredString(payload, "idempotencyKey", 200), cancellationToken),
+                    WorkbenchMethods.HealthVerify => await _session.VerifyIntegrityAsync(cancellationToken),
+                    WorkbenchMethods.HistoryCompensate => await CompensateRevisionAsync(payload, cancellationToken),
+                    WorkbenchMethods.HistoryFoldPreview => await _session.PreviewHistoryFoldAsync(cancellationToken),
+                    WorkbenchMethods.HistoryFold => await _session.FoldHistoryAsync(cancellationToken),
+                    WorkbenchMethods.MediaUsage => await _session.ReadMediaUsageAsync(cancellationToken),
+                    WorkbenchMethods.MediaRemoveUnused => await _session.RemoveUnusedMediaAsync(cancellationToken),
+                    WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
+                    WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
+                    WorkbenchMethods.BehaviourApprove => await _session.ApproveBehaviourAsync(cancellationToken),
+                    WorkbenchMethods.BehaviourRevoke => await _session.RevokeBehaviourAsync(cancellationToken),
+                    // The host's own methods: its window, tabs, downloads, diagnostics and agents.
+                    _ => await HandleHostMethodAsync(method, payload, protocolVersion, cancellationToken),
+                };
+            }
+            return new WorkbenchResponse(
+                responseProtocolVersion,
+                requestId,
+                true,
+                result,
+                null);
+        }
+        catch (JsonException)
+        {
+            return Failure(requestId, "invalid-request", "The Workbench request is not valid JSON.", responseProtocolVersion);
+        }
+        catch (NendoPreconditionException exception)
+        {
+            return Failure(requestId, exception.Code, exception.Message, responseProtocolVersion, exception.RecordId);
+        }
+        catch (NendoCalculationException exception)
+        {
+            // An automatic action that could not run refused the save; the code says
+            // why and the message names the action.
+            return Failure(requestId, exception.Code, exception.Message, responseProtocolVersion);
+        }
+        catch (NendoFileOpenException exception)
+        {
+            return Failure(requestId, "file-inspection", exception.Inspection.Findings.FirstOrDefault()?.Message
+                ?? "The selected file could not be safely opened.", responseProtocolVersion);
+        }
+        catch (NendoReplacementInterruptedException exception)
+        {
+            return Failure(requestId, "replacement-interrupted", exception.Message, responseProtocolVersion);
+        }
+        catch (NendoIdempotencyConflictException exception)
+        {
+            return Failure(requestId, "idempotency-conflict", exception.Message, responseProtocolVersion);
+        }
+        catch (NendoRecoveryRequiredException exception)
+        {
+            return Failure(requestId, "recovery-required", exception.Message, responseProtocolVersion);
+        }
+        catch (NendoWriteOwnershipException exception)
+        {
+            return Failure(requestId, "write-owned", exception.Message, responseProtocolVersion);
+        }
+        catch (NendoValidationException exception)
+        {
+            return Failure(requestId, "validation", exception.Message, responseProtocolVersion);
+        }
+        catch (NendoCompensationNotSupportedException exception)
+        {
+            return Failure(requestId, "compensation-not-supported", exception.Message, responseProtocolVersion);
+        }
+        catch (OperationCanceledException)
+        {
+            return Failure(requestId, "cancelled", "The action was cancelled. Refresh the file status before trying again.", responseProtocolVersion);
+        }
+        catch (IOException)
+        {
+            return Failure(requestId, "file-io", "The file action could not be confirmed. Inspect the file status and selected destination before retrying; a result may already exist.", responseProtocolVersion);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Failure(requestId, "file-access", "Access was denied. Choose an accessible file or folder, or open the file read-only.", responseProtocolVersion);
+        }
+        catch (Exception)
+        {
+            return Failure(requestId, "internal", "The host could not complete the Workbench request.", responseProtocolVersion);
+        }
+    }
+
+    internal static string Serialize(WorkbenchResponse response) =>
+        JsonSerializer.Serialize(response, JsonOptions);
+
+    internal static string SerializeEvent(WorkbenchEvent hostEvent) =>
+        JsonSerializer.Serialize(hostEvent, JsonOptions);
+
+    /// <summary>
+    /// The origin a view's write is attributed to, <c>extension:&lt;package&gt;</c>, or null for
+    /// a request that names no actor. An actor on any method but the record writes, or one
+    /// that is not a well-formed package name, is refused before anything runs.
+    /// </summary>
+    private string? ExtensionWriter(JsonElement payload, string method)
+    {
+        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("actor", out var actor)) return null;
+        if (!WorkbenchMethods.ExtensionWriterMethods.Contains(method))
+            throw new NendoPreconditionException("actor-not-allowed", $"A custom view may not call {method}.");
+        var text = actor.ValueKind == JsonValueKind.String ? actor.GetString() : null;
+        var packageId = ExtensionActorPackage(text)
+            ?? throw new NendoPreconditionException("actor-not-allowed", "A write names its view by extension: and a package ID.");
+        _session.RequireExtensionWriter(packageId);
+        return text;
+    }
+
+    /// <summary>
+    /// The package an actor names, <c>extension:&lt;package&gt;</c>, or null when it is not one.
+    /// The package ID is held to the Engine's own rule, which the import checked: a stricter
+    /// pattern here refused every write of a package the file carries under an ID such as
+    /// <c>org.view-</c>. src/Nendo.Workbench/scripts/package-ids.json is the table the
+    /// Engine, this check and the Add view form are held to.
+    /// </summary>
+    internal static string? ExtensionActorPackage(string? actor)
+    {
+        const string prefix = "extension:";
+        if (actor is null || !actor.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var packageId = actor[prefix.Length..];
+        return NendoExtensionContent.ValidPackageId(packageId) ? packageId : null;
+    }
+
+    private async Task<DesktopMutationView> CreateGenericRecordAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<CreateRecordPayload>(payload);
+        return await _session.CreateRecordAsync(
+            request.EntityId,
+            request.RecordId,
+            ClonedValues(request.Values),
+            request.IdempotencyKey,
+            cancellationToken, request.ExpectedTargetVersions, writer);
+    }
+
+    private async Task<DesktopMutationView> SetKeptInNewFilesAsync(JsonElement payload, string? writer, CancellationToken cancellationToken)
+    {
+        var request = Deserialize<SetKeptInNewFilesPayload>(payload);
+        return await _session.SetRecordKeptInNewFilesAsync(request.EntityId, request.RecordId, request.Kept,
+            request.IdempotencyKey, cancellationToken, writer);
+    }
+
+    private async Task<DesktopMutationView> DeleteGenericRecordAsync(JsonElement payload, string? writer, CancellationToken cancellationToken)
+    {
+        var request = Deserialize<DeleteRecordPayload>(payload);
+        return await _session.DeleteRecordAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
+            request.IdempotencyKey, cancellationToken, writer);
+    }
+
+    private async Task<DesktopMutationView> SetGenericFieldAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<SetFieldPayload>(payload);
+        return await _session.SetFieldAsync(
+            request.EntityId,
+            request.RecordId,
+            request.FieldId,
+            request.ExpectedRecordVersion,
+            request.Value,
+            request.IdempotencyKey,
+            cancellationToken, request.ExpectedTargetRecordVersion);
+    }
+
+    private async Task<DesktopMutationView> SetGenericFieldsAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<SetFieldsPayload>(payload);
+        if (request.Values is null) throw new NendoValidationException("The form values are required.");
+        return await _session.SetFieldsAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
+            ClonedValues(request.Values),
+            request.IdempotencyKey, cancellationToken, request.ExpectedTargetVersions, writer);
+    }
+
+    /// <summary>A move in a declared hierarchy (ADR-0019), from Studio's outline or a custom view.</summary>
+    private async Task<DesktopMutationView> MoveGenericRecordAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<MoveRecordPayload>(payload);
+        return await _session.MoveRecordAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
+            request.ParentRecordId, request.ExpectedParentVersion, request.BeforeRecordId, request.IdempotencyKey, cancellationToken, writer);
+    }
+
+    /// <summary>Several record writes as one revision, from a custom view.</summary>
+    private async Task<DesktopRecordWritesView> WriteGenericRecordsAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<WriteRecordsPayload>(payload);
+        if (request.Writes is null) throw new NendoValidationException("A batch names its writes.");
+        var writes = request.Writes.Select((write, index) =>
+        {
+            if (write is null) throw new NendoValidationException($"Write {index} is missing.");
+            var kind = write.Kind switch
+            {
+                "create" => NendoRecordWriteKind.Create,
+                "update" => NendoRecordWriteKind.Update,
+                "delete" => NendoRecordWriteKind.Delete,
+                _ => throw new NendoValidationException($"Write {index} is not a create, an update or a delete."),
+            };
+            return new NendoRecordWrite(kind, write.EntityId, write.RecordId,
+                write.Values is null ? null : ClonedValues(write.Values),
+                write.ExpectedRecordVersion, write.ExpectedTargetVersions);
+        }).ToArray();
+        return await _session.WriteRecordsAsync(writes, request.IdempotencyKey, request.Label, cancellationToken, writer);
+    }
+
+    /// <summary>
+    /// A custom view undoing or redoing a batch its package wrote (ADR-0023). Only a view asks:
+    /// a person reverses a revision in History, and the Engine refuses a revision another origin
+    /// wrote.
+    /// </summary>
+    private async Task<DesktopRecordWritesView> UndoGenericRecordWritesAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        if (writer is null)
+            throw new NendoPreconditionException("actor-not-allowed", "Only a custom view undoes its own writes; History compensates the rest.");
+        var request = Deserialize<UndoRecordWritesPayload>(payload);
+        return await _session.UndoRecordWritesAsync(request.RevisionId, request.Redo, request.IdempotencyKey, request.Label, writer, cancellationToken);
+    }
+
+    private async Task<DesktopMutationView> ExecuteGenericCommandAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ExecuteCommandPayload>(payload);
+        return await _session.ExecuteCommandAsync(
+            request.CommandId,
+            request.RecordId,
+            request.ExpectedRecordVersion,
+            request.IdempotencyKey,
+            cancellationToken,
+            writer,
+            request.EntityId);
+    }
+
+    /// <summary>
+    /// A proposal the person prepares, or, with a view's actor (ADR-0013), one a
+    /// custom view prepares in its package's name: the origin of the proposal and of each
+    /// mutation is then the actor, and a package has at most one waiting at a time.
+    /// </summary>
+    private async Task<NendoProposalPreview> PrepareChangeSetAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<PrepareChangeSetPayload>(payload);
+        var origin = writer ?? "workbench";
+        var changeSet = new NendoCanonicalChangeSetRequest(request.Mutations.Select(mutation =>
+            new NendoCanonicalMutationRequest(
+                "desktop.p2.5",
+                mutation.IdempotencyKey,
+                origin,
+                mutation.Description,
+                mutation.Operations)).ToArray());
+        var proposal = new NendoCanonicalProposalRequest(request.ProposalId, request.Title, origin, changeSet);
+        return writer is null
+            ? await _session.PrepareProposalAsync(proposal, cancellationToken)
+            : await _session.PrepareExtensionProposalAsync(proposal, cancellationToken);
+    }
+
+    /// <summary>
+    /// A proposal and its state. A view reads only its own package's proposals: any other
+    /// answers as a proposal that does not exist, so a view cannot watch anyone else's work.
+    /// </summary>
+    private async Task<object> GetProposalAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ProposalIdPayload>(payload);
+        return writer is null
+            ? await _session.GetProposalAsync(request.ProposalId, cancellationToken)
+            : await _session.GetExtensionProposalAsync(request.ProposalId, writer, cancellationToken);
+    }
+
+    /// <summary>
+    /// Part of a package file as the proposal under review would leave it: the
+    /// person reads a change the diff shows only in part, bound to the digest they review.
+    /// </summary>
+    private async Task<NendoProposalFileWindow> ReadProposalPackageFileAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ProposalFilePayload>(payload);
+        return await _session.ReadProposalPackageFileAsync(request, cancellationToken);
+    }
+
+    private async Task<DesktopPromotionView> PromoteProposalAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ProposalAcceptancePayload>(payload);
+        return await _session.PromoteProposalAsync(request.ProposalId, cancellationToken, request.ExpectedOperationDigest);
+    }
+
+    private async Task<DesktopPromotionView> RejectProposalAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ProposalIdPayload>(payload);
+        return await _session.RejectProposalAsync(request.ProposalId, cancellationToken);
+    }
+
+    private async Task<DesktopMutationView> CompensateRevisionAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<CompensationPayload>(payload);
+        return await _session.CompensateRevisionAsync(
+            request.RevisionId,
+            request.IdempotencyKey,
+            cancellationToken);
+    }
+
+    private object ApplyAppearance(JsonElement payload)
+    {
+        var request = Deserialize<AppearancePayload>(payload);
+        if (request.Preference is not ("system" or "light" or "dark") ||
+            request.Effective is not ("light" or "dark"))
+        {
+            throw new NendoValidationException("Appearance must contain a valid preference and effective theme.");
+        }
+        _applyAppearance(request);
+        return _getAppearance?.Invoke() ?? (object)new { request.Preference, request.Effective };
+    }
+
+    /// <summary>Field values as the session takes them: each one cloned out of the request document it arrived in.</summary>
+    private static Dictionary<string, object?> ClonedValues(IReadOnlyDictionary<string, JsonElement> values) =>
+        values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal);
+
+    private static T Deserialize<T>(JsonElement payload) where T : class =>
+        payload.Deserialize<T>(JsonOptions)
+        ?? throw new NendoValidationException("The Workbench request payload is missing or invalid.");
+
+    private static WorkbenchResponse Failure(
+        string requestId,
+        string code,
+        string message,
+        int protocolVersion = DesktopShellContract.BridgeProtocolVersion,
+        string? recordId = null) => new(
+        protocolVersion,
+        requestId,
+        false,
+        null,
+        new WorkbenchError(code, message, recordId));
+
+    private static string RequiredString(JsonElement root, string name, int maximumLength)
+    {
+        if (!root.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            throw new NendoValidationException($"Request property {name} is required.");
+        }
+        var result = value.GetString();
+        if (string.IsNullOrWhiteSpace(result) || result.Length > maximumLength)
+        {
+            throw new NendoValidationException($"Request property {name} has an invalid length.");
+        }
+        return result;
+    }
+
+    private static bool RequiredBoolean(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : throw new NendoValidationException($"Request property {name} must be true or false.");
+
+    private static int RequiredInt32(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var value) || !value.TryGetInt32(out var result))
+        {
+            throw new NendoValidationException($"Request property {name} is required.");
+        }
+        return result;
+    }
+}

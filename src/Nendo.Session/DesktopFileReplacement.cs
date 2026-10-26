@@ -1,0 +1,239 @@
+using Nendo.Engine;
+
+namespace Nendo.Session;
+
+internal sealed record DesktopRestoreView(NendoRestoreResult Restore, DesktopSessionView Session, string? Notice);
+internal sealed record DesktopUpgradeView(NendoUpgradeResult Upgrade, DesktopSessionView Session, string? Notice);
+
+internal sealed partial class DesktopSessionController
+{
+    private DesktopSessionView? _detachedRecovery;
+    private string? _recoveryPath;
+    internal Action? BeforeReplacementReopenForTest { get; set; }
+
+    internal Task<NendoBackupPlan> PrepareBackupAsync(string path, string requestId, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => { RequireWritableLocation(path); return service.PrepareBackupAsync(path, requestId, cancellationToken); }, cancellationToken);
+
+    internal Task<NendoBackupResult> CreateBackupAsync(string planId, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.CreateBackupAsync(planId, cancellationToken), cancellationToken);
+
+    internal Task<NendoHistoryFoldPreview> PreviewHistoryFoldAsync(CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.PreviewHistoryFoldAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Folds the open file's older history (ADR-0021): first a backup beside the file, named for
+    /// the day, which keeps the whole history; then the fold, which only a backup of the file as
+    /// it stands allows. The person asked for this in History, having read what it gives up.
+    /// </summary>
+    internal async Task<NendoHistoryFoldResult> FoldHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        // Every step belongs to the file session the fold began in: a Workbench request carries
+        // its own, and a fold called without one is bound to the session open now. A close or a
+        // replacement between the steps then refuses the rest as stale, rather than the backup
+        // and the fold acting on the next file.
+        using var bound = _fileRequest.Value is null ? BindFileRequest(_fileSessionId) : null;
+        var path = _currentPath ?? throw new NendoPreconditionException("history-fold-unavailable", "No file is open.");
+        RequireWritableLocation(path);
+        // Asked first, so a fold with nothing to take leaves no backup behind it.
+        var preview = await PreviewHistoryFoldAsync(cancellationToken);
+        if (!preview.CanFold) throw new NendoPreconditionException("history-fold-nothing", preview.Reason ?? "There is no older history to fold.");
+        var folder = Path.GetDirectoryName(path)!;
+        var name = Path.GetFileNameWithoutExtension(path);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd HHmm", System.Globalization.CultureInfo.InvariantCulture);
+        var destination = Path.Combine(folder, $"{name} before folding {stamp}.nendo");
+        for (var attempt = 2; File.Exists(destination); attempt++)
+            destination = Path.Combine(folder, $"{name} before folding {stamp} ({attempt}).nendo");
+        var plan = await PrepareFoldBackupAsync(path, destination, cancellationToken);
+        await CreateBackupAsync(plan.PlanId, cancellationToken);
+        return await QueryAsync(service => service.FoldHistoryAsync(plan.PlanId, cancellationToken), cancellationToken);
+    }
+
+    internal Task<NendoMediaUsage> ReadMediaUsageAsync(CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.ReadMediaUsageAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Removes the open file's unused pictures (ADR-0031 point 8): first a backup beside the
+    /// file, named for the day, which keeps every picture; then the removal and the compaction,
+    /// which only a backup of the file as it stands allows. Asked for on History.
+    /// </summary>
+    internal async Task<NendoMediaRemovalResult> RemoveUnusedMediaAsync(CancellationToken cancellationToken = default)
+    {
+        using var bound = _fileRequest.Value is null ? BindFileRequest(_fileSessionId) : null;
+        var path = _currentPath ?? throw new NendoPreconditionException("media-removal-unavailable", "No file is open.");
+        RequireWritableLocation(path);
+        // Asked first, so a removal with nothing to take leaves no backup behind it.
+        var usage = await ReadMediaUsageAsync(cancellationToken);
+        if (usage.UnusedCount == 0) throw new NendoPreconditionException("media-removal-nothing", "Every picture in the file is named by a record or by its history, so none was removed.");
+        var folder = Path.GetDirectoryName(path)!;
+        var name = Path.GetFileNameWithoutExtension(path);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd HHmm", System.Globalization.CultureInfo.InvariantCulture);
+        var destination = Path.Combine(folder, $"{name} before removing pictures {stamp}.nendo");
+        for (var attempt = 2; File.Exists(destination); attempt++)
+            destination = Path.Combine(folder, $"{name} before removing pictures {stamp} ({attempt}).nendo");
+        var plan = await PrepareFoldBackupAsync(path, destination, cancellationToken);
+        await CreateBackupAsync(plan.PlanId, cancellationToken);
+        return await QueryAsync(service => service.RemoveUnusedMediaAsync(plan.PlanId, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>
+    /// The fold's backup, at the path the host chose beside the open file.
+    /// <para>
+    /// Nothing in History can be asked about a second path, so a file whose location the person
+    /// accepted for writable use had its fold refused for the backup beside it, whatever they
+    /// chose. The backup is covered by that acceptance: this one path, for this request
+    /// alone, and only when the file's own location was accepted. An accepted location is still
+    /// no grant for any other output.
+    /// </para>
+    /// </summary>
+    internal async Task<NendoBackupPlan> PrepareFoldBackupAsync(string path, string destination, CancellationToken cancellationToken = default)
+    {
+        var accepted = HasLocationAcknowledgement(path);
+        // The request's own session, never the one open now: read outside the gate, that could
+        // already be the next file's.
+        using var scope = BindFileRequest(_fileRequest.Value?.FileSessionId ?? _fileSessionId);
+        if (accepted && _locationPolicy.Inspect(destination) is not null)
+            scope.AcknowledgedLocations.Add(Path.GetFullPath(destination));
+        return await PrepareBackupAsync(destination, $"history-fold-{Guid.NewGuid():N}", cancellationToken);
+    }
+
+    internal Task<NendoRestorePlan> PrepareRestoreAsync(string path, string requestId, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => { RequireWritableLocation(_currentPath!); return service.PrepareRestoreAsync(path, requestId, cancellationToken); }, cancellationToken);
+
+    internal Task<NendoUpgradePlan> PrepareUpgradeAsync(string requestId, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => { RequireWritableLocation(_currentPath!); return service.PrepareUpgradeAsync(requestId, cancellationToken); }, cancellationToken);
+
+    internal async Task<DesktopRestoreView> RestoreAsync(string planId, bool confirmDiscardProposals, CancellationToken cancellationToken = default)
+    {
+        var completed = await ReplaceFileAsync(service => service.RestoreAsync(planId, confirmDiscardProposals, cancellationToken),
+            result => result.OpenObservation, cancellationToken);
+        return new(completed.Result, completed.Session, completed.Notice);
+    }
+
+    internal async Task<DesktopUpgradeView> UpgradeAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        var completed = await ReplaceFileAsync(service => service.UpgradeAsync(planId, cancellationToken),
+            result => result.OpenObservation, cancellationToken);
+        return new(completed.Result, completed.Session, completed.Notice);
+    }
+
+    internal async Task<NendoReplacementRecovery> GetReplacementRecoveryAsync(CancellationToken cancellationToken = default)
+    {
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var path = _currentPath ?? _recoveryPath ?? throw new NendoPreconditionException(
+                "recovery-file-unavailable", "Select a file before inspecting its recovery record.");
+            return await NendoWriteCoordinator.InspectReplacementRecoveryAsync(path, cancellationToken);
+        }
+        finally { _gate.Release(); }
+    }
+
+    internal async Task<DesktopSessionView> ReinspectCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            // Healthy is the test, not editable: a healthy file waiting for its automatic actions to
+            // be approved has editing off as well, and reinspecting it closed it, ended agent access,
+            // discarded waiting proposals and reopened it read-only, where approval could not be
+            // given.
+            if (_coordinator?.Health == NendoSessionHealth.Normal)
+                throw new NendoPreconditionException("inspection-not-required",
+                    "This file passed the checks required for editing, so it does not need inspecting again. Reopening it would only make it read-only.");
+            var path = _currentPath ?? _recoveryPath ?? throw new NendoPreconditionException(
+                "recovery-file-unavailable", "Choose a file to inspect first.");
+            await CloseFileCoreAsync();
+            try { return await OpenCandidateCoreAsync(await PrepareOpenCoreAsync(path, cancellationToken), true, cancellationToken); }
+            catch
+            {
+                await DetachReplacementCoreAsync(path,
+                    "This file could not be reopened for inspection. Preserve it and use Open file or backup to choose another file.",
+                    "inspection-unavailable");
+                throw;
+            }
+        }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<(T Result, DesktopSessionView Session, string? Notice)> ReplaceFileAsync<T>(
+        Func<NendoApplicationService, Task<T>> replace, Func<T, NendoFileObservation?> observation,
+        CancellationToken cancellationToken)
+    {
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var service = RequireService();
+            var oldCoordinator = _coordinator!;
+            var path = _currentPath!;
+            var previous = _currentObservation!;
+            var admission = await _fileHistory.CheckAsync(previous, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            // Stop integration admission and drain admitted mutations first. Do
+            // not reject submitted proposals here: the Engine rechecks the exact
+            // proposal set and the owner's discard confirmation after draining.
+            await StopAgentAccessForReplacementAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            T result;
+            try { result = await replace(service); }
+            catch when (oldCoordinator.Health == NendoSessionHealth.Closed)
+            {
+                await DetachReplacementCoreAsync(path,
+                    "The replacement did not finish. Inspect the recovery record and retained original before choosing a file to open.");
+                throw;
+            }
+
+            // Replacement has committed. Cancellation after this point cannot
+            // mean undo; return its result even if fresh session admission fails.
+            try
+            {
+                await CloseFileCoreAsync();
+                BeforeReplacementReopenForTest?.Invoke();
+                var expected = observation(result) ?? throw new NendoPreconditionException(
+                    "replacement-observation-missing", "The completed replacement did not provide a verified reopening observation.");
+                if (admission.Conflict is null)
+                    _ = await _fileHistory.RememberReplacementAsync(path, previous, expected, CancellationToken.None);
+                var candidate = await PrepareOpenCoreAsync(path, CancellationToken.None, expected);
+                // Replacing an inspected raw copy must not promote it over a
+                // separate known original. It can reopen only for inspection.
+                var readOnly = admission.Conflict is not null || candidate.Assessment.KnownInstanceCollision;
+                var view = await OpenCandidateCoreAsync(candidate, readOnly, CancellationToken.None, restoreAgent: false);
+                return (result, view, readOnly
+                    ? "The replacement finished and is open read-only because another known file carries this instance identity."
+                    : null);
+            }
+            catch (Exception)
+            {
+                const string notice = "The replacement finished, but the verified result could not be reopened. Editing and agent access remain off. Inspect the file and retained original before continuing.";
+                await DetachReplacementCoreAsync(path, notice);
+                return (result, _detachedRecovery!, notice);
+            }
+        }
+        finally { _gate.Release(); }
+    }
+
+    private async Task DetachReplacementCoreAsync(string path, string message, string findingCode = "replacement-reopen-required")
+    {
+        try { await CloseFileCoreAsync(); }
+        catch (Exception)
+        {
+            message += " Local session cleanup also needs attention; close the application before reconnecting an agent.";
+        }
+        _recoveryPath = path;
+        NendoReplacementRecovery? recovery = null;
+        try { recovery = await NendoWriteCoordinator.InspectReplacementRecoveryAsync(path, CancellationToken.None); }
+        catch (Exception)
+        {
+            message += " The recovery record could not be read. Preserve the files and use Open to inspect a verified backup separately.";
+        }
+        _detachedRecovery = new(false, Path.GetFileName(path), "recoveryRequired", null, [], [], [], null)
+        {
+            FileSessionId = _fileSessionId,
+            LocationWarning = _locationPolicy.Inspect(path),
+            Findings = [new(findingCode, message)],
+            ReplacementRecovery = recovery,
+        };
+    }
+}

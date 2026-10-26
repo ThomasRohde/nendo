@@ -6,8 +6,8 @@ import { bundleOf } from './bundle-of.mjs';
 
 // The journal settles a save only on a code it knows to be a complete refusal. A code missing
 // from its list, such as value-not-unique, leaves the save pending for good and locks editing of
-// the file on this device, and a hand-copied list in a test would still pass. Here the codes come from the Engine and the Desktop host
-// themselves: each one must either settle the journal or be named below as not doing so.
+// the file on this device, and a hand-copied list in a test would still pass. Here the codes come from the Engine, the shared
+// session and the Desktop host themselves: each one must either settle the journal or be named below as not doing so.
 const { isConfirmedRejection } = await bundleOf('src/pending-mutations.ts');
 const { decideWriteFailure } = await bundleOf('src/write-failure.ts');
 
@@ -24,7 +24,7 @@ const raisedForms = [
   /NendoPreconditionException\s+\w+\([^)]*\)\s*=>\s*new\(\s*"([a-z0-9-]+)"/g,
 ];
 const raised = new Set();
-for (const project of ['Nendo.Engine', 'Nendo.Desktop']) {
+for (const project of ['Nendo.Engine', 'Nendo.Session', 'Nendo.Desktop']) {
   for (const file of csharpFiles(join(repository, 'src', project))) {
     const text = readFileSync(file, 'utf8');
     for (const form of raisedForms) for (const match of text.matchAll(form)) raised.add(match[1]);
@@ -65,6 +65,9 @@ const notSettled = new Set([
   // Tab windows: a file action a tab window leaves to the main window, a move with no file,
   // and the journey's close of a window. None is a journaled write.
   'main-window-only', 'no-file', 'main-window',
+  // A host's own method (its window, tabs, downloads, diagnostics, agents) that the browser host does not have
+  // (ADR-0036). None is a journaled write.
+  'not-in-this-host',
 ]);
 
 test('every refusal the Engine or the host raises is classified for the save journal', () => {

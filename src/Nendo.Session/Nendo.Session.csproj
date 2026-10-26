@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR-0036. The Workbench protocol handler and the session controller, without Windows: the
+       browser host references this project, and Desktop compiles the same sources in beside its
+       window, tab and agent partials (everything here except Host/, which is this build's own). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\NumericEnvelopeJson.cs" Link="Transport\NumericEnvelopeJson.cs" />
+    <ProjectReference Include="..\Nendo.Engine\Nendo.Engine.csproj" />
+  </ItemGroup>
+
+</Project>

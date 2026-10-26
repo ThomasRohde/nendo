@@ -48,10 +48,12 @@ with nothing installed.
 
 ### Projects
 
-- `Nendo.Session` (`net10.0`) holds the Workbench protocol handler and the session controller's
-  reads, writes, proposals, extension state, help and media. Desktop and the browser host both
-  use it. Window, tab, title-bar, download, agent and launched-agent methods stay in Desktop,
-  which adds them through an extension point on the handler's dispatch.
+- `Nendo.Session` (`net10.0`) holds the Workbench protocol handler and the session controller:
+  dispatch, reads, writes, proposals, history, file lifecycle, extension state, help and media.
+  The browser host references the project; Desktop compiles the same sources in as linked
+  files, because its window, tab, title-bar, download and agent code are partials of the same
+  classes. A host's own methods are partial methods each build implements: Desktop with its
+  window and agents, the project's `Host/` folder by refusing each with `not-in-this-host`.
 - `Nendo.Browser` (`Microsoft.NET.Sdk.WebAssembly`, `net10.0`, `browser-wasm`) references the
   Engine and `Nendo.Session`. It exports one JSON request method, the same protocol the WebView2
   bridge carries, and the file's open and save.

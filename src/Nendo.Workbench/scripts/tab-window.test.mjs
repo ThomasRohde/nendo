@@ -114,7 +114,7 @@ test('the main window alone offers the file actions that switch the file, and th
   const host = source('../../Nendo.Desktop/WorkbenchProtocol.TabWindows.cs');
   const block = host.slice(host.indexOf('MainWindowOnly ='), host.indexOf('};', host.indexOf('MainWindowOnly =')));
   const names = [...block.matchAll(/WorkbenchMethods\.(\w+)/g)].map((match) => match[1]);
-  const constants = ['WorkbenchProtocol.cs', 'WorkbenchFileActions.cs'].map((file) => source(`../../Nendo.Desktop/${file}`)).join('\n');
+  const constants = ['WorkbenchProtocol.cs', 'WorkbenchFileActions.cs'].map((file) => source(`../../Nendo.Session/${file}`)).join('\n');
   const methods = new Set(names.map((name) => {
     const found = constants.match(new RegExp(`const string ${name} = "([^"]+)"`));
     assert.ok(found, `WorkbenchMethods.${name} is not declared where the test reads`);
@@ -129,11 +129,14 @@ test('the main window alone offers the file actions that switch the file, and th
 test('a tab window asks its role before it has a file session of its own, as the host answers it', () => {
   const desktop = source('../src/host-desktop.ts');
   assert.match(desktop, /independentMethods = new Set\(\[[^\]]*'window\.takeTab'/, 'window.takeTab is checked against a file session the host does not bind');
-  const host = source('../../Nendo.Desktop/WorkbenchProtocol.cs');
-  const independent = host.slice(host.indexOf('var independent ='), host.indexOf('var expectedSession'));
+  // The shared dispatch's own list, and the methods the Windows host adds to it (its window's).
+  const shared = source('../../Nendo.Session/WorkbenchProtocol.cs');
+  const windows = source('../../Nendo.Desktop/WorkbenchProtocol.Host.cs');
+  assert.match(shared, /\|\| IsHostIndependent\(method\)/, 'the shared dispatch no longer asks the host which of its methods need no file session');
+  const independent = shared.slice(shared.indexOf('var independent ='), shared.indexOf('var expectedSession')) +
+    windows.slice(windows.indexOf('IsHostIndependent(string method) =>'), windows.indexOf(';', windows.indexOf('IsHostIndependent(string method) =>')));
   assert.match(independent, /WorkbenchMethods\.WindowTakeTab\b/);
   // A drag's picture comes and goes whatever the file does meanwhile, so it is not bound to the file either.
   assert.match(independent, /WorkbenchMethods\.WindowEndTabDrag\b/, 'a drag let go after the file changed kept its picture on screen');
-  assert.doesNotMatch(host.slice(host.indexOf('var independent ='), host.indexOf('var expectedSession')), /WindowDetachTab/,
-    'a tab of one file session could open a window on another');
+  assert.doesNotMatch(independent, /WindowDetachTab/, 'a tab of one file session could open a window on another');
 });

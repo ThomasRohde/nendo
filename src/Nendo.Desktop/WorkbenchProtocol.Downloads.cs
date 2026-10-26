@@ -1,17 +1,7 @@
 using System.Text.Json;
 using Nendo.Engine;
 
-namespace Nendo.Desktop;
-
-internal static partial class WorkbenchMethods
-{
-    /// <summary>
-    /// Show a file a view saved in its folder, in Explorer, by the identifier its downloadSaved
-    /// event named. Only a download this window saved can be shown, so the page never hands the
-    /// host a path.
-    /// </summary>
-    internal const string DownloadsShow = "downloads.show";
-}
+namespace Nendo.Session;
 
 /// <summary>A file a view saved, as the Workbench says it: an identifier to show it by, its name and its folder's.</summary>
 internal sealed record DownloadSavedPayload(string Id, string FileName, string Folder);

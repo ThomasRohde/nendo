@@ -1,45 +1,40 @@
 using System.Text.Json;
 using Nendo.Engine;
 
-namespace Nendo.Desktop;
-
-internal static partial class WorkbenchMethods
-{
-    /// <summary>
-    /// The agent launched from the Agent page and its conversation tab (ADR-0030). None of these
-    /// waits on the request gate except list, setCommand, setHidden and launch: the tab keeps
-    /// reading while an agent's own write holds the file. Each still names the file session it
-    /// belongs to.
-    /// </summary>
-    internal const string AgentSessionPrefix = "agentSession.";
-    internal const string AgentSessionList = "agentSession.list";
-    internal const string AgentSessionSetCommand = "agentSession.setCommand";
-    internal const string AgentSessionSetHidden = "agentSession.setHidden";
-    internal const string AgentSessionLaunch = "agentSession.launch";
-    internal const string AgentSessionRead = "agentSession.read";
-    internal const string AgentSessionPrompt = "agentSession.prompt";
-    internal const string AgentSessionAttach = "agentSession.attach";
-    internal const string AgentSessionImage = "agentSession.image";
-    internal const string AgentSessionRespond = "agentSession.respond";
-    internal const string AgentSessionAnswer = "agentSession.answer";
-    internal const string AgentSessionCancel = "agentSession.cancel";
-    internal const string AgentSessionAuthenticate = "agentSession.authenticate";
-    internal const string AgentSessionEnd = "agentSession.end";
-    internal const string AgentSessionSetOption = "agentSession.setOption";
-    internal const string AgentSessionSetViewAccess = "agentSession.setViewAccess";
-    internal const string AgentSessionTurn = "agentSession.turn";
-    internal const string AgentSessionSetStartIn = "agentSession.setStartIn";
-
-    internal static readonly IReadOnlySet<string> AgentSessionMethods = new HashSet<string>(StringComparer.Ordinal)
-    {
-        AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
-        AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
-        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn, AgentSessionAttach, AgentSessionImage, AgentSessionRespond,
-    };
-}
+namespace Nendo.Session;
 
 internal sealed partial class WorkbenchProtocolHandler
 {
+    private async Task<DesktopAgentStatus> SetAgentModeAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<AgentModePayload>(payload);
+        return await _session.SetAgentModeAsync(request.Mode, cancellationToken);
+    }
+
+    private async Task<DesktopAgentStatus> SetAgentSettingsAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<AgentSettingsPayload>(payload);
+        // Re-validated in the store; the renderer is never the authority on a bounded value.
+        return await _session.SetAgentSettingsAsync(
+            request.LeaseExpiry,
+            request.LeaseExpirySeconds,
+            request.FixedPort,
+            request.Port,
+            cancellationToken);
+    }
+
+    private async Task<Nendo.LocalMcp.NendoAgentProposalPreview> GetAgentProposalAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ProposalIdPayload>(payload);
+        return await _session.GetAgentProposalAsync(request.ProposalId, cancellationToken);
+    }
+
     /// <summary>Pictures on their way to the agent's next message, by file session and the tab's key.</summary>
     private readonly NendoMediaUploads<object> _agentPictures = new();
 

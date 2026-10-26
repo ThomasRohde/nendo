@@ -2,7 +2,7 @@ using System.Text.Json;
 using Nendo.Engine;
 using Nendo.LocalMcp;
 
-namespace Nendo.Desktop;
+namespace Nendo.Session;
 
 /// <summary>
 /// An agent the Agent page offers, whether it was found on this computer, and what a person would

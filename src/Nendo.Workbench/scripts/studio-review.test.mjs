@@ -121,9 +121,9 @@ test('the review’s Back rejects a Studio proposal rather than leaving it in th
 });
 
 test('the person’s own delete, keep mark, index build and undo read "by you"', () => {
-  // The host records these as "studio" when the page names no writer (DesktopSessionController,
+  // The session records these as "studio" when the page names no writer (DesktopSessionController,
   // SqliteNendoStore.Compensation); read from the sources, so the guard follows them.
-  const recorded = ['../../Nendo.Desktop/DesktopSessionController.cs', '../../Nendo.Engine/Storage/SqliteNendoStore.Compensation.cs']
+  const recorded = ['../../Nendo.Session/DesktopSessionController.cs', '../../Nendo.Engine/Storage/SqliteNendoStore.Compensation.cs']
     .map((path) => readFileSync(new URL(path, import.meta.url), 'utf8').match(/"studio"/g)?.length ?? 0)
     .reduce((sum, count) => sum + count, 0);
   assert.ok(recorded >= 3, `only ${recorded} "studio" origins were found; the guard measures nothing`);

@@ -55,6 +55,12 @@
 
   <ItemGroup>
     <Compile Include="..\Shared\NumericEnvelopeJson.cs" Link="Transport\NumericEnvelopeJson.cs" />
+    <!-- ADR-0036. The protocol and session sources the browser host shares, compiled in beside
+         this host's window, tab and agent partials. Host/ is the Session build's own. -->
+    <Compile Include="..\Nendo.Session\**\*.cs" Exclude="..\Nendo.Session\Host\**" LinkBase="Session" />
+    <Using Include="Nendo.Session" />
+    <!-- Desktop's partials of the shared classes sit in their namespace and still use this host's types. -->
+    <Using Include="Nendo.Desktop" />
     <ProjectReference Include="..\Nendo.Engine\Nendo.Engine.csproj" />
     <ProjectReference Include="..\Nendo.LocalMcp\Nendo.LocalMcp.csproj" />
   </ItemGroup>

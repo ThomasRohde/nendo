@@ -2,49 +2,7 @@ using System.Text.Json;
 using Nendo.Engine;
 using Windows.Graphics;
 
-namespace Nendo.Desktop;
-
-internal static partial class WorkbenchMethods
-{
-    /// <summary>
-    /// Open a tab in a window of its own (ADR-0002). The page hands over the tab's
-    /// trail as an opaque string, which the host never reads, and whether the window opens at the
-    /// pointer (the tab was let go outside the window) or beside this one (the command).
-    /// </summary>
-    internal const string WindowDetachTab = "window.detachTab";
-
-    /// <summary>
-    /// Which window this page is in, and the trail of the tab it was opened for. A tab window
-    /// answers the trail once; a second ask, and the main window, answer none.
-    /// </summary>
-    internal const string WindowTakeTab = "window.takeTab";
-
-    /// <summary>
-    /// A tab is being dragged off the strip: the host shows a picture of it under the pointer, cut
-    /// from what the page last drew at the tab's box, until <c>window.endTabDrag</c>.
-    /// </summary>
-    internal const string WindowBeginTabDrag = "window.beginTabDrag";
-
-    /// <summary>
-    /// The tab came back to the strip, or was let go. Let go (<c>dropped</c>), the host keeps where
-    /// the pointer was and over which window, for the <c>window.detachTab</c> that follows.
-    /// </summary>
-    internal const string WindowEndTabDrag = "window.endTabDrag";
-
-    /// <summary>Close this page's tab window as its close button does. Answered only when NENDO_NATIVE_DIAGNOSTICS=1.</summary>
-    internal const string DiagnosticsCloseWindow = "diagnostics.closeWindow";
-
-    /// <summary>End the process as the tray's Exit does. Answered only when NENDO_NATIVE_DIAGNOSTICS=1.</summary>
-    internal const string DiagnosticsExit = "diagnostics.exit";
-
-    /// <summary>
-    /// The drag under way in any window of the file: whether it follows the pointer, its picture,
-    /// and the window it is held over. With <c>point</c> (this page's pixels), the pointer is taken
-    /// to be there until <c>point</c> is null, so a journey drags without the real pointer, which
-    /// needs the foreground. Answered only when NENDO_NATIVE_DIAGNOSTICS=1.
-    /// </summary>
-    internal const string DiagnosticsTabDrag = "diagnostics.tabDrag";
-}
+namespace Nendo.Session;
 
 /// <summary>What a page learns about its window: <c>main</c> or <c>tab</c>, and a tab window's trail once.</summary>
 internal sealed record TabWindowStart(string Role, string? Trail);
@@ -376,7 +334,7 @@ internal sealed partial class WorkbenchProtocolHandler
         "window-unavailable", "The window is not available.");
 
     /// <summary>A file action a tab window does not run, refused before anything else happens.</summary>
-    private void RefuseOutsideTheMainWindow(string method)
+    partial void RefuseOutsideTheMainWindow(string method)
     {
         if (TabWindowHost is { IsTabWindow: true } && DesktopTabWindowRules.MainWindowOnly.Contains(method))
             throw new NendoPreconditionException("main-window-only",

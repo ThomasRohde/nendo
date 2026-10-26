@@ -45,7 +45,7 @@ if ($missingAllowlistEntries.Count -gt 0) {
     throw "Application-neutrality allowlist contains missing files:`n$($missingAllowlistEntries -join "`n")"
 }
 
-$genericProtocol = [IO.File]::ReadAllText((Join-Path $repoRoot 'src/Nendo.Desktop/WorkbenchProtocol.cs'))
+$genericProtocol = [IO.File]::ReadAllText((Join-Path $repoRoot 'src/Nendo.Session/WorkbenchProtocol.cs'))
 foreach ($method in @('proposal.prepareChangeSet', 'data.createRecord', 'data.setField', 'data.executeCommand')) {
     if ($genericProtocol.IndexOf($method, [StringComparison]::Ordinal) -lt 0) {
         throw "Current Workbench protocol is missing generic method $method."

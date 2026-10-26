@@ -72,6 +72,7 @@ $plannedSteps = @(
     if (-not $SkipRestore) { , @('dotnet.restore', '.NET restore') }
     , @('dotnet.build', '.NET build')
     , @('dotnet.Nendo.Engine.Tests', 'Engine tests')
+    , @('dotnet.Nendo.Session.Tests', 'Session tests')
     , @('dotnet.Nendo.LocalMcp.Tests', 'MCP tests')
     , @('dotnet.Nendo.Desktop.Tests', 'Desktop tests')
     , @('tool-boundaries', 'Tool boundaries')
@@ -125,17 +126,17 @@ try {
     Invoke-Checked 'dotnet' @('build', 'Nendo.slnx', '--no-restore', '--nologo') '.NET build'
     if ($Inspector) { $env:NENDO_RUN_INSPECTOR = '1' }
     if ($Soak) { $env:NENDO_RUN_SOAK = '1' }
-    # One suite at a time. Run together, the three suites' parallel methods each start
+    # One suite at a time. Run together, the suites' parallel methods each start
     # hosts, children and files at once, and a fresh MCP host's first answer queues behind them
     # past its client's bound ("Initialization timed out"), which a suite alone never does.
     # Each suite still runs its own methods in parallel.
-    # A failing suite does not stop the next, so one run still reports all three.
+    # A failing suite does not stop the next, so one run still reports every suite.
     # Each suite's TRX goes under artifacts/test-results and is kept only when the suite failed.
     # Without a results directory every run would write one into tests/<suite>/TestResults,
     # which nothing reads or removes, so it would grow by hundreds of megabytes.
     $failedSuites = @()
     $testResults = Join-Path $repoRoot "artifacts/test-results/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))"
-    foreach ($suite in @('Nendo.Engine.Tests', 'Nendo.LocalMcp.Tests', 'Nendo.Desktop.Tests')) {
+    foreach ($suite in @('Nendo.Engine.Tests', 'Nendo.Session.Tests', 'Nendo.LocalMcp.Tests', 'Nendo.Desktop.Tests')) {
         $project = Join-Path $repoRoot "tests/$suite/$suite.csproj"
         $suiteResults = Join-Path $testResults $suite
         Enter-GateStep "dotnet.$suite"
@@ -168,9 +169,9 @@ try {
     }
     Write-Host 'OK       the Debug Desktop output carries the Workbench this gate built'
 
-    # src\Shared is source both adapters compile in, so it is adapter code for this check.
+    # src\Shared and src\Nendo.Session are source the adapters compile in, so they are adapter code here.
     $adapterFiles = @(
-        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.LocalMcp', 'src\Shared')) {
+        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.Session', 'src\Nendo.LocalMcp', 'src\Shared')) {
             Get-ChildItem -LiteralPath (Join-Path $repoRoot $adapterRoot) -Recurse -File |
                 Where-Object {
                     $_.Extension -in @('.cs', '.csproj', '.xaml') -and
@@ -185,7 +186,7 @@ try {
             throw "SQLite escaped the Engine boundary: $($file.FullName)"
         }
     }
-    Write-Host "OK       Desktop and local MCP storage boundary ($($adapterFiles.Count) source files)"
+    Write-Host "OK       Desktop, Session and local MCP storage boundary ($($adapterFiles.Count) source files)"
     # The transport envelopes in src\Shared stay out of the Engine (docs/contracts/scalars.md).
     $engineProject = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\Nendo.Engine\Nendo.Engine.csproj'))
     if ($engineProject -match '(?i)\.\.[\\/]Shared[\\/]') {
@@ -461,13 +462,14 @@ try {
         'NendoDataTools.cs',
         'NendoAuthoringTools.cs',
         'NendoAuthoringExamples.cs',
-        'NendoAuthoringOperations.cs',
         'NendoHealthTools.cs',
         'NendoMcpReadIndex.cs'
     )
     $forbiddenContractPattern = '(?i)\b(?:databasePath|filePath|sqliteConnection|bearerToken|accessToken)\b'
-    foreach ($name in $boundedContractFiles) {
-        $path = Join-Path $localMcpRoot $name
+    # The operation vocabulary agents read is the Engine's (NendoAuthoringOperations), so it is scanned there.
+    $boundedContractPaths = @($boundedContractFiles | ForEach-Object { Join-Path $localMcpRoot $_ }) +
+        @(Join-Path $repoRoot 'src\Nendo.Engine\NendoAuthoringOperations.cs')
+    foreach ($path in $boundedContractPaths) {
         $text = [IO.File]::ReadAllText($path)
         if ($text -match $forbiddenContractPattern) {
             throw "Local MCP public contract exposes privileged host material: $path"

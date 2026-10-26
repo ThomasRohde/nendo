@@ -10,7 +10,8 @@ this file.
 ```text
 Nendo.Workbench  --closed typed bridge-->  Nendo.Desktop  -->  Nendo.Engine
    (TypeScript)                              (WinUI 3)            |
-      ^                                                           +--> Nendo.LocalMcp
+      ^                                     + Nendo.Session       +--> Nendo.LocalMcp
+      |                                       sources
       |  window.nendo: one MessagePort per view, a closed method table
 custom-view frames (an origin, and a renderer, per package per file)
 ```
@@ -18,10 +19,11 @@ custom-view frames (an origin, and a renderer, per package per file)
 | Project | Role |
 | --- | --- |
 | `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. |
-| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, serving custom views from the open file, and the launched agent's ACP client. |
+| `src/Nendo.Desktop` | Thin WinUI 3 host: native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, serving custom views from the open file, agent access and the launched agent's ACP client. It compiles `src/Nendo.Session`'s sources in beside its own partials of the same classes. |
+| `src/Nendo.Session` | The Workbench bridge's protocol handler and the session controller with no Windows target: dispatch, cancellation, reads, writes, proposals, history, file lifecycle, extension state, help and media, and the device stores they use. Desktop compiles these sources in; the browser host references the project ([ADR-0036](decisions/0036-nendo-runs-in-a-browser.md)). A host's own methods (windows, tabs, downloads, native diagnostics, agents) are partial methods each build implements: Desktop with its window and agents, the project's own `Host/` by refusing each with `not-in-this-host`. |
 | `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (guides, how Nendo works, and an agent reference the production gate ties to the MCP surface). Vite builds it and the view API; the host bundles both. |
 | `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. |
-| `src/Shared` | Not a project: source both adapters compile in as linked files, today the numeric-envelope decoder. The Engine never compiles it. |
+| `src/Shared` | Not a project: source the adapters compile in as linked files, today the numeric-envelope decoder. The Engine never compiles it. |
 
 No UI or MCP adapter receives SQL, a SQLite handle, physical identifiers, the database
 path, arbitrary filesystem/network/process capability, or a generic host invocation.
@@ -790,17 +792,18 @@ capability a `.nendo` file needs, which changes only when the format gains a cap
 | Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs`, `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452` to `NUI454`), `SemanticCapability.cs`, `SemanticDiff.cs` |
 | Purpose | `Engine/Storage/SqliteNendoStore.Application.cs`; shown by `Workbench/src/file-actions.ts` |
 | Ratings scale | `Workbench/src/rating.ts`, `Engine/Storage/SqliteNendoStore.Scales.cs` |
-| Bridge | `Desktop/DesktopShellContract.cs`, `WorkbenchProtocol*.cs` |
+| Bridge | `Session/DesktopShellContract.cs`, `WorkbenchProtocol.cs` (dispatch), `WorkbenchCancellation.cs`, `WorkbenchFileActions.cs`, `WorkbenchMethods.Host.cs` (the host-owned method names); `Desktop/WorkbenchProtocol.Host.cs` (Desktop's own methods); `Session/Host/` (the same, refused, for the browser host) |
+| Session | `Session/DesktopSessionController*.cs`, `DesktopFileLifecycle.cs`, `DesktopFileHistory.cs`, `DesktopRequestBinding.cs`; `DesktopSessionController.Host.cs` declares what a host adds (agent access, shell signals); `tests/Nendo.Session.Tests` runs it without WinUI |
 | Notification area | `Desktop/DesktopTrayIcon.cs` (one hidden window, `Shell_NotifyIcon`, one menu; it also hears Windows end the session, handled within a bound by `DesktopSessionEnd` in `DesktopWindowChrome.cs`) |
 | Notifications | `Desktop/DesktopNotifier.cs` (OS side), `DesktopNotificationContent.cs` (wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
 | Close behaviour | `Desktop/DesktopShellStore.cs`, `DesktopCloseAction.cs` (pure), `MainWindow.xaml.cs` |
-| Title bar | `Desktop/MainWindow.TitleBar.cs`, `MainPage.TitleBar.cs`, `WorkbenchProtocol.TitleBar.cs`; `Workbench/src/title-bar.ts`, `title-bar-model.ts` (pure), `styles/20-title-bar.css` |
+| Title bar | `Desktop/MainWindow.TitleBar.cs`, `MainPage.TitleBar.cs`, `WorkbenchProtocol.TitleBar.cs`, `Session/WorkbenchProtocol.Window.cs` (the shapes); `Workbench/src/title-bar.ts`, `title-bar-model.ts` (pure), `styles/20-title-bar.css` |
 | Shell and tabs | `Workbench/src/workspace-tabs.ts`, `rail-places.ts`, `type-icons.ts`, `styles/21-native.css`; `Desktop/MainPage.xaml` |
 | Tab windows | `Desktop/MainWindow.TabWindows.cs`, `WorkbenchProtocol.TabWindows.cs` (`DesktopTabWindowRules`); `Workbench/src/window-role.ts` |
 | File icons | `Desktop/DesktopFileIcon.cs` (`DesktopFileIcon`, `DesktopFileIconIndex`) |
 | Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled, no WebView2 panel), `MainPage.Downloads.cs`, `WorkbenchProtocol.Downloads.cs` (`downloads.show`) |
 | View failures | `Desktop/DesktopViewFailureLog.cs` (device state, capped at 50, switched from the tray) |
-| Custom views: host | `Desktop/Extensions/ExtensionOrigins.cs`, `ExtensionOriginCarry.cs`, `ExtensionAssetServer.cs`, `ExtensionWebViewPolicy.cs`, `ExtensionFrameDiagnostics.cs`, `DesktopExtensionSettingsStore.cs` (`views\settings.json`), `DesktopSessionController.Extensions.cs`, `WorkbenchProtocol.Extensions.cs`; `MainPage.xaml.cs` (`extensionFramesFailed`, Restart without custom views), `MainPage.Extensions.cs` (pickers) |
+| Custom views: host | `Session/Extensions/ExtensionOrigins.cs`, `ExtensionOriginCarry.cs`, `DesktopExtensionSettingsStore.cs` (`views\settings.json`), `DesktopSessionController.Extensions.cs`, `WorkbenchProtocol.Extensions.cs`; `Desktop/Extensions/ExtensionAssetServer.cs`, `ExtensionWebViewPolicy.cs`, `ExtensionFrameDiagnostics.cs`; `MainPage.xaml.cs` (`extensionFramesFailed`, Restart without custom views), `MainPage.Extensions.cs` (pickers) |
 | Custom views: Workbench | `Workbench/src/view-frames.ts`, `view-frame-markup.ts`, `extension-broker.ts` (method table and caps), `extension-model.ts`, `extension-ui.ts`, `view-packages.ts`, `frame-guard.ts`; view controls in `view-toolbar-model.ts`, `view-toolbar-markup.ts`, `view-toolbar.ts`, `view-menu.ts`, `place-pickers.ts` |
 | The view API | `Workbench/src/extension-api/nendo-api.ts`, `protocol.ts`, built by `vite.api.config.ts` to `dist/_nendo/api.js` |
 | Renderer | `Workbench/src/main.ts` (router and frame; hands `render` and `updateChrome` to `shell.ts`), `app-state.ts` (one `state`, imports no view), `view-*.ts` (one view per file; AG Grid only in `view-data.ts`) |
@@ -810,7 +813,7 @@ capability a `.nendo` file needs, which changes only when the format gains a cap
 | Host bridge (Workbench) | `Workbench/src/host.ts`, `host-types.ts`, `host-desktop.ts`, `host-preview.ts` |
 | Stylesheet | `Workbench/src/styles.css`: an ordered `@import` list; the numbered `styles/` slices are one cascade |
 | Launched agents | `Desktop/Agents/AcpConnection.cs`, `AgentConversation*.cs`, `AgentProcess.cs`, `DesktopLaunchedAgent.cs`, `DesktopAgentCatalog.cs`, `DesktopSessionController.LaunchedAgent.cs`, `WorkbenchProtocol.Agents.cs`; `Workbench/src/agent-chat-model.ts`, `view-agent-chat.ts`, `view-agent.ts`, `preview-agent-session.ts` |
-| Agent tools | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`, `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs`, `NendoReadTools.cs`, `NendoUnattendedTools.cs` |
+| Agent tools | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `Engine/NendoAuthoringOperations.cs` (the operation vocabulary), `Engine/NendoDefinitionRevisions.cs`, `LocalMcp/NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs`, `NendoReadTools.cs`, `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
 
 ## Running it

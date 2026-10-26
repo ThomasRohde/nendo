@@ -1,7 +1,7 @@
 using Nendo.Engine;
 using Nendo.LocalMcp;
 
-namespace Nendo.Desktop;
+namespace Nendo.Session;
 
 /// <summary>
 /// The little the shell needs to know about the session: enough for a tray tooltip,
@@ -85,7 +85,7 @@ internal sealed partial class DesktopSessionController
     /// </summary>
     internal event Action? FileSessionChanged;
 
-    private void AnnounceFileSession()
+    partial void AnnounceFileSession()
     {
         if (_disposed) return;
         try { FileSessionChanged?.Invoke(); }
@@ -101,6 +101,8 @@ internal sealed partial class DesktopSessionController
     /// consent Unattended grants; cleared when the file closes.
     /// </summary>
     private volatile NendoBehaviourTrust? _shellTrust;
+
+    partial void RememberShellTrust(NendoBehaviourTrust? trust) => _shellTrust = trust;
 
     private static readonly NendoBehaviourTrust NoConsentNeeded = new(false, true, null);
 

@@ -3,10 +3,12 @@
     <Project Path="src/Nendo.Desktop/Nendo.Desktop.csproj" />
     <Project Path="src/Nendo.Engine/Nendo.Engine.csproj" />
     <Project Path="src/Nendo.LocalMcp/Nendo.LocalMcp.csproj" />
+    <Project Path="src/Nendo.Session/Nendo.Session.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Nendo.Desktop.Tests/Nendo.Desktop.Tests.csproj" />
     <Project Path="tests/Nendo.Engine.Tests/Nendo.Engine.Tests.csproj" />
     <Project Path="tests/Nendo.LocalMcp.Tests/Nendo.LocalMcp.Tests.csproj" />
+    <Project Path="tests/Nendo.Session.Tests/Nendo.Session.Tests.csproj" />
   </Folder>
 </Solution>

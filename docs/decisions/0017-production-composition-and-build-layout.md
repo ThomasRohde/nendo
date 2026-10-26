@@ -25,17 +25,19 @@ Directory.Build.props
 Directory.Packages.props
 src/
   Nendo.Engine/
+  Nendo.Session/
   Nendo.Desktop/
   Nendo.LocalMcp/
   Nendo.Workbench/
   Shared/
 tests/
   Nendo.Engine.Tests/
+  Nendo.Session.Tests/
   Nendo.Desktop.Tests/
   Nendo.LocalMcp.Tests/
 ```
 
-`Nendo.slnx` lists the six .NET projects. A project is added only when a production
+`Nendo.slnx` lists the eight .NET projects. A project is added only when a production
 milestone uses it, never as empty scaffolding. `prototypes/` stays outside the solution,
 and production code and tests never reference a prototype project; proven logic is ported
 deliberately with its focused tests.
@@ -49,23 +51,28 @@ deliberately with its focused tests.
   interface. It is not a supported external .NET API: its public types serve Desktop and
   LocalMcp and change with them, without a compatibility promise. It knows no particular
   application; the reference applications the tests build live in test support.
-- **Nendo.Desktop** is the WinUI 3 executable: application and window lifetime, file
-  pickers and recent files, the native recovery surface, WebView2, theme and title-bar
-  integration, the closed typed bridge, and starting and stopping local adapters. It
+- **Nendo.Session** is the closed typed bridge's handler and the session controller,
+  `net10.0` with no Windows target ([ADR-0036](0036-nendo-runs-in-a-browser.md)). Desktop
+  compiles its sources in as linked files, beside its own partials of the same classes; the
+  browser host references the project. What only a host does is a partial method each build
+  implements, and the project's `Host/` folder is its own build's implementation. It
   contains no SQL.
+- **Nendo.Desktop** is the WinUI 3 executable: application and window lifetime, file
+  pickers, the native recovery surface, WebView2, theme and title-bar integration, agent
+  access, and starting and stopping local adapters. It contains no SQL.
 - **Nendo.Workbench** is the locally bundled TypeScript/Vite application for Studio and
   every semantic surface. It talks only through the versioned typed bridge. Its build also
   writes the view API to `Workbench/_nendo/api.js`, the one installation file custom views
   load ([ADR-0013](0013-custom-views-with-code-in-the-file.md)).
 - **Nendo.LocalMcp** is an official-SDK adapter over Engine application services. It owns
   no SQLite and no authority of its own. Desktop starts and stops it.
-- **src/Shared** is not a project. It holds transport source that Desktop and LocalMcp
-  both compile in as linked files, so the two adapters cannot drift: today the
+- **src/Shared** is not a project. It holds transport source that Desktop, LocalMcp and
+  Nendo.Session compile in as linked files, so the adapters cannot drift: today the
   numeric-envelope decoder. It follows the adapters' rules, and the Engine never compiles
   it.
 
 ```text
-Workbench --typed bridge--> Desktop --typed calls--> Engine --internal--> SQLite
+Workbench --typed bridge--> Desktop (+ Session sources) --typed calls--> Engine --internal--> SQLite
                                   |
                                   +--> LocalMcp --typed calls--> Engine
 ```

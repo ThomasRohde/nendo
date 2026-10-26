@@ -1,20 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 
-namespace Nendo.Desktop;
-
-internal static partial class WorkbenchMethods
-{
-    /// <summary>
-    /// Which browser process holds which view, with its private working set. Answered only when
-    /// NENDO_NATIVE_DIAGNOSTICS=1, for the journeys that measure isolation and memory.
-    /// </summary>
-    internal const string DiagnosticsFrameProcesses = "diagnostics.frameProcesses";
-}
-
-internal sealed record ExtensionFrameProcess(int ProcessId, string Kind, long? PrivateWorkingSetBytes, IReadOnlyList<ExtensionFrameProcessFrame> Frames);
-
-internal sealed record ExtensionFrameProcessFrame(string Name, string Source);
+namespace Nendo.Session;
 
 /// <summary>
 /// The browser's processes as the views' journeys measure them: the renderer each frame is in,

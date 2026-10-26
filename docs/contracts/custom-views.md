@@ -331,7 +331,7 @@ cannot be shown.
 ### One origin per package per file instance
 
 Each package in each file instance has its own origin, `https://{slug}-{key}.example`
-(`src/Nendo.Desktop/Extensions/ExtensionOrigins.cs`):
+(`src/Nendo.Session/Extensions/ExtensionOrigins.cs`):
 
 - `slug` is the package ID in lower case. Each character that is not a letter or a
   digit becomes `-`, a run of `-` is kept as one, and a leading `-` is dropped. The

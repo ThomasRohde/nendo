@@ -1,7 +1,7 @@
 using Nendo.Engine;
 using Nendo.LocalMcp;
 
-namespace Nendo.Desktop;
+namespace Nendo.Session;
 
 internal sealed record DesktopAgentStatus(
     bool Available,
@@ -25,8 +25,6 @@ internal sealed record DesktopAgentStatus(
 internal sealed partial class DesktopSessionController
 {
     private readonly NendoLocalMcpHostOptions? _agentOptions;
-    private readonly string _deviceStateRoot;
-    private readonly string? _ownedDeviceStateRoot;
     private DesktopAgentSettingsStore? _agentSettings;
     private DesktopAgentPortStore? _agentPorts;
     private DesktopAgentModeStore? _agentModes;
@@ -38,30 +36,37 @@ internal sealed partial class DesktopSessionController
     private AgentAccessMode _agentMode = AgentAccessMode.Disabled;
     private Action? _authorityLostHandler;
     private Action<long>? _committedHandler;
-    private string _fileSessionId = $"file-session-{Guid.NewGuid():N}";
     private string? _agentCleanupNotice;
 
-    /// <param name="deviceStateRoot">
-    /// Where this device's settings, grants and agent ports are kept. The window always names
-    /// one. A controller built without one is a test's, and gets a folder of its own that goes
-    /// when it is disposed: it used to fall back to the person's real device state, so a test
-    /// that switched agent access on could keep a port there that a real file then lost.
-    /// </param>
-    internal DesktopSessionController(NendoLocalMcpHostOptions? agentOptions = null, string? fileHistoryRoot = null, DesktopLocationPolicy? locationPolicy = null, string? deviceStateRoot = null)
+    /// <param name="agentOptions">Where the agent host publishes itself; null for the device's own.</param>
+    internal DesktopSessionController(NendoLocalMcpHostOptions? agentOptions, string? fileHistoryRoot = null, DesktopLocationPolicy? locationPolicy = null, string? deviceStateRoot = null)
+        : this(fileHistoryRoot, locationPolicy, deviceStateRoot) => _agentOptions = agentOptions;
+
+    private partial Task StopAgentAccessForReplacementAsync() => StopAgentAccessCoreAsync();
+
+    private partial string? ReadAgentCleanupNotice() => _agentCleanupNotice;
+
+    partial void DetachFileHandlers(NendoWriteCoordinator? coordinator)
     {
-        _agentOptions = agentOptions;
-        _ownedDeviceStateRoot = deviceStateRoot is null
-            ? Path.Combine(Path.GetTempPath(), "nendo-device-state", Guid.NewGuid().ToString("N"))
-            : null;
-        _deviceStateRoot = deviceStateRoot ?? _ownedDeviceStateRoot!;
-        // Recent files are device state like the rest (ADR-0034), so a test's controller keeps
-        // them in its own folder too.
-        _fileHistory = new DesktopFileHistory(fileHistoryRoot ?? DesktopDeviceStateLayout.Files(_deviceStateRoot));
-        _locationPolicy = locationPolicy ?? DesktopLocationPolicy.ForDevice();
+        if (coordinator is not null && _authorityLostHandler is not null)
+            coordinator.WriteAuthorityLost -= _authorityLostHandler;
+        _authorityLostHandler = null;
+        if (coordinator is not null && _committedHandler is not null)
+            coordinator.Committed -= _committedHandler;
+        _committedHandler = null;
     }
 
-    /// <summary>Where this controller keeps its recent files.</summary>
-    internal string FileHistoryRoot => _fileHistory.Root;
+    private partial Task<NendoPromotionOutcome>? PromoteAgentProposal(NendoApplicationService service, string proposalId,
+        string? expectedOperationDigest, CancellationToken cancellationToken) =>
+        _agentProposals?.Snapshot().Any(value => value.ProposalId == proposalId) is true
+            ? _agentProposals.PromoteAsync(service, proposalId, expectedOperationDigest, cancellationToken)
+            : null;
+
+    private partial Task<NendoPromotionOutcome>? RejectAgentProposal(NendoApplicationService service, string proposalId,
+        CancellationToken cancellationToken) =>
+        _agentProposals?.Snapshot().Any(value => value.ProposalId == proposalId) is true
+            ? _agentProposals.RejectAsync(service, proposalId, cancellationToken)
+            : null;
 
     // Composed per host start so a settings change takes effect on the next enable rather than needing a
     // relaunch. These are the single-user local defaults: a predictable port keeps an agent's saved
@@ -158,7 +163,7 @@ internal sealed partial class DesktopSessionController
     /// A writable open of a file this device remembers a level for turns that level on again.
     /// Never fails the open: a level that cannot start leaves the file at Off, as before.
     /// </summary>
-    private async Task RestoreAgentModeAsync(bool writable, CancellationToken cancellationToken)
+    private partial async Task RestoreAgentModeAsync(bool writable, CancellationToken cancellationToken)
     {
         if (!writable || _service is not { } service || !service.Capabilities.AgentAccess || _agentHost is not null) return;
         try
@@ -372,7 +377,7 @@ internal sealed partial class DesktopSessionController
         return _agentProposals;
     }
 
-    private void BeginAgentFileSession()
+    partial void BeginAgentFileSession()
     {
         _agentHost = null;
         _agentMode = AgentAccessMode.Disabled;
@@ -449,7 +454,7 @@ internal sealed partial class DesktopSessionController
         }
     }
 
-    private async Task CloseAgentFileSessionCoreAsync()
+    private partial async Task CloseAgentFileSessionCoreAsync()
     {
         try
         {
@@ -461,7 +466,7 @@ internal sealed partial class DesktopSessionController
         finally { _agentProposals = null; }
     }
 
-    private async Task StopUnhealthyAgentAccessCoreAsync()
+    private partial async Task StopUnhealthyAgentAccessCoreAsync()
     {
         if (_service?.Capabilities.AgentAccess is not false) return;
         try { await StopAgentAccessCoreAsync(); }
