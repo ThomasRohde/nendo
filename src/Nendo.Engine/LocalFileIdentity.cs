@@ -5,13 +5,17 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Nendo.Engine;
 
-/// <summary>Local Windows namespace evidence, never a global application ID.</summary>
-internal sealed record LocalFileIdentity(uint VolumeSerialNumber, ulong FileIndex)
+/// <summary>
+/// Local namespace evidence, never a global application ID: the Windows volume and file index, or
+/// the browser page's own index of its in-memory files (<see cref="BrowserFileSystem"/>).
+/// </summary>
+internal sealed record LocalFileIdentity(uint VolumeSerialNumber, ulong FileIndex, bool InPage = false)
 {
-    internal string Key => $"windows-file-v1:{VolumeSerialNumber:x8}:{FileIndex:x16}";
+    internal string Key => InPage ? $"browser-file-v1:{FileIndex:x16}" : $"windows-file-v1:{VolumeSerialNumber:x8}:{FileIndex:x16}";
 
     internal static LocalFileIdentity Read(FileStream file)
     {
+        if (BrowserFileSystem.Active) return BrowserFileSystem.Identity(file);
         if (!OperatingSystem.IsWindows())
         {
             throw new PlatformNotSupportedException("This file-identity workflow currently supports Windows only.");

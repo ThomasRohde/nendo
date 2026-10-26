@@ -8,15 +8,28 @@ namespace Nendo.Engine;
 /// A Windows kernel-object lifetime guard, independent of paths and threads.
 /// It is not an event signal protocol: only atomic creation grants ownership.
 /// Closing the last handle (including process termination) releases the name.
+/// In a browser page the guard is the page's own, which is the only process there.
 /// </summary>
 internal sealed class InstanceOwnershipLease : IDisposable
 {
     private EventWaitHandle? _handle;
+    private string? _heldInPage;
 
     private InstanceOwnershipLease(EventWaitHandle handle) => _handle = handle;
 
+    private InstanceOwnershipLease(string instanceId) => _heldInPage = instanceId;
+
     internal static InstanceOwnershipLease Acquire(string instanceId)
     {
+        if (BrowserFileSystem.Active)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+            if (!BrowserFileSystem.TryHold(instanceId))
+                throw new NendoWriteOwnershipException(
+                    "This application instance is already open for editing in this page. Open it read-only or create a Duplicate or Fork.",
+                    "instance-in-use");
+            return new(instanceId);
+        }
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Local instance ownership currently supports Windows only.");
         try
@@ -48,5 +61,9 @@ internal sealed class InstanceOwnershipLease : IDisposable
 
     private static string Digest(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
-    public void Dispose() => Interlocked.Exchange(ref _handle, null)?.Dispose();
+    public void Dispose()
+    {
+        Interlocked.Exchange(ref _handle, null)?.Dispose();
+        if (Interlocked.Exchange(ref _heldInPage, null) is { } instanceId) BrowserFileSystem.Release(instanceId);
+    }
 }

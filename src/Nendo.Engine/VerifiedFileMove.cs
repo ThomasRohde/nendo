@@ -34,6 +34,14 @@ internal sealed class VerifiedFileMove : IDisposable
         using var file = OpenExclusive(path);
         if (LocalFileIdentity.Read(file) != identity)
             throw new IOException("The owned recovery file was replaced; it was not removed.");
+        if (BrowserFileSystem.Active)
+        {
+            // Nothing else in the page can take the path between the check and the delete.
+            file.Dispose();
+            File.Delete(path);
+            BrowserFileSystem.Deleted(path);
+            return;
+        }
         // FileDispositionInfo operates on this held identity, not a path that
         // another process could replace between verification and deletion.
         if (!SetFileInformationByHandle(file.SafeFileHandle, 4, [1], 1))
@@ -42,6 +50,9 @@ internal sealed class VerifiedFileMove : IDisposable
 
     private static FileStream OpenExclusive(string path)
     {
+        // A page's file system has no share modes; Delete lets the same code move it under test on Windows.
+        if (BrowserFileSystem.Active)
+            return new FileStream(Path.GetFullPath(path), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         var handle = CreateFileW(Path.GetFullPath(path), 0x80000000 | 0x00010000, // GENERIC_READ | DELETE
             1, IntPtr.Zero, 3, 0, IntPtr.Zero); // share read only, OPEN_EXISTING
@@ -57,6 +68,17 @@ internal sealed class VerifiedFileMove : IDisposable
 
     internal void MoveTo(string destination)
     {
+        if (BrowserFileSystem.Active)
+        {
+            var target = Path.GetFullPath(destination);
+            try { File.Move(_file.Name, target, overwrite: false); }
+            catch (IOException exception)
+            {
+                throw new IOException("The file could not be activated at the selected name. Existing files were not overwritten.", exception);
+            }
+            BrowserFileSystem.Moved(_file.Name, target);
+            return;
+        }
         var name = Encoding.Unicode.GetBytes(Path.GetFullPath(destination));
         // FILE_RENAME_INFO: zero ReplaceIfExists/flags, aligned null root
         // handle, byte length, UTF-16 name. FileRenameInfo (3), not Ex.

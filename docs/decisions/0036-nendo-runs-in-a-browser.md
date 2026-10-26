@@ -40,8 +40,8 @@ with nothing installed.
   the page's file system, the instance guard is in-process, and a verified move is a move
   followed by the digest check the Engine already makes.
 - The Engine never waits synchronously. A browser has one thread, and a blocking wait there
-  throws. The repository gate refuses `.Wait()`, `.Result` on a task, `GetAwaiter().GetResult()`,
-  `Thread.Sleep` and `new Thread` under `src/Nendo.Engine`.
+  throws. The production gate refuses `.Wait(`, `GetAwaiter().GetResult()`, `Task.WaitAll`,
+  `Task.WaitAny`, `Thread.Sleep` and `new Thread` under `src/Nendo.Engine`.
 - SQLite keeps its profile (rollback journal, `synchronous=FULL`). The browser's in-memory file
   system makes `fsync` free and file locks no-ops; the single-writer rule is kept by the page,
   below.

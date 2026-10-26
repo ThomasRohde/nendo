@@ -192,6 +192,17 @@ try {
         throw 'src/Nendo.Engine/Nendo.Engine.csproj compiles adapter source from src/Shared; transport envelopes stay in the adapters.'
     }
     Write-Host 'OK       the Engine compiles no shared adapter source'
+    # ADR-0036. The browser host runs the Engine on one thread, where a blocking wait throws.
+    $engineSources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\Nendo.Engine') -Recurse -File -Filter '*.cs' |
+        Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' })
+    $blockingWaitPattern = '\.Wait\(|\.GetAwaiter\(\)\s*\.GetResult\(\)|Task\.Wait(?:All|Any)\(|Thread\.Sleep\(|new\s+Thread\('
+    foreach ($file in $engineSources) {
+        $blocking = [regex]::Match([IO.File]::ReadAllText($file.FullName), $blockingWaitPattern)
+        if ($blocking.Success) {
+            throw "The Engine waits synchronously ($($blocking.Value)) in $($file.FullName); the browser host has one thread (ADR-0036)."
+        }
+    }
+    Write-Host "OK       the Engine never waits synchronously ($($engineSources.Count) source files)"
 
     # ADR-0013. Custom views run as frames of the Workbench's own browser, served from the open
     # file. The contained helper is gone, and a filter that answered every address would stop
