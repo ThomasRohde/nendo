@@ -34,6 +34,8 @@ no server.
 - The page's runtime is the browser host page, built with Nendo and shipped in its payload as
   `WebPage/Nendo.html`, so an installed Nendo exports with no network. Exporting carries the
   Duplicate into a copy of it.
+- The page carries the licences of everything in it, the .NET runtime and the packages the Engine
+  runs on included, since every copy of it is sent on.
 - The page runs the real Engine. Calculations, automatic actions (after the approval the browser
   asks for, as Nendo does), commands, Studio, history and custom views work as in Nendo. Agent
   access does not exist in the page.

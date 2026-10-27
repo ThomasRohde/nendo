@@ -60,10 +60,14 @@ const isCurrent = (href: string) => {
     const nav = header.querySelector('nav');
     if (!nav) return;
     const current = nav.querySelector('[aria-current="page"]');
-    if (current) {
+    const reveal = () => {
+      if (!current) return;
       const overshoot = current.getBoundingClientRect().right - nav.getBoundingClientRect().right;
       if (overshoot > 0) nav.scrollLeft += overshoot + 16;
-    }
+    };
+    reveal();
+    // The web font is wider than the fallback the row was first laid out in.
+    document.fonts?.ready.then(reveal);
     const cue = () => {
       const end = nav.scrollWidth - nav.clientWidth;
       nav.classList.toggle('fade-start', nav.scrollLeft > 1);

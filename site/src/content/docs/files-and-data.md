@@ -132,6 +132,8 @@ The file menu has a **Copies** section, and **Restore backup…** under **Recove
 | **New empty copy…** | Kept | New | Folded into one entry, plus one for the new file | Start again with the same application, without this file's work. |
 | **Restore backup…** | Taken from the backup | Taken from the backup | The backup's | Replace the current file with a backup. |
 
+**Web page…** in the same section exports the application as one page that opens in a browser with nothing installed, and applies the changes made in such a page; see [Web pages](/nendo/docs/web-pages).
+
 **New empty copy…** stands where **New file** does while a file is open, and an application can give it its own name, such as **New Archi model…**. The new file has the record types, screens and custom views, and only the records the application keeps in new files: a record type keeps its records or leaves them out by default, and a single record can say otherwise. Studio shows both, in each record type's sentence above the grid and in its **In new files** column. Nendo shows what the new file keeps and leaves out before you choose where it goes, and refuses while a kept record points at one that is left out, naming it. The new file opens in a window of its own; the file you are in does not change.
 
 Restore checks the backup first, then replaces the current file. It keeps the previous file beside it and never deletes those retained copies. If a replacement is interrupted, the next open says so and **Review recovery record…** resolves it; Nendo does not adopt a staged file on its own. The Duplicate and Fork entries in History cannot be undone.

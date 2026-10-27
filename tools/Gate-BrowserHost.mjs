@@ -5,13 +5,15 @@ async page => {
   const checks = [];
   const errors = [];
   const requests = [];
+  // Served as a static site, the pages themselves are the only addresses the browser asks for.
+  const pageAddresses = ['__PAGE_URL__', '__STATION_PAGE_URL__', '__DECK_PAGE_URL__'];
   try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const watch = (target) => {
     target.on('pageerror', error => errors.push(error.message));
     // nendo-media: is the page's own picture address: the browser tries it and fails on the
     // scheme without any network, then the page shows the picture from the file.
-    target.on('request', request => { const url = request.url(); if (!/^(file|data|blob|about|nendo-media):/.test(url)) requests.push(url); });
+    target.on('request', request => { const url = request.url(); if (!/^(file|data|blob|about|nendo-media):/.test(url) && !pageAddresses.includes(url)) requests.push(url); });
     target.on('dialog', dialog => { errors.push(`Browser dialog (${dialog.type()}): ${dialog.message()}`); dialog.dismiss().catch(() => {}); });
   };
   watch(page);

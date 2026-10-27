@@ -301,6 +301,12 @@ try {
     if (-not $pageText.Contains('id="nendo-runtime"') -or -not $pageText.Contains('<script type="module">')) {
         throw 'The installed WebPage\Nendo.html carries no runtime, or no module script to carry a file beside.'
     }
+    # Every exported page is a copy of this one and is sent on, so the licences of what it carries
+    # travel in it: the Workbench's packages, the .NET runtime and the packages the Engine runs on.
+    $noticesText = [regex]::Match($pageText, '<template id="nendo-notices"><pre>([\s\S]*?)</pre></template>').Groups[1].Value
+    foreach ($required in @('ag-grid-community ', 'Lucide icons (ISC)', '.NET runtime (MIT)', '.NET runtime: third-party notices', 'NCalc.Core ', 'Parlot ', 'SQLitePCLRaw.lib.e_sqlite3 ', 'sqlite.org/copyright')) {
+        if (-not $noticesText.Contains($required)) { throw "The installed WebPage\Nendo.html does not carry the licence notice for $($required.Trim())." }
+    }
     $expectedCommand = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" "%1"'
     $expectedIcon = '"' + (Join-Path $installRoot 'Assets\DocumentIcon.ico') + '",0'
     $association = [ordered]@{

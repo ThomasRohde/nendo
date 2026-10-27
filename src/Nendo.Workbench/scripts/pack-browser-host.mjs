@@ -1,10 +1,13 @@
 // The browser host as one page (ADR-0036): the inlined Workbench, the .NET runtime's files gzipped
 // and base64 with its boot config, and the view API. The Workbench's browser client starts the
-// runtime from them, so nothing is fetched. Usage:
+// runtime from them, so nothing is fetched. The licences of all of it travel in the page as an
+// inert template (browser-host-notices.mjs), read from the runtime's notices/ beside wwwroot. Usage:
 //   node scripts/pack-browser-host.mjs <workbench page> <runtime wwwroot> <api.js> <out.html>
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+import { browserHostNotices } from './browser-host-notices.mjs';
 
 const [pagePath, wwwroot, apiPath, out] = process.argv.slice(2);
 if (!out) throw new Error('Usage: pack-browser-host.mjs <workbench page> <runtime wwwroot> <api.js> <out.html>');
@@ -24,7 +27,11 @@ const dotnetJs = readFileSync(join(framework, 'dotnet.js'), 'utf8');
 const config = JSON.parse(/\/\*json-start\*\/([\s\S]*?)\/\*json-end\*\//.exec(dotnetJs)[1]);
 
 const json = (value) => JSON.stringify(value).replaceAll('<', '\\u003c');
-const carried = `<script type="application/json" id="nendo-runtime">${json({ files, config: { mainAssemblyName: config.mainAssemblyName } })}</script>\n`
+const notices = browserHostNotices(fileURLToPath(new URL('..', import.meta.url)), join(wwwroot, '..', 'notices'),
+  fileURLToPath(new URL('../../Nendo.Browser/licences', import.meta.url)));
+const html = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+const carried = `<template id="nendo-notices"><pre>${html(notices)}</pre></template>\n`
+  + `<script type="application/json" id="nendo-runtime">${json({ files, config: { mainAssemblyName: config.mainAssemblyName } })}</script>\n`
   + `<script type="application/json" id="nendo-view-api">${json(readFileSync(apiPath, 'utf8'))}</script>\n`;
 
 const page = readFileSync(pagePath, 'utf8');

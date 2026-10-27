@@ -12,9 +12,25 @@ Use the page already in artifacts/browser-host.
 .PARAMETER SkipWorkbenchBuild
 Build the page from the Workbench's sources without running its full build first (the production
 gate has just built it).
+
+.PARAMETER Browser
+The browser to run in: msedge (the gate's), chrome or firefox (Playwright's own Firefox).
+
+.PARAMETER Page
+Run a page built elsewhere, such as an installed Nendo's WebPage\Nendo.html, instead of building one.
+
+.PARAMETER Served
+Publish the pages as a static site on a loopback port, each as the index.html of its own folder,
+instead of opening them from disk.
 #>
 [CmdletBinding()]
-param([switch]$SkipBuild, [switch]$SkipWorkbenchBuild)
+param(
+    [switch]$SkipBuild,
+    [switch]$SkipWorkbenchBuild,
+    [ValidateSet('msedge', 'chrome', 'firefox')][string]$Browser = 'msedge',
+    [string]$Page,
+    [switch]$Served
+)
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -23,14 +39,15 @@ $lane = Join-Path $output 'lane'
 $runId = [Guid]::NewGuid().ToString('N')
 $session = "nendo-browser-host-$runId".Substring(0, 30)
 
-if (-not $SkipBuild) {
+if (-not $SkipBuild -and -not $Page) {
     $buildArguments = @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Build-BrowserHost.ps1'))
     if ($SkipWorkbenchBuild) { $buildArguments += '-SkipWorkbenchBuild' }
     & pwsh @buildArguments
     if ($LASTEXITCODE -ne 0) { throw 'The browser host did not build.' }
 }
-$page = Join-Path $output 'Nendo.html'
+$page = if ($Page) { $Page } else { Join-Path $output 'Nendo.html' }
 if (-not (Test-Path -LiteralPath $page)) { throw "No browser host page at $page." }
+$page = (Resolve-Path -LiteralPath $page).Path
 New-Item -ItemType Directory -Force $lane | Out-Null
 
 # The workspace files are read, never opened or written: their bytes are dropped onto the page.
@@ -54,9 +71,31 @@ foreach ($export in @(@($stationSource, $stationPage), @($deckSource, $deckPage)
     if ($LASTEXITCODE -ne 0) { throw "Export -> Web page failed for $($export[0]): $made" }
 }
 $download = Join-Path $lane "downloaded-$runId.nendo"
+$pageUrl = & $fileUrl $page
+$stationUrl = & $fileUrl $stationPage
+$deckUrl = & $fileUrl $deckPage
+$site = Join-Path $lane "site-$runId"
+$server = $null
+if ($Served) {
+    # Published as a web host would: each page is the index.html of a folder of its own.
+    foreach ($published in @(@($page, ''), @($stationPage, 'station'), @($deckPage, 'deck'))) {
+        $folder = Join-Path $site $published[1]
+        New-Item -ItemType Directory -Force $folder | Out-Null
+        Copy-Item -LiteralPath $published[0] -Destination (Join-Path $folder 'index.html')
+    }
+    $siteInfo = Join-Path $lane "site-$runId.json"
+    $server = Start-Process node -ArgumentList @((Join-Path $PSScriptRoot 'Serve-StaticSite.mjs'), "`"$site`"", "`"$siteInfo`"") -WindowStyle Hidden -PassThru
+    for ($i = 0; $i -lt 100 -and -not (Test-Path -LiteralPath $siteInfo); $i++) { Start-Sleep -Milliseconds 100 }
+    if (-not (Test-Path -LiteralPath $siteInfo)) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue; throw 'The static site did not start.' }
+    $siteUrl = (Get-Content -LiteralPath $siteInfo -Raw | ConvertFrom-Json).url
+    Remove-Item -LiteralPath $siteInfo
+    $pageUrl = $siteUrl
+    $stationUrl = "${siteUrl}station/"
+    $deckUrl = "${siteUrl}deck/"
+}
 $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-BrowserHost.mjs'))
-$probe = $probe.Replace('__PAGE_URL__', (& $fileUrl $page)).Replace('__STATION_BASE64__', $station).Replace('__DECK_BASE64__', $deck)
-$probe = $probe.Replace('__STATION_PAGE_URL__', (& $fileUrl $stationPage)).Replace('__DECK_PAGE_URL__', (& $fileUrl $deckPage))
+$probe = $probe.Replace('__PAGE_URL__', $pageUrl).Replace('__STATION_BASE64__', $station).Replace('__DECK_BASE64__', $deck)
+$probe = $probe.Replace('__STATION_PAGE_URL__', $stationUrl).Replace('__DECK_PAGE_URL__', $deckUrl)
 $probe = $probe.Replace('__DOWNLOAD_PATH__', ($download -replace '\\', '/'))
 $probePath = Join-Path $lane "probe-$runId.mjs"
 [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
@@ -64,7 +103,7 @@ $probePath = Join-Path $lane "probe-$runId.mjs"
 # playwright-cli writes its page snapshots into the current directory.
 Push-Location $lane
 try {
-    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge | Out-Null
+    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser $Browser | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "The browser host lane's browser did not start." }
     $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
     $exitCode = $LASTEXITCODE
@@ -78,7 +117,8 @@ try {
     }
     $result = $resultLine.Groups[1].Value | ConvertFrom-Json
     if ($result.complete -ne $true) { throw 'The browser host lane returned an incomplete result.' }
-    Write-Host ('Browser host lane passed: ' + ($result.checks -join ', ') + '. Browser exceptions: ' + $result.errors.Count)
+    $where = if ($Served) { "served from $pageUrl" } else { 'from disk' }
+    Write-Host ("Browser host lane passed in $Browser, $where`: " + ($result.checks -join ', ') + '. Browser exceptions: ' + $result.errors.Count)
 
     # The exported page's download, whole, applied back to the file it was exported from.
     $checked = & dotnet run $roundTrip -- apply $stationSource $download incident incident.001 incidentSeverity incident incident.002 incidentTitle 2>&1 | Out-String
@@ -99,5 +139,7 @@ finally {
         if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch }
     }
     if (Test-Path -LiteralPath $sources) { Remove-Item -LiteralPath $sources -Recurse }
+    if ($server) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $site) { Remove-Item -LiteralPath $site -Recurse }
     Pop-Location
 }

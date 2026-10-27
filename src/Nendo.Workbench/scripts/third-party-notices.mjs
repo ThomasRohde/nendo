@@ -24,22 +24,27 @@ function licenceText(directory) {
   return readFileSync(join(directory, file), 'utf8').replace(/\r\n/g, '\n').trim();
 }
 
-function section(title, text) {
+export function section(title, text) {
   return `${'='.repeat(78)}\n${title}\n${'='.repeat(78)}\n\n${text}\n`;
 }
 
-/** The whole notices file: Nendo's own licence, then each production package's, then Lucide's. */
-export function thirdPartyNotices(root) {
+/** Nendo's own licence, then each production package's, then Lucide's. */
+export function workbenchNoticeSections(root) {
   const workbenchRoot = typeof root === 'string' ? root : fileURLToPath(root);
   const repository = join(workbenchRoot, '..', '..');
-  const parts = [
-    'Nendo Workbench: licences of the software in this folder.\n\nThe Workbench bundle (assets/index-*.js) contains code from the packages below, and its icons are drawn from Lucide. Each licence requires its notice to travel with every copy.\n',
-    section('Nendo', readFileSync(join(repository, 'LICENSE'), 'utf8').replace(/\r\n/g, '\n').trim()),
-  ];
+  const parts = [section('Nendo', readFileSync(join(repository, 'LICENSE'), 'utf8').replace(/\r\n/g, '\n').trim())];
   for (const pkg of productionPackages(workbenchRoot))
     parts.push(section(`${pkg.name} ${pkg.version} (${pkg.license})`, licenceText(join(workbenchRoot, pkg.path))));
   parts.push(section('Lucide icons (ISC), the icon paths in src/icons.ts', readFileSync(join(workbenchRoot, 'LICENSE.lucide.txt'), 'utf8').replace(/\r\n/g, '\n').trim()));
-  return parts.join('\n');
+  return parts;
+}
+
+/** The whole notices file the Workbench build writes beside its bundle. */
+export function thirdPartyNotices(root) {
+  return [
+    'Nendo Workbench: licences of the software in this folder.\n\nThe Workbench bundle (assets/index-*.js) contains code from the packages below, and its icons are drawn from Lucide. Each licence requires its notice to travel with every copy.\n',
+    ...workbenchNoticeSections(root),
+  ].join('\n');
 }
 
 /** What the notices are missing, as sentences; empty when every licence is carried. */

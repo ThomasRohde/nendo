@@ -23,4 +23,17 @@
     <ProjectReference Include="..\Nendo.Session\Nendo.Session.csproj" />
   </ItemGroup>
 
+  <!-- The page carries the runtime and these packages, so it carries their licences too
+       (ADR-0035): the publish leaves the runtime pack's notices and the restore's package list in
+       notices/, and the Workbench's scripts/pack-browser-host.mjs writes them into the page. -->
+  <Target Name="PublishLicenceNotices" AfterTargets="Publish">
+    <ItemGroup>
+      <_NendoRuntimePack Include="@(ResolvedRuntimePack)" Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+      <_NendoRuntimeNotices Include="@(_NendoRuntimePack->'%(PackageDirectory)\LICENSE.TXT');@(_NendoRuntimePack->'%(PackageDirectory)\THIRD-PARTY-NOTICES.TXT')" />
+    </ItemGroup>
+    <Error Condition="'@(_NendoRuntimeNotices)' == '' or !Exists('%(_NendoRuntimeNotices.FullPath)')" Text="The .NET runtime pack's notices were not found: @(_NendoRuntimeNotices)." />
+    <Copy SourceFiles="@(_NendoRuntimeNotices)" DestinationFiles="@(_NendoRuntimeNotices->'$(PublishDir)notices\dotnet-%(Filename)%(Extension)')" />
+    <Copy SourceFiles="$(ProjectAssetsFile)" DestinationFolder="$(PublishDir)notices" />
+  </Target>
+
 </Project>

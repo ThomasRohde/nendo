@@ -22,3 +22,4 @@ and the code disagree, the code is current: fix the contract in the same change.
 | [custom-views.md](custom-views.md) | Custom views carried in the file, the `window.nendo` API, kill switches (ADR-0013) |
 | [media.md](media.md) | Media fields: addresses, embedded pictures, opening without the content, serving (ADR-0031) |
 | [launched-agents.md](launched-agents.md) | The person's own agent launched from the Agent page over ACP (ADR-0030) |
+| [web-export.md](web-export.md) | An application exported as one web page, what the page keeps, and Apply changes (ADR-0035) |

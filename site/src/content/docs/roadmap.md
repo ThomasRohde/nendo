@@ -77,7 +77,7 @@ because they conflict with the eight product axioms on the
 | Proposal rebase | An older proposal replayed onto a newer file revision, so that a conflict does not appear at validation. | Promotion replays validated operations against the active file. A rebase changes what a conflict means, so it needs its own design. |
 | Durable proposals | A waiting proposal that survives a restart of Nendo. | Proposals are kept in memory. An agent that reconnects while Nendo runs takes its proposals back, but a restart discards every waiting proposal. |
 | Shared-machine protection | A check that only the signed-in user's processes can reach an open file. | There is no credential. Every process on the machine can connect at the file's access level. The check is not built. |
-| Other platforms | ARM64 Windows, macOS, Linux. | The host is a WinUI and WebView2 application. There is no ARM64 build, and other operating systems need a different host. |
+| Other platforms | Nendo itself on ARM64 Windows, macOS, Linux. An application exported as a [web page](/nendo/docs/web-pages) already opens on any of them. | The host is a WinUI and WebView2 application. There is no ARM64 build, and other operating systems need a different host. |
 | Broader MCP clients | A stated promise that any MCP client works. | Claude Code and Codex connect with the address alone. Other clients are not tested, and no parity claim is made. |
 | An embedded agent | An assistant built into Nendo. | Not planned. Nendo has no agent of its own: it connects to, or launches, the agent program you installed, through the local MCP interface. Local use never depends on an agent. |
 
