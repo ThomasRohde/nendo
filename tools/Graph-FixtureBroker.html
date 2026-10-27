@@ -98,6 +98,11 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // address made from its bytes, as the file's store names content, and recorded in mediaPuts.
   const MEDIA_PUT = ['media.put'];
   let mediaPutOffered = false;
+  // The settings the view's package declares (ADR-0038), offered only when a probe asks: the values a
+  // view reads, this computer's values it kept with settings.set, and settingsChanged when they move.
+  const SETTINGS = ['settings.all', 'settings.get', 'settings.set'];
+  let settingValues = null;
+  const settingsKept = [];
   // The person's launched agent (ADR-0033), offered only when a probe asks: an ask waits, in
   // order, until the probe answers it, as a turn does until the agent ends it.
   const ASSISTANT = ['assistant.status', 'assistant.ask', 'assistant.cancel'];
@@ -152,7 +157,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
       ...clone(context), theme: themeOf(context.theme ?? 'light'),
-      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : []), ...(mediaPutOffered ? MEDIA_PUT : []), ...(assistantStatus ? ASSISTANT : [])],
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : []), ...(mediaPutOffered ? MEDIA_PUT : []), ...(settingValues ? SETTINGS : []), ...(assistantStatus ? ASSISTANT : [])],
       ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
@@ -297,6 +302,16 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         mediaPuts.push({ address, name: params.name ?? null, mediaType, byteLength, parts: staged.length });
         return { address };
       }
+      case 'settings.all':
+        return clone(settingValues ?? {});
+      case 'settings.get':
+        if (!Object.prototype.hasOwnProperty.call(settingValues ?? {}, params.id)) throw refusal('validation', `This package declares no setting ${params.id}.`);
+        return clone(settingValues[params.id]);
+      case 'settings.set':
+        settingsKept.push({ id: params.id, value: clone(params.value) });
+        settingValues = { ...settingValues, [params.id]: clone(params.value) };
+        setTimeout(() => emit('settingsChanged', clone(settingValues)), 0);
+        return null;
       case 'media.describe': {
         const url = mediaUrls?.[params.address] ?? null;
         return { address: params.address, url, mediaType: url ? 'image/png' : null };
@@ -756,6 +771,11 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     offerWrites(on) { writes = on === true; return writes; },
     offerPlaces(on) { placesOffered = on === true; return placesOffered; },
     offerSearch(on) { searchOffered = on === true; return searchOffered; },
+    /** Offer settings.* with these values; null takes them away. */
+    offerSettings(values) { settingValues = values ? clone(values) : null; return settingValues !== null; },
+    /** The values changed elsewhere, as Nendo's Settings page would change them: the view hears settingsChanged. */
+    pushSettings(values) { settingValues = clone(values); emit('settingsChanged', clone(settingValues)); return events.length; },
+    settingsKept,
     offerScreens(on) { screensOffered = on === true; return screensOffered; },
     offerMedia(urls) { mediaUrls = urls ? clone(urls) : null; return mediaUrls !== null; },
     offerMediaPut(on) { mediaPutOffered = on === true; return mediaPutOffered; },

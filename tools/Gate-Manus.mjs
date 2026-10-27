@@ -1304,6 +1304,30 @@ async page => {
 
   // A file built before alignment has no Align field: the bar and More offer no alignment, and
   // its keys write nothing.
+  // The appearance is the package's declared settings (ADR-0038): read when the view starts, kept on
+  // this computer with settings.set from the Appearance menu, and followed when Settings changes it.
+  const frameBeforeSettings = frame;
+  await page.evaluate(f => { window.broker.offerSettings({ font: 'sans', size: 'large', width: 'wide', pictures: 'full' }); window.broker.setFixture(f); window.broker.remount(); }, manusFixture);
+  frame = null;
+  for (let i = 0; i < 200 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frameBeforeSettings) ?? null; if (frame === null) await page.waitForTimeout(50); }
+  assert(frame !== null, 'The view did not start again with settings offered.');
+  await frame.waitForFunction(() => window.manuscript?.root === 'b-root' && document.querySelector('.sheet-text [data-block="b-0415"]'), null, { timeout: 15000 });
+  const appearance = () => frame.evaluate(() => ({ ...document.documentElement.dataset }));
+  const started = await appearance();
+  assert(started.font === 'sans' && started.size === 'large' && started.width === 'wide' && started.pictures === 'full',
+    `The view did not start on the settings Nendo keeps: ${JSON.stringify(started)}`);
+  await page.evaluate(() => window.broker.command('width', 'narrow'));
+  await frame.waitForFunction(() => document.documentElement.dataset.width === 'narrow', null, { timeout: 3000 });
+  const keptSetting = await page.evaluate(() => window.broker.settingsKept.slice(-1)[0] ?? null);
+  assert(keptSetting?.id === 'width' && keptSetting?.value === 'narrow', `The Appearance menu did not keep the choice with settings.set: ${JSON.stringify(keptSetting)}`);
+  await page.evaluate(() => window.broker.pushSettings({ font: 'serif', size: 'small', width: 'narrow', pictures: 'small' }));
+  await frame.waitForFunction(() => document.documentElement.dataset.size === 'small' && document.documentElement.dataset.font === 'serif', null, { timeout: 3000 })
+    .catch(async () => { throw Error(`The view did not follow Settings: ${JSON.stringify(await appearance())}`); });
+  const noStorage = await frame.evaluate(() => localStorage.getItem('manuscript.appearance'));
+  assert(noStorage === null, `The appearance is still kept in the page's storage: ${noStorage}`);
+  await page.evaluate(() => window.broker.offerSettings(null));
+  checks.push('the appearance is the declared settings: read at start, kept by the menu, followed from Settings');
+
   const older = JSON.parse(JSON.stringify(manusFixture));
   for (const e of older.schema.entities) {
     e.fields = e.fields.filter(f => !['mn.block.align', 'mn.block.list', 'mn.block.level'].includes(f.fieldId));

@@ -37,7 +37,7 @@ Select a few words and a bar of icons appears over them. Point at a paragraph an
 | **Add row below**, **Add column right**, **Delete row**, **Delete column**, **Delete table** | Shown while you are in a table. | |
 | **Link to a passage**, **Add a note**, **Keep as cutting**, **Ask the agent** | See *Notes, links and cuttings* below. | |
 
-To keep a tool on the bar, open **More** and choose the pin beside it. To put one back under More, right-click it on the bar (or press the menu key while it has the keyboard). The bar you make is this computer's, like the appearance settings.
+To keep a tool on the bar, open **More** and choose the pin beside it. To put one back under More, right-click it on the bar (or press the menu key while it has the keyboard). The bar you make is this computer's, like the appearance. The appearance (typeface, text size, line length, pictures) is also under Manuscript in Nendo's **Settings** (Ctrl ,). Text size can be kept in the file as every reader's size, and your own choice still wins on your computer.
 
 Each paragraph is kept as Markdown, which Studio shows formatted: underlined words are written `<u>…</u>` and highlighted ones `<mark>…</mark>`. Alignment is the paragraph's **Align** field. A Word export keeps the marks and the alignment; a Markdown export keeps the marks. A file made before alignment, lists or tables lacks their fields, and the bar does not offer them there.
 

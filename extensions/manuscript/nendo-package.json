@@ -1,7 +1,93 @@
 {
   "packageId": "org.nendo.manuscript",
   "title": "Manuscript",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "entryPoint": "index.html",
-  "description": "Write a manuscript as one quiet continuous page, kept paragraph by paragraph as blocks with notes and named links."
+  "description": "Write a manuscript as one quiet continuous page, kept paragraph by paragraph as blocks with notes and named links.",
+  "settings": [
+    {
+      "id": "font",
+      "title": "Typeface",
+      "help": "The face you write in. The preview and the Word export follow Page setup.",
+      "type": "choice",
+      "default": "serif",
+      "layers": "personal",
+      "options": [
+        {
+          "value": "serif",
+          "label": "Serif"
+        },
+        {
+          "value": "sans",
+          "label": "Sans serif"
+        }
+      ]
+    },
+    {
+      "id": "size",
+      "title": "Text size",
+      "help": "How large the writing page draws its text.",
+      "type": "choice",
+      "default": "medium",
+      "layers": "both",
+      "options": [
+        {
+          "value": "small",
+          "label": "Small"
+        },
+        {
+          "value": "medium",
+          "label": "Medium"
+        },
+        {
+          "value": "large",
+          "label": "Large"
+        }
+      ]
+    },
+    {
+      "id": "width",
+      "title": "Line length",
+      "help": "How wide a line runs on the writing page.",
+      "type": "choice",
+      "default": "medium",
+      "layers": "personal",
+      "options": [
+        {
+          "value": "narrow",
+          "label": "Narrow"
+        },
+        {
+          "value": "medium",
+          "label": "Medium"
+        },
+        {
+          "value": "wide",
+          "label": "Wide"
+        },
+        {
+          "value": "full",
+          "label": "Full"
+        }
+      ]
+    },
+    {
+      "id": "pictures",
+      "title": "Pictures",
+      "help": "How a picture shows while you write.",
+      "type": "choice",
+      "default": "small",
+      "layers": "personal",
+      "options": [
+        {
+          "value": "small",
+          "label": "Thumbnails"
+        },
+        {
+          "value": "full",
+          "label": "Full width"
+        }
+      ]
+    }
+  ]
 }

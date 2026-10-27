@@ -38,7 +38,7 @@ alignment, and no Role control.
 - A block whose whole text is one picture, `![alt](media:…)` or a web address, is drawn as
   that picture, from the open file's media origin, and selected or deleted whole; one that does
   not load says *Picture not found* with its description. While writing it is a 168 by 112
-  thumbnail with its description beside it; *Full width* under Appearance is the device's choice.
+  thumbnail with its description beside it; *Full width* under Appearance is this computer's choice.
 - **Role** in Nendo's toolbar sets the role of the block the caret is in; the sheet names it above
   the block and indents a quotation, a verse or an epigraph as a layout would.
 - Selecting words in a paragraph shows a bar of icons in groups (text, alignment, paragraph,
@@ -59,7 +59,11 @@ alignment, and no Role control.
   The margin counts each paragraph's notes and links. Notes counts and lists the open
   manuscript's notes in reading order, each under the passage it goes to; from a paragraph's
   margin count it lists that paragraph's. Outline, Notes, Related, Cuttings, Find
-  and the appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
+  and the appearance are in Nendo's toolbar. The appearance is the package's declared settings
+  (`settings` in `nendo-package.json`, ADR-0038): typeface, line length and pictures are kept on
+  this computer; text size may also be kept in the file, as every reader's default, with this
+  computer's choice over it. Nendo's Settings page shows them too, and the view reads and keeps
+  them with `nendo.settings` and follows `settingsChanged`.
 - Lists: a list item is a paragraph block with `mn.block.list` (Bulleted, Numbered) and
   `mn.block.level` (none for the outermost, 1 to 4 deeper); consecutive items make a list, as
   Word keeps a list as paragraph properties. "- ", "* " and "1. " start one, Tab and Shift+Tab
@@ -221,7 +225,7 @@ alignment, and no Role control.
   scaled with it), line spacing and page numbers, each over the layout's own when set. The Word
   export and the preview use it; *Use the layout's own* removes it. A typeface this computer does
   not have is named, since the preview and Word set it in a stand-in. The writing appearance
-  stays per device.
+  is the declared settings above.
 
 ## Limits
 

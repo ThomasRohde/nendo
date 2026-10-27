@@ -25,12 +25,17 @@ const state = {
 };
 window.manuscript = state;   // for the browser lane
 
-// ---------- Appearance, per device ----------
+// ---------- Appearance: the settings the package declares (ADR-0038) ----------
 
-function readAppearance() {
-  const plain = { font: 'serif', size: 'medium', width: 'medium', pictures: 'small' };
-  try { return { ...plain, ...JSON.parse(localStorage.getItem('manuscript.appearance') ?? '{}') }; }
-  catch { return plain; }
+// Nendo keeps these and draws them on its Settings page: typeface, line length and pictures on
+// this computer, text size in the file too, so a manuscript can give its readers a size. The
+// Appearance menu changes this computer's value; Settings, another window or the file move them too.
+// The package's defaults; a function, because the state that holds them is built before this line runs.
+function readAppearance() { return { font: 'serif', size: 'medium', width: 'medium', pictures: 'small' }; }
+function takeAppearance(values) {
+  const next = readAppearance();
+  for (const id of Object.keys(next)) if (typeof values?.[id] === 'string') next[id] = values[id];
+  state.appearance = next;
 }
 function applyAppearance() {
   const a = state.appearance;
@@ -38,8 +43,12 @@ function applyAppearance() {
   document.documentElement.dataset.size = a.size;
   document.documentElement.dataset.width = a.width;
   document.documentElement.dataset.pictures = a.pictures;
-  try { localStorage.setItem('manuscript.appearance', JSON.stringify(a)); } catch { /* a private window keeps it for now */ }
   placeOverlays();
+}
+async function keepAppearance(id, value) {
+  if (!nendo.has('settings.set')) return;
+  try { await nendo.settings.set(id, value); }
+  catch (error) { state.problem = `${error?.message ?? error}`; render(); }
 }
 
 // ---------- The sheet ----------
@@ -1357,7 +1366,7 @@ function command({ id, value }) {
   if (id === 'find') { if (state.drawer === 'find') closeDrawer(); else openFind(false); return; }
   if (id === 'notes') state.notesOf = null;
   if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings' || id === 'links' || id === 'pagesetup') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
-  if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
+  if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); keepAppearance(id, value); }
 }
 
 function renderOwnToolbar() {
@@ -2420,6 +2429,10 @@ async function start(context) {
     state.profilesOn = (schema.entities ?? []).some(e => e.entityId === PROFILE);
   } catch { state.roles = false; state.aligns = false; state.lists = false; state.tables = false; }
   state.pins = readPins();
+  if (nendo.has('settings.all')) {
+    try { takeAppearance(await nendo.settings.all()); } catch { /* the defaults draw the page */ }
+    nendo.on('settingsChanged', values => { takeAppearance(values); applyAppearance(); previewZoom(); declare(); });
+  }
   applyAppearance();
   try {
     const kit = await import('./kit/nendo-view-kit.js');
