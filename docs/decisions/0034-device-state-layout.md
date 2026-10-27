@@ -36,6 +36,7 @@ the same shape as the person's, or a path a lane checks is not the one in use.
 | `agents\settings.json` | `DesktopAgentOptionsStore` | Each launched agent's picked settings and the options it offered | 256 KiB | per agent |
 | `agents\sessions\` | `DesktopSessionController` | An empty working folder per launched conversation, swept | swept | per run |
 | `views\settings.json` | `DesktopExtensionSettingsStore` | Run custom views, for the device and per file; development links (ADR-0013) | 256 KiB, 4,096 files, 64 links | device and per file |
+| `views\app-settings.json` | `DesktopAppSettingsStore` | Each app's personal settings, by package ID (ADR-0038) | 256 KiB, 256 packages | per application |
 | `views\origin-carry.json` | `ExtensionOriginCarry` | The instance that kept its views' storage when the origin key gained the instance; written once | 64 KiB, 256 | per application |
 | `actions\consent.json` | `DesktopBehaviourGrantStore` | Consent for a file's automatic actions (ADR-0008); fails closed | 256 KiB, 512 grants | per file |
 | `window\appearance.json` | `DesktopAppearanceStore` | Theme: System, Light or Dark | 4 KiB | device |

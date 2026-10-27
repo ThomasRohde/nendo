@@ -48,3 +48,4 @@ itself, by topic, and the affected [contract](../contracts/) and
 | [0035](0035-an-app-exported-as-one-web-page.md) | Accepted | An app exported as one web page that runs without Nendo; edits return by replay |
 | [0036](0036-nendo-runs-in-a-browser.md) | Accepted | Nendo runs in a browser: the same Engine on WebAssembly, behind the same Workbench |
 | [0037](0037-an-exported-app-as-an-installable-web-app.md) | Accepted | An exported app as an installable web app: a folder with a manifest and a service worker; edits carried across a republish |
+| [0038](0038-settings-in-one-place.md) | Accepted | One Settings page; each setting kept on this computer, for this file here, or in the file; apps declare settings; chosen icons |

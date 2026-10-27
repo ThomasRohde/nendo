@@ -222,6 +222,10 @@ as records for the person.
 - A state write changes no record and triggers no action, but passes the same gates as a
   record write: views on, the file writable, and behaviour approval where the file has
   actions. It raises the `changes` event.
+
+**Settings.** A package declares its settings in `nendo-package.json`, and a view reads them
+through `nendo.settings` ([ADR-0038](0038-settings-in-one-place.md)). A choice a person would
+look for in Settings is a declared setting, not view state or page storage.
 - No rung of its own. A copy of the file carries state; Export does not. Removing a package
   keeps its rows. MCP neither reads nor writes view state.
 
