@@ -29,7 +29,7 @@ import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } 
 import { state } from './app-state';
 import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey, viewsDayTurned } from './view-frames';
 import { beginPlacePickers, endPlacePickers, placePickersDrawn } from './place-pickers';
-import { fileViewById, viewIcon } from './file-view-model';
+import { chosenEntityIcon, fileViewById, viewGlyph, viewIcon } from './file-view-model';
 import { viewTitle } from './view-frame-markup';
 import { startTitleBar } from './title-bar';
 import { startOneBar } from './one-bar';
@@ -387,9 +387,12 @@ function updateChrome(): void {
     : state.view === 'help' ? 'help' : state.view === 'proposal' ? 'studio' : state.view;
   // On a record type's screen the address carries that type's icon, as the navigation and the tab do.
   const typeName = state.view === 'use' && !showsOverview() && fileViewById(state.fileView) === null ? current?.entity.displayName ?? null : null;
-  const glyphKey = typeName === null ? addressIcon : `type:${typeName}`;
+  const chosenType = typeName === null || current === null ? null : chosenEntityIcon(current.entity.semanticId);
+  const shownView = state.view === 'use' ? fileViewById(state.fileView) : null;
+  const chosenView = shownView === null ? null : (typeof shownView.properties.icon === 'string' ? shownView.properties.icon : null);
+  const glyphKey = typeName === null ? `${addressIcon}:${chosenView ?? ''}` : `type:${typeName}:${chosenType ?? ''}`;
   if (addressGlyph.dataset.icon !== glyphKey) {
-    addressGlyph.innerHTML = typeName === null ? icon(addressIcon) : typeGlyph(typeName);
+    addressGlyph.innerHTML = typeName === null ? (shownView === null ? icon(addressIcon) : viewGlyph(shownView)) : typeGlyph(typeName, chosenType);
     addressGlyph.dataset.icon = glyphKey;
   }
   // The file's icon beside its name. It was on the window's title bar, which is Nendo's

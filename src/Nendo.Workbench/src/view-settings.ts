@@ -7,7 +7,13 @@ import { openAboutFile } from './file-actions';
 import { escapeHtml, messageFor } from './format';
 import type { AgentAccessMode, LaunchableAgents, SettingSection, SettingView, SettingsView, ViewAgentAccess } from './host-types';
 import { loadsWebPictures, setLoadsWebPictures } from './media-model';
-import { type SettingRowState, sectionOf, settingRowId, settingsPageMarkup, settingsProposal } from './settings-model';
+import { type IconRow, type SettingRowState, iconKey, sectionOf, settingRowId, settingsPageMarkup, settingsProposal } from './settings-model';
+import { knownIcon } from './chosen-icons';
+import { chosenEntityIcon, fileViews, viewGlyph, viewIcon } from './file-view-model';
+import { chooseIcon } from './icon-picker';
+import type { IconName } from './icons';
+import { typeGlyph, typeIcon } from './type-icons';
+import { viewTitle } from './view-frame-markup';
 import { announce, applyTheme, clearError, content, isThemePreference, navigation, readPreference, requiredElement, rerender, showError } from './shell';
 import { saveAgentSettings, setAgentMode } from './view-agent';
 import { assistantAccessChanged } from './view-assistant';
@@ -98,6 +104,7 @@ function rowState(view: SettingView): SettingRowState {
       const kept = (setting.id === 'file.purpose' ? state.session.manifest?.purpose : state.session.manifest?.newFileLabel) ?? '';
       return { value: pending.get(setting.id) ?? kept, pending: pending.has(setting.id), disabled: readOnlyReason() };
     }
+    case 'file.icons': return { value: null, icons: iconRows(), disabled: readOnlyReason() };
     case 'file.automaticActions': {
       const trust = state.session.behaviourTrust;
       if (!trust?.requiresApproval) return { value: null, hidden: true };
@@ -173,6 +180,9 @@ function wireSettings(): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-link]')) button.addEventListener('click', () => {
     followLink(button.dataset.settingLink!);
   });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-icon]')) button.addEventListener('click', () => {
+    void pickIcon(button.dataset.settingIcon!);
+  });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-action]')) button.addEventListener('click', () => {
     void setBehaviourApproval(state.session.behaviourTrust?.isApproved !== true).then(() => rerender());
   });
@@ -246,6 +256,64 @@ async function reviewChanges(): Promise<void> {
   if (payload === null) return;
   const opened = await prepareApplication({ actionLabel: 'Review', applicationName: state.session.fileName ?? '', proposalPayload: payload }, 'settings');
   if (opened) pending.clear();
+}
+
+/** What a record type or a screen shows, and where its icon came from. */
+interface IconTarget { key: string; title: string; kind: IconRow['kind']; stored: string | null; guessed: IconName; neutral: boolean; glyph: (chosen: string | null) => string }
+
+function iconTargets(): IconTarget[] {
+  const types = state.session.entities.filter(entity => entity.retired !== true).map((entity): IconTarget => {
+    const guess = typeIcon(entity.displayName);
+    return { key: iconKey({ entityId: entity.entityId }), title: entity.displayName, kind: 'Record type', stored: knownIcon(chosenEntityIcon(entity.entityId)),
+      guessed: guess ?? 'box', neutral: guess === null, glyph: chosen => typeGlyph(entity.displayName, chosen) };
+  });
+  const views = (state.compilation?.isValid ? fileViews() : []).flatMap((view): IconTarget[] => {
+    const surfaceId = state.session.uiNodes.find(node => node.nodeId === view.semanticId)?.surfaceId;
+    if (surfaceId === undefined) return [];
+    const guess = typeIcon(viewTitle(view));
+    return [{ key: iconKey({ surfaceId, nodeId: view.semanticId }), title: viewTitle(view), kind: 'Screen', stored: knownIcon(view.properties.icon),
+      guessed: viewIcon(view), neutral: guess === null, glyph: chosen => viewGlyph({ ...view, properties: { ...view.properties, icon: chosen } }) }];
+  });
+  return [...types, ...views];
+}
+
+function iconRows(): IconRow[] {
+  return iconTargets().map(target => {
+    const waiting = pending.get(target.key);
+    const shown = waiting === undefined ? target.stored : (waiting === '' ? null : waiting);
+    return { key: target.key, title: target.title, kind: target.kind, glyph: target.glyph(shown), pending: waiting !== undefined,
+      source: shown !== null ? 'chosen' : target.neutral ? 'neutral' : 'guessed' };
+  });
+}
+
+/** Opens the picker for one record type or screen; the choice waits in the bar with the file's other changes. */
+async function pickIcon(key: string): Promise<void> {
+  const target = iconTargets().find(item => item.key === key);
+  if (target === undefined) return;
+  const waiting = pending.get(key);
+  const chosen = await chooseIcon({ title: `Icon for ${target.title}`, current: waiting === undefined ? target.stored : (waiting === '' ? null : waiting), guessed: target.guessed });
+  if (chosen === undefined) { content.querySelector<HTMLElement>(`[data-setting-icon="${CSS.escape(key)}"]`)?.focus(); return; }
+  if ((chosen ?? null) === target.stored) pending.delete(key); else pending.set(key, chosen ?? '');
+  announce(chosen === null ? `${target.title} shows its guessed icon once you review the change.` : `${target.title} shows ${chosen} once you review the change.`);
+  rerender();
+  content.querySelector<HTMLElement>(`[data-setting-icon="${CSS.escape(key)}"]`)?.focus();
+}
+
+/**
+ * From the navigation: right-click a record type or a screen, choose its icon, and review that one
+ * change straight away (ADR-0038).
+ */
+export async function changeIconFromNavigation(target: { entityId: string } | { nodeId: string }): Promise<void> {
+  if (!state.session.capabilities.mutate) { showError('This file is open read-only, so its icons cannot change.'); return; }
+  const key = 'entityId' in target ? iconKey({ entityId: target.entityId })
+    : iconTargets().find(item => item.kind === 'Screen' && item.key.includes(JSON.stringify(target.nodeId)))?.key;
+  const found = iconTargets().find(item => item.key === key);
+  if (found === undefined) return;
+  const chosen = await chooseIcon({ title: `Icon for ${found.title}`, current: found.stored, guessed: found.guessed });
+  if (chosen === undefined || (chosen ?? null) === found.stored) return;
+  const manifest = state.session.manifest;
+  const payload = manifest ? settingsProposal(new Map([[found.key, chosen ?? '']]), manifest.definitionRevision) : null;
+  if (payload !== null) await prepareApplication({ actionLabel: 'Review', applicationName: state.session.fileName ?? '', proposalPayload: payload }, 'use');
 }
 
 function followLink(id: string): void {

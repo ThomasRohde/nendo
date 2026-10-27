@@ -144,6 +144,8 @@ internal static class CanonicalChangeSetRequestCompiler
                 Long(request.Payload, "expectedDefinitionRevision")),
             "application.setIcon" => new SetApplicationIconOperation(request.OperationId,
                 OptionalString(request.Payload, "icon", 100), Long(request.Payload, "expectedDefinitionRevision")),
+            "schema.setEntityIcon" => new SetEntityIconOperation(request.OperationId, String(request.Payload, "entityId"),
+                OptionalString(request.Payload, "icon", NendoIconSet.MaximumNameLength), Long(request.Payload, "expectedDefinitionRevision")),
             "schema.setFieldPresentation" => new SetFieldPresentationOperation(request.OperationId, String(request.Payload, "entityId"),
                 String(request.Payload, "fieldId"), String(request.Payload, "presentation", 100), Long(request.Payload, "expectedDefinitionRevision")),
             "schema.setKeptInNewFiles" => new SetKeptInNewFilesDefaultOperation(request.OperationId, String(request.Payload, "entityId"),
@@ -199,7 +201,7 @@ internal static class CanonicalChangeSetRequestCompiler
                 String(request.Payload, "surfaceId"),
                 String(request.Payload, "nodeId"),
                 String(request.Payload, "propertyName", 100),
-                Value(request.Payload, "value")),
+                KnownIcon(String(request.Payload, "propertyName", 100), Value(request.Payload, "value"))),
             "ui.removeProperty" => new RemoveUiPropertyOperation(
                 request.OperationId,
                 String(request.Payload, "surfaceId"),
@@ -444,6 +446,16 @@ internal static class CanonicalChangeSetRequestCompiler
             throw new NendoValidationException("Target versions require a bounded field-to-version object.");
         return values.EnumerateObject().ToDictionary(pair => pair.Name, pair => Long(values, pair.Name), StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// A screen's or a view's icon is written only as a name this version knows (ADR-0038). A
+    /// definition that already holds another is read as no choice; it is never written as one.
+    /// </summary>
+    private static JsonElement KnownIcon(string propertyName, JsonElement value) =>
+        propertyName == NendoSemanticVocabulary.IconProperty && value.ValueKind == JsonValueKind.String &&
+        !NendoIconSet.Contains(value.GetString())
+            ? throw new NendoValidationException($"A screen's icon is one of Nendo's icons, and {NendoIconSet.UnknownText(value.GetString()!)}")
+            : value;
 
     private static JsonElement Value(JsonElement source, string name)
     {

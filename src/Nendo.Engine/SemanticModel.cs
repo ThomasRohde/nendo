@@ -75,7 +75,18 @@ public sealed record NendoSurfaceNodePlan(
     string AutomationTarget,
     string Kind,
     IReadOnlyDictionary<string, JsonElement> Properties,
-    IReadOnlyList<NendoSurfaceNodePlan> Children);
+    IReadOnlyList<NendoSurfaceNodePlan> Children)
+{
+    /// <summary>
+    /// The icon a screen's root or a custom view chose from Nendo's set (ADR-0038), lifted from
+    /// its <c>icon</c> property so a client reads it without knowing which kinds take one. Left out
+    /// of the plan when the node has none, or names one this version does not know, which is
+    /// treated as no choice; every plan without icons stays as it was.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon => Properties.TryGetValue(NendoSemanticVocabulary.IconProperty, out var value) &&
+        value.ValueKind == JsonValueKind.String && NendoIconSet.Contains(value.GetString()) ? value.GetString() : null;
+}
 
 /// <summary>
 /// One entity's compiled surfaces as an ordered node tree. Contract versions 1

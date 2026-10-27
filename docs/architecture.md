@@ -116,8 +116,8 @@ refused untouched, with its reason
 A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes what a
 file can contain. `1.11.0` is for composable surfaces. After it, each version adds one
-capability, usually a widened semantic shape. The highest version is `1.55.0`, for a
-file's own picture as its icon.
+capability, usually a widened semantic shape. The highest version is `1.56.0`, for an
+icon from Nendo's set on a record type, a screen or a custom view.
 
 | Rung | Capability | Rung | Capability |
 | --- | --- | --- | --- |
@@ -143,6 +143,7 @@ file's own picture as its icon.
 | 1.31 | `extensionRecordsSurface` | 1.53 | `AddDays`, a `thisWeek` or `thisMonth` filter |
 | 1.32 | `extensionRecordPanel` | 1.54 | a tile, breakdown or ranking over a calculated number; a breakdown grouped by a reference |
 | 1.33 | custom-view packages in the file | 1.55 | a file's own picture as its icon |
+| | | 1.56 | an icon from Nendo's set on a record type, a screen or a view |
 
 [semantic-surfaces.md](contracts/semantic-surfaces.md) places each rung as a node shape
 or in its list of the rest. A view the earlier rules accept keeps its earlier rung.
@@ -200,7 +201,10 @@ its layout and stated host version.
   Studio, `records.search` and MCP share the same search.
 - **Look and icon**: the badge's tone and letter, stored only when chosen (defaults come
   from the application ID and file name); `__nendo_application_icon`, on the rung above
-  media, names an embedded square PNG as the file's icon.
+  media, names an embedded square PNG as the file's icon. `__nendo_entity_icon`, on the
+  rung above that, holds the icon each record type chose from Nendo's set (ADR-0038); a
+  screen's or view's icon is its `icon` property. The Engine checks a name against
+  `src/Nendo.Engine/icon-set.json`, the list the Workbench draws, carried as an embedded resource.
 - **Purpose**: prose on the rung below the package tables. The describe resource leads
   with it; it belongs to no record type and no node.
 - **Folded history**: `__nendo_history_fold` on the fold rung, after the look's.
@@ -814,7 +818,7 @@ capability a `.nendo` file needs, which changes only when the format gains a cap
 | File icons | `Desktop/DesktopFileIcon.cs` (`DesktopFileIcon`, `DesktopFileIconIndex`) |
 | Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled, no WebView2 panel), `MainPage.Downloads.cs`, `WorkbenchProtocol.Downloads.cs` (`downloads.show`) |
 | View failures | `Desktop/DesktopViewFailureLog.cs` (device state, capped at 50, switched from the tray) |
-| Settings | `Session/SettingsCatalogue.cs`, `WorkbenchProtocol.Settings.cs` (`settings.describe`, `settings.set`), `Desktop/WorkbenchProtocol.Settings.cs` (what Close does, Record failures); `Workbench/src/view-settings.ts`, `settings-model.ts`, `preview-settings.ts`, `styles/24-settings.css` ([ADR-0038](decisions/0038-settings-in-one-place.md)) |
+| Settings | `Session/SettingsCatalogue.cs`, `WorkbenchProtocol.Settings.cs` (`settings.describe`, `settings.set`), `Desktop/WorkbenchProtocol.Settings.cs` (what Close does, Record failures); `Workbench/src/view-settings.ts`, `settings-model.ts`, `preview-settings.ts`, `styles/24-settings.css`; icons in `chosen-icons.ts`, `icon-set.ts` (generated from `src/Nendo.Engine/icon-set.json`), `icon-picker.ts` ([ADR-0038](decisions/0038-settings-in-one-place.md)) |
 | Custom views: host | `Session/Extensions/ExtensionOrigins.cs`, `ExtensionOriginCarry.cs`, `DesktopExtensionSettingsStore.cs` (`views\settings.json`), `DesktopSessionController.Extensions.cs`, `WorkbenchProtocol.Extensions.cs`; `Desktop/Extensions/ExtensionAssetServer.cs`, `ExtensionWebViewPolicy.cs`, `ExtensionFrameDiagnostics.cs`; `MainPage.xaml.cs` (`extensionFramesFailed`, Restart without custom views), `MainPage.Extensions.cs` (pickers) |
 | Custom views: Workbench | `Workbench/src/view-frames.ts`, `view-frame-markup.ts`, `extension-broker.ts` (method table and caps), `extension-model.ts`, `extension-ui.ts`, `view-packages.ts`, `frame-guard.ts`; view controls in `view-toolbar-model.ts`, `view-toolbar-markup.ts`, `view-toolbar.ts`, `view-menu.ts`, `place-pickers.ts` |
 | The view API | `Workbench/src/extension-api/nendo-api.ts`, `protocol.ts`, built by `vite.api.config.ts` to `dist/_nendo/api.js` |

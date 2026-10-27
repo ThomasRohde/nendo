@@ -52,7 +52,7 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 27 resources, and 2 read-only tools that reach them: `nendo.read.resource` and `nendo.read.list`. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 28 resources, and 2 read-only tools that reach them: `nendo.read.resource` and `nendo.read.list`. |
 | Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 18 tools: `nendo.lease.*` (4), `nendo.data.*` (13) and `nendo.health.verify_integrity`. |
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
@@ -154,9 +154,9 @@ A proposal appears on the Agent page under **Pending changes**, with its title, 
 
 When accepting a proposal involves the file's automatic actions, both the queue and the review say so before you accept. A proposal that sets off actions this computer has not approved asks you to approve them on the Agent page first, and **Accept changes** stays unavailable until you do. A proposal that changes the actions says that editing pauses after you accept, until you approve them again. A proposal that both changes the actions and sets them off cannot be accepted as it stands, and the review asks for the actions first and the records after. An agent reads the same facts in the proposal's `behaviour`.
 
-A change set may contain 40 operation types, and nothing else:
+A change set may contain 41 operation types, and nothing else:
 
-- `schema.*` (18): create, rename and retire record types and fields; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (T-001, T-002…) when a record is created without one; configure a reference, and change the field it shows its records by; name and colour a choice, and add a new option to a choice field; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
+- `schema.*` (19): create, rename and retire record types and fields; give a record type an icon from Nendo's set; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (T-001, T-002…) when a record is created without one; configure a reference, and change the field it shows its records by; name and colour a choice, and add a new option to a choice field; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
 - `application.*` (5): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files, or a picture of its own embedded in the file; name what a new file of it is called; build the file's search index, so its records can be found by any word in their text.
 - `ui.*` (5): add, set a property on, clear a property of, move and remove a screen node.

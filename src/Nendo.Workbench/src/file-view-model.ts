@@ -1,7 +1,8 @@
 import { leaveRecordContext, state } from './app-state';
 import { escapeAttribute, escapeHtml } from './format';
 import type { CompileResult, ExtensionRuntimeView, SurfaceNodePlan } from './host';
-import type { IconName } from './icons';
+import { knownIcon, setIconMarkup } from './chosen-icons';
+import { icon, type IconName } from './icons';
 import { overviewTitle } from './overview-model';
 import { overviewPlan, placePlans } from './plan-selection';
 import { rerender } from './shell';
@@ -56,11 +57,22 @@ export function showingOptionsMarkup(current: { overview: boolean; fileView: str
 /**
  * A view's icon in the navigation, the address and its tab. The view the file opens on is
  * its home, as a front page is, when the file has no front page. Any other view's title is guessed
- * as a record type's name is, so Garden is a sprout; a title that suggests nothing keeps the panels.
+ * as a record type's name is, so Garden is a sprout; a title that suggests nothing gets the layout icon.
  */
 export function viewIcon(view: SurfaceNodePlan): IconName {
   if (view.properties.opensFile === true && overviewPlan() === null) return 'home';
-  return typeIcon(viewTitle(view)) ?? 'surfaces';
+  return typeIcon(viewTitle(view)) ?? 'layout';
+}
+
+/** A view's icon: the one the file chose for it (ADR-0038), else the one its title suggests. */
+export function viewGlyph(view: SurfaceNodePlan): string {
+  const chosen = knownIcon(view.properties.icon);
+  return chosen === null ? icon(viewIcon(view)) : setIconMarkup(chosen);
+}
+
+/** The icon the file chose for a record type, or null. */
+export function chosenEntityIcon(entityId: string): string | null {
+  return state.session.entities.find(entity => entity.entityId === entityId)?.icon ?? null;
 }
 
 /** What the first picker is called: Showing when it offers more than record types. */

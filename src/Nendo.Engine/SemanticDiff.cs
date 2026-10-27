@@ -307,6 +307,13 @@ internal static class SemanticDiff
                         ? "Take this file's picture away, so it shows its colour and letter again."
                         : "Give this file its own picture as its icon.",
                     value.Reversibility),
+                SetEntityIconOperation value => Entry(
+                    "setEntityIcon",
+                    value.Icon is null
+                        ? $"Show {EntityName(names, value.EntityId)} with the icon guessed from its name."
+                        : $"Show {EntityName(names, value.EntityId)} with the icon {value.Icon}.",
+                    value.Reversibility,
+                    value.EntityId),
                 SetFieldPresentationOperation value => Entry(
                     "setFieldPresentation",
                     $"Show {FieldName(names, value.FieldId)} in {EntityName(names, value.EntityId)} as {value.Presentation switch

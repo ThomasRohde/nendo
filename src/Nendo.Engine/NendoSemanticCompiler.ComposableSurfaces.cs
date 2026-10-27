@@ -293,6 +293,9 @@ public sealed partial class NendoSemanticCompiler
     /// <see cref="NendoSemanticVocabulary.MaximumNodeDepth"/>: a section may hold a section,
     /// so without it a deep enough tree threw out of the digest or exhausted the stack.
     /// </summary>
+    private static readonly string IconHint =
+        $"Name an icon {NendoIconSet.ResourceUri} lists, or clear icon with ui.removeProperty to use the icon guessed from the title.";
+
     private static void ValidateComposableTree(
         IReadOnlyList<NendoUiNodeSnapshot> nodes,
         ICollection<NendoCompilerDiagnostic> diagnostics)
@@ -325,6 +328,21 @@ public sealed partial class NendoSemanticCompiler
                          .Where(value => !node.Properties.ContainsKey(value))
                          .OrderBy(value => value, StringComparer.Ordinal))
                 AddError(diagnostics, "NUI091", $"Property '{required}' is required on '{node.Kind}'.", node.NodeId, required, $"Declare {required} on this node.");
+
+            // ADR-0038: a screen's or a view's icon is a name from Nendo's set, checked wherever the
+            // kind takes one. A name this version does not know is treated as no choice: the plan
+            // carries no icon and the screen still compiles. Writing one is refused at the change set.
+            if (rule.Properties.Contains(NendoSemanticVocabulary.IconProperty) &&
+                node.Properties.TryGetValue(NendoSemanticVocabulary.IconProperty, out var icon))
+            {
+                if (icon.ValueKind != JsonValueKind.String)
+                    AddError(diagnostics, "NUI462", "An icon is the name of one icon from Nendo's set, given as text.",
+                        node.NodeId, NendoSemanticVocabulary.IconProperty, IconHint);
+                else if (!NendoIconSet.Contains(icon.GetString()))
+                    diagnostics.Add(new("NUI461", NendoDiagnosticSeverity.Warning,
+                        $"{NendoIconSet.UnknownText(icon.GetString()!)} This screen is drawn with the icon guessed from its title.",
+                        node.NodeId, NendoSemanticVocabulary.IconProperty, IconHint));
+            }
 
             if (node.ParentNodeId is null)
             {

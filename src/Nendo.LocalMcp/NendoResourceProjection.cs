@@ -138,6 +138,7 @@ internal sealed class NendoResourceProjection(
             Hierarchy = entity.Hierarchy,
             LinkRule = entity.LinkRule,
             KeptInNewFiles = entity.KeptInNewFiles,
+            Icon = entity.Icon,
             DerivedFields = entity.DerivedFields
                 .OrderBy(field => field.FieldId, StringComparer.Ordinal)
                 .Select(field => new NendoMcpDerivedField(

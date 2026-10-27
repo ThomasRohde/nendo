@@ -338,6 +338,7 @@ try {
         'nendo.application.extensions',
         'nendo.application.health',
         'nendo.application.history',
+        'nendo.application.icons',
         'nendo.application.manifest',
         'nendo.application.media',
         'nendo.application.proposal',

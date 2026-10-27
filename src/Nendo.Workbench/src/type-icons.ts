@@ -1,4 +1,4 @@
-import { escapeHtml } from './format';
+import { knownIcon, setIconMarkup } from './chosen-icons';
 import { icon, type IconName } from './icons';
 
 /**
@@ -7,8 +7,7 @@ import { icon, type IconName } from './icons';
  * Every record type drew the same box, so a file with ten of them was a column of identical
  * icons. The name usually says what a record is: its head noun -- the last word, in English --
  * is looked up in a short table of everyday nouns, and the first word that matches decides. A
- * name that matches nothing gets a tile with its letters in one of the file's choice tones, so
- * no two neighbours look alike even when nothing could be guessed.
+ * name that matches nothing gets a box, and the person can choose an icon in Settings.
  *
  * This is a guess and only a guess. A record type that should choose its own icon needs it in
  * the file, which is not built.
@@ -63,28 +62,12 @@ export function typeIcon(name: string): IconName | null {
   return null;
 }
 
-const tones = ['blue', 'teal', 'green', 'amber', 'orange', 'red', 'violet', 'grey'] as const;
-
-/** One or two letters for a tile: the initials of two words, or the start of one. */
-export function tileLetters(name: string): string {
-  const words = name.split(/[^\p{L}\p{N}]+/u).filter((word) => word !== '');
-  if (words.length === 0) return '?';
-  // Whole code points, so a letter outside the basic plane is never cut in half.
-  const first = Array.from(words[0]);
-  if (words.length > 1) return (first[0] + Array.from(words[1])[0]).toUpperCase();
-  return first[0].toUpperCase() + (first[1] ?? '').toLowerCase();
-}
-
-/** The tone a name always gets: the same name, the same colour, in every window. */
-export function tileTone(name: string): (typeof tones)[number] {
-  let hash = 0;
-  for (const char of name) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
-  return tones[hash % tones.length];
-}
-
-/** The icon for a record type, or its letter tile when its name suggests none. */
-export function typeGlyph(name: string): string {
-  const found = typeIcon(name);
-  if (found !== null) return icon(found);
-  return `<span class="type-tile" data-tone="${tileTone(name)}" aria-hidden="true">${escapeHtml(tileLetters(name))}</span>`;
+/**
+ * The icon for a record type: the one the file chose for it (ADR-0038), else the one its name
+ * suggests, else a box. Never a tile of letters.
+ */
+export function typeGlyph(name: string, chosen?: string | null): string {
+  const known = knownIcon(chosen);
+  if (known !== null) return setIconMarkup(known);
+  return icon(typeIcon(name) ?? 'box');
 }

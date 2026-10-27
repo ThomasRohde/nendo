@@ -79,11 +79,11 @@ test('no rule writes a colour itself; colours are tokens declared on :root', () 
 });
 
 // Text below 0.75rem only where mica-direction.md says so. The doc's list, by selector:
-// key caps, the Activity card's count, a type tile's letters, the Agent page's launch command and
+// key caps, the Activity card's count, the Agent page's launch command and
 // its renamed note, and the conversation's tags, context line, option names, @ menu and the line
 // under the box.
 const smallLabels = new Set([
-  '.status-keys kbd', '.agent-tab-count', '.type-tile', '.launch-command-line', '.launch-renamed code',
+  '.status-keys kbd', '.agent-tab-count', '.launch-command-line', '.launch-renamed code',
   '.chat-you-context', '.chat-tag', '.chat-option-name', '.chat-under',
   '.mention-head', '.mention-detail', '.mention-keys', '.mention-keys kbd',
 ]);
@@ -102,7 +102,7 @@ test('text below 0.75rem is only the small labels mica-direction.md lists', () =
   }
   assert.deepEqual(small, [], 'Text is set below 0.75rem outside the small labels mica-direction.md allows');
   const doc = readFileSync(new URL('docs/design/mica-direction.md', repository), 'utf8');
-  for (const label of ['key caps', 'type tile', 'launch command', '@ menu', 'line under the box']) {
+  for (const label of ['key caps', 'launch command', '@ menu', 'line under the box']) {
     assert.ok(doc.includes(label), `mica-direction.md no longer lists ${label} among the small labels this test allows`);
   }
 });

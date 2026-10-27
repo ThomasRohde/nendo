@@ -204,6 +204,12 @@ public sealed record NendoEntitySnapshot(
     public NendoLinkRule? LinkRule { get; init; }
 
     /// <summary>
+    /// The icon the file chose for this record type from Nendo's set (ADR-0038), or null for the
+    /// one guessed from its name. A stored name this version of Nendo does not know reads as null.
+    /// </summary>
+    public string? Icon { get; init; }
+
+    /// <summary>
     /// Whether a new file of this application keeps this type's records unless a record says
     /// otherwise (ADR-0022). False, the default, leaves them out.
     /// </summary>

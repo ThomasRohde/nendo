@@ -682,35 +682,6 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   }
 }
 
-/* A record type whose name suggests no icon: its letters on a tile in one of the choice tones
-   (type-icons.ts). The tone tints the tile and colours the letters, leaning to the ink far enough
-   to read at 4.5:1 on the rail, a selected row, a tab and the address field. */
-.type-tile {
-  --tile: var(--tone-grey);
-  display: inline-grid;
-  flex: 0 0 18px;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-control);
-  color: color-mix(in srgb, var(--tile) 60%, var(--ink));
-  background: color-mix(in srgb, var(--tile) 16%, transparent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-:root[data-theme="dark"] .type-tile { color: color-mix(in srgb, var(--tile) 75%, var(--ink)); }
-
-.type-tile[data-tone="red"] { --tile: var(--tone-red); }
-.type-tile[data-tone="orange"] { --tile: var(--tone-orange); }
-.type-tile[data-tone="amber"] { --tile: var(--tone-amber); }
-.type-tile[data-tone="green"] { --tile: var(--tone-green); }
-.type-tile[data-tone="teal"] { --tile: var(--tone-teal); }
-.type-tile[data-tone="blue"] { --tile: var(--tone-blue); }
-.type-tile[data-tone="violet"] { --tile: var(--tone-violet); }
-
 /* Windows contrast themes (forced colors) draw every fill as Canvas and drop every box-shadow,
    so a state drawn only with a fill, an inset shadow or a coloured pill cannot be seen there.
    Each gets a mark forced colors keeps. Selected and pressed are a Highlight bar under

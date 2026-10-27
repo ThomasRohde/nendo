@@ -31,7 +31,7 @@ public sealed class WorkbenchSettingsTests
         foreach (var setting in settings)
         {
             Assert.Contains(setting.Home, new[] { "device", "here", "file" }, $"{setting.Id} has no home of the three.");
-            Assert.Contains(setting.Kind, new[] { "toggle", "choice", "number", "text", "link", "action" }, $"{setting.Id} has no known control.");
+            Assert.Contains(setting.Kind, new[] { "toggle", "choice", "number", "text", "icons", "link", "action" }, $"{setting.Id} has no known control.");
             Assert.Contains(setting.Section, new[] { "general", "agents", "views", "file" }, $"{setting.Id} is in no section.");
             if (setting.Kind == "choice") Assert.IsTrue(setting.Options is { Count: > 1 }, $"{setting.Id} offers no choice.");
             // Nothing a file keeps can set what this computer allows it.

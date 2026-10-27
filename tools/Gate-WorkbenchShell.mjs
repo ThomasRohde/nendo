@@ -3010,6 +3010,50 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     assert(focused === 'agents.fixedPort', `the link opened Settings with ${JSON.stringify(focused)} focused.`);
   });
 
+  // Chosen icons (ADR-0038): the picker by search and keys, from Settings and from the navigation.
+  await check('icon picker chooses by search and keys and waits in the bar', 'decision', async () => {
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('[data-settings-section="file"]') !== null, null, 'the Settings page', 6000);
+    await page.click('[data-settings-section="file"]');
+    await page.click('[data-setting-icon]');
+    await until(() => document.querySelector('dialog.icon-picker[open]') !== null, null, 'the icon picker', 4000);
+    const focused = await page.evaluate(() => document.activeElement?.id);
+    assert(focused === 'icon-picker-search', `the picker opened with ${focused} focused, not its search.`);
+    await page.keyboard.type('balance');
+    await until(() => document.querySelectorAll('dialog.icon-picker .icon-cell[data-icon-name]').length > 0, null, 'a found icon', 4000);
+    const found = await page.evaluate(() => [...document.querySelectorAll('dialog.icon-picker [data-icon-name]')].map(cell => cell.dataset.iconName));
+    assert(found.includes('scale'), `searching "balance" found ${JSON.stringify(found)}, not scale.`);
+    await page.focus('dialog.icon-picker .icon-grid .icon-cell[tabindex="0"]');
+    const first = await page.evaluate(() => document.activeElement?.dataset.iconName);
+    await page.keyboard.press('ArrowRight');
+    const second = await page.evaluate(() => document.activeElement?.dataset.iconName);
+    assert(found.length < 2 || (second !== first && second === found[1]), `ArrowRight moved from ${first} to ${second}, not to ${found[1]}.`);
+    await page.keyboard.press('Enter');
+    await until(() => document.querySelector('dialog.icon-picker') === null, null, 'the picker to close', 4000);
+    const after = await page.evaluate(() => ({ bar: document.querySelector('.settings-changes strong')?.textContent,
+      pending: document.querySelector('[data-setting-row="file.icons"].is-pending .settings-help')?.textContent }));
+    assert(after.bar === '1 change to the file' && after.pending?.endsWith('Chosen'), `after choosing: ${JSON.stringify(after)}.`);
+  });
+
+  await check('right-click on a record type opens its icon picker', 'decision', async () => {
+    await until(() => document.querySelector('[data-rail-place^="type:"]') !== null, null, 'a record type in the navigation', 6000);
+    await page.click('[data-rail-place^="type:"]', { button: 'right' });
+    await until(() => document.querySelector('dialog.icon-picker[open]') !== null, null, 'the icon picker', 4000);
+    const title = await page.evaluate(() => document.querySelector('#icon-picker-title')?.textContent);
+    assert(/^Icon for /.test(title ?? ''), `the picker is titled ${JSON.stringify(title)}.`);
+    await page.keyboard.press('Escape');
+    await until(() => document.querySelector('dialog.icon-picker') === null, null, 'Escape to close the picker', 4000);
+    const review = await page.evaluate(() => document.querySelector('#studio-content')?.textContent?.includes('Show the') ?? false);
+    assert(!review, 'closing the picker unchanged opened a review.');
+  });
+
+  await check('no record type draws a tile of letters', 'decision', async () => {
+    await until(() => document.querySelector('[data-rail-place^="type:"]') !== null, null, 'a record type in the navigation', 6000);
+    const tiles = await page.evaluate(() => document.querySelectorAll('.type-tile').length);
+    const glyphs = await page.evaluate(() => [...document.querySelectorAll('[data-rail-place^="type:"] .nav-symbol')].map(symbol => symbol.querySelector('svg') !== null));
+    assert(tiles === 0 && glyphs.length > 0 && glyphs.every(Boolean), `${tiles} letter tiles; record types with an outline icon: ${JSON.stringify(glyphs)}.`);
+  });
+
   await check('dark window paints dark first', 'decision', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.evaluate(() => { try { localStorage.removeItem('nendo.appearance'); } catch { /* none kept */ } });

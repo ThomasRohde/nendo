@@ -27,6 +27,7 @@ const stylesheets = readdirSync(styles).filter((name) => name.endsWith('.css')).
 const EXEMPT = new Map([
   ['surface-picker-options', 'a dropdown: the redraw that would restore it has already closed it'],
   ['studio-content', 'the content pane itself, which scrollPositions puts back first'],
+  ['icon-picker-body', 'the icon picker, a dialog outside the content pane, which a redraw does not rebuild'],
   ['is-settings', 'the content pane itself, scrolling Settings in a narrow window, which scrollPositions puts back first'],
   ['file-menu-panel', 'the File menu, outside the content pane, which is all a redraw rebuilds'],
   ['primary-nav', 'the navigation rail, outside the content pane'],

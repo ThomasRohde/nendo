@@ -72,6 +72,8 @@ export interface EntitySnapshot {
   entityId: string;
   retired?: boolean;
   displayName: string;
+  /** The icon the file chose for this record type from Nendo's set (ADR-0038), or null for the guessed one. */
+  icon?: string | null;
   /** The record type's declared hierarchy (ADR-0019), or null/absent when it declares none. */
   hierarchy?: { parentFieldId: string; orderFieldId: string | null } | null;
   /** The link rule this record type declares (ADR-0026), or null/absent when it declares none. */
@@ -946,7 +948,7 @@ export interface RevisionSnapshot {
  */
 /** Where a setting is kept (ADR-0038): this computer, this file on this computer, or the file. */
 export type SettingHome = 'device' | 'here' | 'file';
-export type SettingKind = 'toggle' | 'choice' | 'number' | 'text' | 'link' | 'action';
+export type SettingKind = 'toggle' | 'choice' | 'number' | 'text' | 'icons' | 'link' | 'action';
 export type SettingSection = 'general' | 'agents' | 'views' | 'file';
 
 /** One setting as the host's settings catalogue names it (`settings.describe`). */

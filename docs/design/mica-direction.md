@@ -66,7 +66,7 @@ Only 2px and 3px marks, circles and pills are written as numbers.
 
 The root font size is 14px. Body text is not set below 0.75rem. These small labels go below it on
 purpose, down to 0.68rem (about 9.5px): key caps, the count of waiting changes on the Agent page's
-Activity card, a type tile's letters (10px), a launch command on the Agent page and the note that
+Activity card, a launch command on the Agent page and the note that
 it was renamed, and in the agent conversation its tags, the context line under a message, an
 option's name, the @ menu and the line under the box. Tool output and a command to copy by hand
 are content, not labels, and stay at 0.75rem.
@@ -87,11 +87,12 @@ a CSS variable. Change them together.
   Surfaces, History and Health under it. Agent and Help sit at the foot. A long list of record
   types scrolls on its own, so Studio stays in reach. The hamburger above Use folds the navigation
   to 56px of icons (Ctrl B); the fold is kept for the device.
-- **Record type icons.** A record type's icon is guessed from its name (`type-icons.ts`). The head
-  noun, the last word in English, is looked up in a short table of everyday nouns: Crew gets
-  people, Incidents a warning, Readings a gauge. A name that matches nothing gets its letters on a
-  tile tinted in one of the choice tones, the same tone for the same name every time. The
-  navigation, the tabs and the address row use the same icon. A file cannot choose a type's icon.
+- **Record type icons.** A file may choose a record type's or a screen's icon from Nendo's set
+  ([ADR-0038](../decisions/0038-settings-in-one-place.md)). Without a choice it is guessed from the
+  name (`type-icons.ts`): the head noun, the last word in English, is looked up in a short table of
+  everyday nouns, so Crew gets people, Incidents a warning, Readings a gauge. A name that matches
+  nothing gets a box, and a screen the layout icon. The navigation, the tabs and the address row
+  use the same icon.
 - **Tabs.** Each tab is a place kept open (`workspace-tabs.ts`) and a trail with its own places and
   cursor, so Back and Forward belong to the tab, as in File Explorer. Switching tabs swaps the saved
   trail into `navigationTrail` and puts its current place back the way a step back does

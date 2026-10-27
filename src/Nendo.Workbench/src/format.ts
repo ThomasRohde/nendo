@@ -203,6 +203,7 @@ export function operationLabel(value: string): string {
     'schema.renameField': 'Rename field',
     'schema.setChoiceMetadata': 'Change a choice',
     'schema.setFieldPresentation': 'Change how a field is shown',
+    'schema.setEntityIcon': 'Choose a record type’s icon',
     'schema.setFieldRequired': 'Make a field required or optional',
     'schema.setFieldSequence': 'Number a field automatically',
     'schema.setFieldUnique': 'Make a field unique or not',

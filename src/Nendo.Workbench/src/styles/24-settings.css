@@ -78,3 +78,30 @@
 /* The link from a control that also has its row in Settings: the Agent page, Custom views, Health. */
 .settings-elsewhere { margin: 0 0 8px; }
 .settings-elsewhere .text-button, .behaviour-approval-actions [data-open-setting] { color: var(--cobalt); text-decoration: underline; text-underline-offset: 3px; }
+
+/* The icon picker (ADR-0038): a dialog with a search, the set's groups and a grid of icons. */
+.icon-picker { width: min(560px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-panel); background: var(--surface-raised); color: var(--ink); box-shadow: var(--shadow); }
+.icon-picker[open] { display: flex; flex-direction: column; }
+.icon-picker::backdrop { background: var(--scrim); }
+.icon-picker-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 16px; }
+.icon-picker-head h2 { flex: 1 1 auto; margin: 0; font-size: 14px; font-weight: 600; }
+.icon-picker > input { margin: 0 16px 8px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; }
+.icon-picker-groups { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
+.icon-chip { height: 26px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 0.8rem; }
+.icon-chip[aria-pressed="true"] { border-color: var(--cobalt); background: var(--cobalt-soft); font-weight: 600; }
+.icon-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
+.icon-picker-label { margin: 8px 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.icon-picker-empty { color: var(--muted); }
+.icon-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.icon-cell { display: flex; align-items: center; justify-content: center; height: 40px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--ink); cursor: pointer; }
+.icon-cell:hover { background: var(--surface-soft); }
+.icon-cell[aria-selected="true"] { border-color: var(--cobalt); background: var(--cobalt-soft); }
+.icon-cell .outline-icon { width: 20px; height: 20px; }
+.icon-picker-head .icon-cell { width: 32px; height: 32px; }
+.icon-picker-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.icon-picker-name { flex: 1 1 auto; font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.settings-icon-preview { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
+
+@media (forced-colors: active) {
+  .icon-cell[aria-selected="true"], .icon-chip[aria-pressed="true"] { border: 2px solid Highlight; }
+}

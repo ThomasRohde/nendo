@@ -72,6 +72,7 @@ internal sealed partial class SqliteNendoStore
             RemoveLinkRuleOperation removeLinks => await ExecuteRemoveLinkRuleAsync(removeLinks, transaction, cancellationToken),
             SetApplicationLookOperation setLook => await ExecuteSetApplicationLookAsync(setLook, transaction, cancellationToken),
             SetApplicationIconOperation setIcon => await ExecuteSetApplicationIconAsync(setIcon, transaction, cancellationToken),
+            SetEntityIconOperation entityIcon => await ExecuteSetEntityIconAsync(entityIcon, transaction, cancellationToken),
             BuildSearchIndexOperation buildSearch => await ExecuteBuildSearchIndexAsync(buildSearch, transaction, cancellationToken),
             SetFieldPresentationOperation presentation => await ExecuteSetFieldPresentationAsync(presentation, transaction, cancellationToken),
             SetKeptInNewFilesDefaultOperation keptDefault => await ExecuteSetKeptInNewFilesDefaultAsync(keptDefault, transaction, cancellationToken),
@@ -727,6 +728,7 @@ internal sealed partial class SqliteNendoStore
             Hierarchy = (await ReadHierarchiesAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
             KeptInNewFiles = (await ReadKeptTypesAsync(transaction, cancellationToken)).Contains(entityId),
             LinkRule = (await ReadLinkRulesAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
+            Icon = (await ReadEntityIconsAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
         };
     }
 

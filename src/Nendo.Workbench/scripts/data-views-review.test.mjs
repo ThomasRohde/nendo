@@ -10,7 +10,6 @@ const kit = await bundleOf('src/chart-kit.ts');
 const { ratingMarkup, ratingControlMarkup } = await bundleOf('src/rating.ts');
 const { fieldControlMarkup } = await bundleOf('src/record-markup.ts');
 const { recentFileState } = await bundleOf('src/recent-files.ts');
-const { tileLetters } = await bundleOf('src/type-icons.ts');
 const { treeSurfaceCard, cardKindFor } = await bundleOf('src/surface-cards.ts');
 const { surfacePreviewMarkup } = await bundleOf('src/surface-preview.ts');
 const shared = await bundleOf('scripts/entries/plan-state.ts');
@@ -102,7 +101,6 @@ test('a recent file that cannot open says why in words', () => {
 });
 
 test('a glyph never cuts a character in half', () => {
-  assert.ok(tileLetters('𠮷野家 orders').isWellFormed(), tileLetters('𠮷野家 orders'));
   assert.match(source('src/view-structure.ts'), /Array\.from\(entity\.displayName\)/, 'Structure\'s initial is taken by code unit');
 });
 

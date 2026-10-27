@@ -18,4 +18,10 @@
     <PackageReference Include="NCalc" PrivateAssets="compile;build;buildTransitive;analyzers" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ADR-0038. The icon set the Workbench draws, carried so the host checks a name
+         against the same list. -->
+    <EmbeddedResource Include="icon-set.json" LogicalName="Nendo.Engine.icon-set.json" />
+  </ItemGroup>
+
 </Project>

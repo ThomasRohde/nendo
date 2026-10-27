@@ -106,6 +106,8 @@ public sealed class ProtocolResourceTests
                 "nendo.application.examples",
                 "nendo.application.extensions",
                 "nendo.application.health",
+                // Nendo's icon set, static for a build (ADR-0038).
+                "nendo.application.icons",
                 "nendo.application.manifest",
                 "nendo.application.proposals",
                 "nendo.application.surfaces",

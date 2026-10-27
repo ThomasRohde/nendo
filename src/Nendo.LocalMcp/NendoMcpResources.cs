@@ -20,6 +20,7 @@ internal sealed class NendoMcpResources(
     {
         "nendo://application/vocabulary",
         "nendo://application/examples",
+        NendoIconSet.ResourceUri,
         NendoViewApi.Uri,
         NendoHostSkill.SkillUri,
         NendoHostSkill.ReferencesRoot + "/vocabulary.json",
@@ -414,6 +415,16 @@ internal sealed class NendoMcpResources(
     [Description("Read this only while you write a custom view's code; nothing else needs it. window.nendo as this build serves it to a view's page: every method with its call, parameters and answer, the context and record shapes, the events, filter words, write values, toolbar kinds, icons and keys, theme tokens, limits and refusals, a whole view to start from, and how a person develops a package from a folder. Generated from the tables the view's API script is built from. Static for a host build; it does not describe the open file.")]
     public Task<string> GetViewApiAsync(CancellationToken cancellationToken) =>
         Task.FromResult(NendoViewApi.Json);
+
+    [McpServerResource(
+        Name = "nendo.application.icons",
+        Title = "Icon set",
+        // A literal, as every template here is: the production gate reads them from this source.
+        UriTemplate = "nendo://application/icons",
+        MimeType = "application/json")]
+    [Description("Every icon a record type, a screen or a custom view may carry, as name, group and words, the search words a person types to find it. A record type takes one with schema.setEntityIcon; a screen's root or a view with its icon property. Static for a host build; it does not describe the open file.")]
+    public Task<string> GetIconsAsync(CancellationToken cancellationToken) =>
+        TranslateAsync(() => Task.FromResult(new NendoMcpIcons(NendoIconSet.Source, NendoIconSet.Icons.Count, NendoIconSet.Icons)));
 
     [McpServerResource(
         Name = "nendo.application.extension.file",

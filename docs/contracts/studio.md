@@ -384,5 +384,13 @@ It opens as a page from **Settings** in the navigation, **Ctrl ,** and the comma
   the file** with **Review** and **Discard**. Review prepares one proposal with an operation each
   (`application.setPurpose`, `application.setNewFileLabel`) and opens Studio's review. The look is
   changed in About this file.
+- **Icons.** This file → Icons has a row for each record type and each of the file's screens, with
+  its icon and where it came from: *Chosen*, *Guessed from the name* or *Nothing guessed*. **Change**
+  opens the icon picker: a search over the set's names and search words, its groups, the icons used
+  last on this device, and a grid the arrow keys move through, Enter choosing. **Use the guessed
+  icon** clears a choice. A choice waits in the bar as `schema.setEntityIcon` for a record type, or
+  `ui.setProperty` / `ui.removeProperty` of the screen's `icon`. Right-clicking a record type or a
+  screen in the navigation opens the same picker, and its choice opens straight in the review. A
+  record type whose name suggests no icon shows a box, and a screen the layout icon.
 - **Overrides.** `NENDO_DESKTOP_CLOSE_ACTION` makes its row read-only, and the row names it.
 - **A page in a browser** offers no window, tray or agent setting.

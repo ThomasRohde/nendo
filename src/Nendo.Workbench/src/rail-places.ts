@@ -2,7 +2,7 @@ import { refreshDerived } from './actions';
 import { leaveRecordContext, state } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { deferWhileBusy } from './busy-queue';
-import { fileViews, showsFileView, viewIcon } from './file-view-model';
+import { chosenEntityIcon, fileViews, showsFileView, viewGlyph } from './file-view-model';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon } from './icons';
 import { typeGlyph } from './type-icons';
@@ -27,8 +27,8 @@ function railPlaces(): RailPlace[] {
   const overview = overviewPlan();
   return [
     ...(overview === null ? [] : [{ value: 'overview', label: overviewTitle(overview), glyph: icon('home') }]),
-    ...fileViews().map((view) => ({ value: `view:${view.semanticId}`, label: viewTitle(view), glyph: icon(viewIcon(view)) })),
-    ...placePlans().map((plan) => ({ value: `type:${plan.entity.semanticId}`, label: plan.entity.displayName, glyph: typeGlyph(plan.entity.displayName) })),
+    ...fileViews().map((view) => ({ value: `view:${view.semanticId}`, label: viewTitle(view), glyph: viewGlyph(view) })),
+    ...placePlans().map((plan) => ({ value: `type:${plan.entity.semanticId}`, label: plan.entity.displayName, glyph: typeGlyph(plan.entity.displayName, chosenEntityIcon(plan.entity.semanticId)) })),
   ];
 }
 
@@ -85,4 +85,13 @@ list.addEventListener('click', (event) => {
   const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-rail-place]') : null;
   if (button === null || button.disabled) return;
   void openPlace(button.dataset.railPlace!);
+});
+
+// Right-click a record type or a screen, or press the context-menu key on it, to choose its icon (ADR-0038).
+list.addEventListener('contextmenu', (event) => {
+  const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-rail-place]') : null;
+  const value = button?.dataset.railPlace ?? '';
+  if (button === null || !(value.startsWith('type:') || value.startsWith('view:'))) return;
+  event.preventDefault();
+  void import('./view-settings').then(({ changeIconFromNavigation }) => changeIconFromNavigation(value.startsWith('type:') ? { entityId: value.slice('type:'.length) } : { nodeId: value.slice('view:'.length) }));
 });

@@ -1,0 +1,1180 @@
+{
+"source": "lucide-static 1.48.0 (ISC)","icons": [{
+"name": "file-text","group": "Writing","words": "data txt pdf document"
+},{
+"name": "file","group": "Writing","words": "document"
+},{
+"name": "folder","group": "Things","words": "directory"
+},{
+"name": "folder-open","group": "Things","words": "directory"
+},{
+"name": "calendar","group": "Time","words": "date month year event birthday birthdate"
+},{
+"name": "calendar-days","group": "Time","words": "date month year event"
+},{
+"name": "calendar-clock","group": "Time","words": "date day month year event clock hour"
+},{
+"name": "clock","group": "Time","words": "time watch alarm"
+},{
+"name": "user","group": "People","words": "person account contact"
+},{
+"name": "users","group": "People","words": "group people"
+},{
+"name": "user-round","group": "People","words": "person account contact"
+},{
+"name": "users-round","group": "People","words": "group people"
+},{
+"name": "mail","group": "Writing","words": "email message letter unread"
+},{
+"name": "book","group": "Places","words": "reading paperback booklet magazine leaflet pamphlet tome library writing written writer author story script fiction novel information knowledge education high school university college academy student study learning homework research documentation"
+},{
+"name": "book-open","group": "Places","words": "reading pages booklet magazine leaflet pamphlet library writing written writer author story script screenplay fiction novel information knowledge education high school university college academy student study learning homework research documentation revealed blank plain"
+},{
+"name": "map-pin","group": "Places","words": "location waypoint marker drop"
+},{
+"name": "map","group": "Places","words": "location navigation travel"
+},{
+"name": "monitor","group": "Media","words": "tv computer desktop screen display external display screen sharing virtual machine vm"
+},{
+"name": "smartphone","group": "Things","words": "phone cellphone device mobile screen display touchscreen portable responsive"
+},{
+"name": "tablet","group": "Things","words": "device mobile screen display touchscreen portable responsive"
+},{
+"name": "laptop","group": "Things","words": "computer screen remote"
+},{
+"name": "image","group": "Media","words": "picture photo"
+},{
+"name": "camera","group": "Media","words": "photography lens focus capture shot visual image device equipment photo webcam video"
+},{
+"name": "video","group": "Media","words": "camera movie film recording motion picture camcorder reel"
+},{
+"name": "music","group": "Writing","words": "note quaver eighth note"
+},{
+"name": "mic","group": "Media","words": "record sound listen radio podcast microphone"
+},{
+"name": "shield","group": "Things","words": "cybersecurity secure safety protection guardian armored armoured defense defence defender block threat prevention antivirus vigilance vigilant detection scan find strength strong tough invincible invincibility invulnerable undamaged audit admin verification crest bravery knight foot soldier infantry trooper pawn battle war military army cadet scout"
+},{
+"name": "lock","group": "Things","words": "security password secure admin"
+},{
+"name": "key","group": "Things","words": "password login authentication secure unlock keychain key ring fob"
+},{
+"name": "bell","group": "Time","words": "alarm notification sound reminder"
+},{
+"name": "heart","group": "People","words": "like love emotion suit playing cards"
+},{
+"name": "star","group": "Things","words": "bookmark favorite like review rating"
+},{
+"name": "bookmark","group": "Places","words": "save favorite mark label attachment file stick pin read clip marker tag"
+},{
+"name": "tag","group": "Things","words": "label badge ticket mark"
+},{
+"name": "ticket","group": "Time","words": "entry pass voucher event concert show perforated dashed"
+},{
+"name": "phone","group": "Things","words": "call"
+},{
+"name": "cloud","group": "Nature","words": "weather"
+},{
+"name": "database","group": "Things","words": "storage memory container tin pot bytes servers"
+},{
+"name": "server","group": "Nature","words": "cloud storage"
+},{
+"name": "hard-drive","group": "Things","words": "computer server memory data ssd disk hard disk storage hardware backup media"
+},{
+"name": "printer","group": "Work","words": "fax office device"
+},{
+"name": "archive","group": "Things","words": "index backup box storage records"
+},{
+"name": "package","group": "Things","words": "box container storage sealed delivery undelivered unopened packed archive zip module"
+},{
+"name": "box","group": "Things","words": "cube package container storage geometry 3d isometric"
+},{
+"name": "shopping-cart","group": "Places","words": "trolley cart basket e-commerce store purchase products items ingredients"
+},{
+"name": "shopping-bag","group": "Places","words": "ecommerce cart purchase store"
+},{
+"name": "wallet","group": "Work","words": "money finance pocket"
+},{
+"name": "banknote","group": "Work","words": "currency money payment"
+},{
+"name": "credit-card","group": "Work","words": "bank purchase payment cc"
+},{
+"name": "receipt","group": "Work","words": "bill voucher slip check counterfoil currency dollar usd $"
+},{
+"name": "badge","group": "Things","words": "check verified unverified"
+},{
+"name": "flag","group": "Places","words": "report marker notification warning milestone goal notice signal attention banner"
+},{
+"name": "globe","group": "Places","words": "world browser language translate"
+},{
+"name": "house","group": "Places","words": "home living building residence architecture"
+},{
+"name": "building","group": "Places","words": "organisation organization"
+},{
+"name": "store","group": "Places","words": "shop supermarket stand boutique building"
+},{
+"name": "school","group": "Places","words": "building education childhood university learning campus scholar student lecture degree course academia study knowledge classroom research diploma graduation professor tutorial homework assignment exam"
+},{
+"name": "hospital","group": "Places","words": "infirmary sanatorium healthcare doctor hospice clinic emergency room ward building medical vet"
+},{
+"name": "factory","group": "Places","words": "building business energy industry manufacture sector"
+},{
+"name": "car","group": "Things","words": "vehicle drive trip journey"
+},{
+"name": "bus","group": "Things","words": "bus vehicle transport trip"
+},{
+"name": "train-front","group": "Things","words": "railway metro subway underground high-speed bullet fast track line"
+},{
+"name": "plane","group": "Things","words": "plane trip airplane"
+},{
+"name": "ship","group": "Things","words": "boat knots nautical mile maritime sailing yacht cruise ocean liner tanker vessel navy trip releases"
+},{
+"name": "bike","group": "Things","words": "bicycle transport trip"
+},{
+"name": "truck","group": "Things","words": "delivery van shipping haulage lorry"
+},{
+"name": "rocket","group": "Things","words": "release boost launch space version"
+},{
+"name": "gift","group": "Things","words": "present box birthday party"
+},{
+"name": "cake","group": "Things","words": "birthday birthdate celebration party surprise gateaux dessert fondant icing sugar sweet baking"
+},{
+"name": "coffee","group": "Things","words": "drink cup mug tea cafe hot beverage"
+},{
+"name": "utensils","group": "Things","words": "fork knife cutlery flatware tableware silverware food restaurant meal breakfast dinner supper"
+},{
+"name": "wine","group": "Things","words": "alcohol beverage bar drink glass sommelier vineyard winery"
+},{
+"name": "beer","group": "Things","words": "alcohol bar beverage brewery drink"
+},{
+"name": "pizza","group": "Things","words": "pie quiche food"
+},{
+"name": "apple","group": "Nature","words": "fruit food healthy snack nutrition fresh produce grocery organic harvest vitamin red green juicy sweet tart bite orchard plant core raw diet"
+},{
+"name": "leaf","group": "Nature","words": "sustainability nature energy plant autumn"
+},{
+"name": "flower","group": "Nature","words": "sustainability nature plant spring"
+},{
+"name": "tree-pine","group": "Places","words": "tree pine forest park nature"
+},{
+"name": "trees","group": "Places","words": "tree forest park nature"
+},{
+"name": "sun","group": "Nature","words": "brightness weather light summer"
+},{
+"name": "moon","group": "Things","words": "dark night"
+},{
+"name": "snowflake","group": "Nature","words": "cold weather freeze snow winter"
+},{
+"name": "flame","group": "Nature","words": "heat burn light glow ignite passion ember fire lit burning spark embers smoke firefighter fireman department brigade station emergency"
+},{
+"name": "droplet","group": "Nature","words": "water weather liquid fluid wet moisture damp bead globule"
+},{
+"name": "zap","group": "Media","words": "flash camera lightning electricity energy power quick"
+},{
+"name": "lightbulb","group": "Work","words": "bright lights"
+},{
+"name": "gauge","group": "Things","words": "dashboard dial meter speed pressure measure level"
+},{
+"name": "activity","group": "People","words": "pulse action motion movement exercise fitness healthcare heart rate monitor vital signs vitals emergency room er intensive care hospital defibrillator earthquake seismic magnitude richter scale aftershock tremor shockwave audio waveform synthesizer synthesiser music"
+},{
+"name": "chart-bar","group": "Work","words": "statistics analytics diagram graph"
+},{
+"name": "chart-pie","group": "Work","words": "statistics analytics diagram presentation"
+},{
+"name": "chart-line","group": "Work","words": "statistics analytics diagram graph"
+},{
+"name": "target","group": "Time","words": "logo bullseye deadline projects overview work productivity"
+},{
+"name": "trophy","group": "Work","words": "prize sports winner achievement award champion celebration victory competition tournament leaderboard ranking success reward cup first gold"
+},{
+"name": "award","group": "Work","words": "achievement badge rosette prize winner"
+},{
+"name": "medal","group": "Work","words": "prize sports winner trophy award achievement"
+},{
+"name": "crown","group": "Things","words": "diadem tiara circlet corona king ruler winner favourite"
+},{
+"name": "gem","group": "Things","words": "diamond crystal ruby jewellery price special present gift ring wedding proposal marriage rubygems"
+},{
+"name": "wrench","group": "People","words": "account settings spanner diy toolbox build construction"
+},{
+"name": "hammer","group": "Work","words": "mallet nails diy toolbox build construction"
+},{
+"name": "drill","group": "Work","words": "power bit head hole diy toolbox build construction"
+},{
+"name": "ruler","group": "Things","words": "measurements centimeters cm millimeters mm metre foot feet inches units size length width height dimensions depth breadth extent stationery"
+},{
+"name": "scissors","group": "Things","words": "cut snip chop stationery crafts"
+},{
+"name": "paperclip","group": "Writing","words": "attachment file"
+},{
+"name": "pin","group": "Places","words": "save map lock fix"
+},{
+"name": "notebook","group": "Places","words": "notepad notes stationery sketchbook moleskine closure strap band elastic organizer organiser planner diary journal writing written writer reading high school university college academy student study homework research"
+},{
+"name": "notebook-pen","group": "Places","words": "pencil notepad notes noted stationery sketchbook organizer organiser planner diary journal writing write written reading high school university college academy student study research homework eraser rubber"
+},{
+"name": "clipboard-list","group": "Things","words": "copy paste tasks"
+},{
+"name": "clipboard-check","group": "Work","words": "copied pasted done todo tick complete task"
+},{
+"name": "sticky-note","group": "Work","words": "post-it comment annotation reaction memo reminder todo task brainstorm document page paper sheet stationary office"
+},{
+"name": "newspaper","group": "Places","words": "news feed home magazine article headline"
+},{
+"name": "library","group": "Places","words": "books reading written authors stories fiction novels information knowledge education high school university college academy learning study research collection vinyl records albums music package"
+},{
+"name": "graduation-cap","group": "Places","words": "school university learn study mortarboard education ceremony academic hat diploma bachelor's master's doctorate"
+},{
+"name": "brain","group": "Things","words": "medical mind mental intellect cerebral consciousness genius artificial intelligence ai think thought insight intelligent smart"
+},{
+"name": "bot","group": "Writing","words": "robot ai chat assistant"
+},{
+"name": "cpu","group": "Things","words": "processor cores technology computer chip circuit memory ram specs gigahertz ghz"
+},{
+"name": "microscope","group": "Things","words": "medical education science imaging research"
+},{
+"name": "flask-conical","group": "Things","words": "beaker erlenmeyer lab chemistry experiment test"
+},{
+"name": "test-tube","group": "Things","words": "tube vial phial flask ampoule ampule lab chemistry experiment test"
+},{
+"name": "atom","group": "Things","words": "atomic nuclear physics particle element molecule electricity energy chemistry"
+},{
+"name": "dna","group": "Things","words": "gene gmo helix heredity chromosome nucleic acid"
+},{
+"name": "pill","group": "Things","words": "medicine medication drug prescription tablet pharmacy"
+},{
+"name": "stethoscope","group": "People","words": "phonendoscope medical heart lungs sound"
+},{
+"name": "syringe","group": "Things","words": "medicine medical needle pump plunger nozzle blood"
+},{
+"name": "bandage","group": "Things","words": "plaster band-aid first aid medical health wound injury care treatment healing protection emergency aid safety patch"
+},{
+"name": "dumbbell","group": "Things","words": "barbell weight workout gym"
+},{
+"name": "bed","group": "Things","words": "sleep hotel furniture"
+},{
+"name": "bath","group": "Things","words": "amenities services bathroom shower"
+},{
+"name": "sofa","group": "Things","words": "armchair furniture leisure lounge loveseat couch"
+},{
+"name": "lamp","group": "Places","words": "lighting household home furniture"
+},{
+"name": "door-open","group": "Things","words": "entrance entry exit ingress egress gate gateway emergency exit"
+},{
+"name": "tent","group": "Places","words": "tipi teepee wigwam lodge camping campsite holiday retreat nomadic native american indian wilderness outdoors"
+},{
+"name": "mountain","group": "Places","words": "climb hike rock"
+},{
+"name": "compass","group": "Places","words": "direction north east south west browser"
+},{
+"name": "route","group": "Things","words": "path journey planner points stops stations"
+},{
+"name": "milestone","group": "Things","words": "signpost direction right east forward version control waypoint"
+},{
+"name": "signpost","group": "Places","words": "navigation direction arrow wayfinding guide location pointer route indicator marker bidirectional left right east west"
+},{
+"name": "landmark","group": "Places","words": "bank building capitol finance money museum art gallery hall institute pediment portico doric columns pillars classical architecture government institution monument site history historic library temple ancient structure"
+},{
+"name": "church","group": "Places","words": "temple building"
+},{
+"name": "castle","group": "Places","words": "fortress stronghold palace chateau building"
+},{
+"name": "warehouse","group": "Places","words": "storage storehouse depot depository repository stockroom logistics building"
+},{
+"name": "briefcase","group": "Work","words": "work bag baggage folder"
+},{
+"name": "presentation","group": "Places","words": "screen whiteboard marker pens markers blackboard chalk easel school learning lesson office meeting project planning"
+},{
+"name": "calculator","group": "Things","words": "count calculating machine"
+},{
+"name": "scale","group": "Work","words": "balance legal license right rule law justice weight measure compare judge fair ethics"
+},{
+"name": "gavel","group": "Work","words": "justice law court judgment legal hands penalty authority hammer mallet"
+},{
+"name": "handshake","group": "Work","words": "agreement partnership deal business assistance cooperation friendship union terms"
+},{
+"name": "contact","group": "People","words": "user person family friend acquaintance listing networking"
+},{
+"name": "id-card","group": "Things","words": "card badge identity authentication secure"
+},{
+"name": "baby","group": "People","words": "child childproof children"
+},{
+"name": "dog","group": "Nature","words": "animal pet puppy hound canine"
+},{
+"name": "cat","group": "Nature","words": "animal pet kitten feline"
+},{
+"name": "bird","group": "Nature","words": "peace freedom wing avian tweet"
+},{
+"name": "fish","group": "Nature","words": "dish restaurant course meal seafood pet sea marine"
+},{
+"name": "bug","group": "Work","words": "issue error defect testing troubleshoot problem report debug code insect beetle"
+},{
+"name": "rabbit","group": "Nature","words": "animal rodent pet pest bunny hare fast speed hop"
+},{
+"name": "turtle","group": "Nature","words": "animal pet tortoise slow speed"
+},{
+"name": "squirrel","group": "Nature","words": "animal rodent pet pest nuts retrieve updates storage stash"
+},{
+"name": "paw-print","group": "Nature","words": "pets vets veterinarian domesticated cat dog bear"
+},{
+"name": "bone","group": "Nature","words": "health skeleton skull death pets dog"
+},{
+"name": "egg","group": "Nature","words": "bird chicken nest hatch shell incubate soft boiled hard breakfast brunch morning easter"
+},{
+"name": "carrot","group": "Nature","words": "orange healthy nature fresh root produce organic nutrition vegetable food eat"
+},{
+"name": "cherry","group": "Things","words": "fruit food"
+},{
+"name": "citrus","group": "Things","words": "lemon orange grapefruit fruit"
+},{
+"name": "grape","group": "Things","words": "fruit wine food"
+},{
+"name": "banana","group": "Things","words": "fruit food"
+},{
+"name": "sandwich","group": "Things","words": "food snack dish restaurant lunch meal"
+},{
+"name": "soup","group": "Things","words": "food dish restaurant course meal bowl starter"
+},{
+"name": "salad","group": "Things","words": "food vegetarian dish restaurant course meal side vegetables health"
+},{
+"name": "cookie","group": "Things","words": "biscuit snack dessert food sweet bakery consent privacy legal tracking browser website"
+},{
+"name": "croissant","group": "Things","words": "bakery cooking food pastry"
+},{
+"name": "ice-cream-cone","group": "Things","words": "gelato food"
+},{
+"name": "candy","group": "Things","words": "sugar food sweet"
+},{
+"name": "popcorn","group": "Things","words": "cinema movies films salted sweet sugar candy snack"
+},{
+"name": "milk","group": "Nature","words": "lactose bottle beverage drink water diet"
+},{
+"name": "cup-soda","group": "Nature","words": "beverage cup drink soda straw water"
+},{
+"name": "martini","group": "Things","words": "cocktail alcohol beverage bar drink glass spirit party celebration mixer"
+},{
+"name": "guitar","group": "Places","words": "acoustic instrument strings riff rock band country concert performance play lead loud music audio sound noise"
+},{
+"name": "piano","group": "Writing","words": "music audio sound noise notes chord keys octave acoustic instrument play pianist performance concert"
+},{
+"name": "drum","group": "Media","words": "drummer kit sticks instrument beat bang bass backing track band play performance concert march music audio sound noise loud"
+},{
+"name": "headphones","group": "Media","words": "music audio sound"
+},{
+"name": "radio","group": "Media","words": "signal broadcast connectivity live frequency"
+},{
+"name": "tv","group": "Media","words": "television stream display widescreen high-definition hd 1080p 4k 8k smart digital video entertainment showtime channels terrestrial satellite cable broadcast live frequency tune scan aerial receiver transmission signal connection connectivity"
+},{
+"name": "film","group": "Media","words": "movie video reel camera cinema entertainment"
+},{
+"name": "clapperboard","group": "Media","words": "movie film video camera cinema cut action television tv show entertainment"
+},{
+"name": "gamepad-2","group": "Things","words": "console"
+},{
+"name": "dice-5","group": "Media","words": "dice random tabletop 5 board game"
+},{
+"name": "puzzle","group": "Things","words": "component module part piece"
+},{
+"name": "palette","group": "Media","words": "colors colours theme scheme paint watercolor watercolour artist"
+},{
+"name": "brush","group": "Media","words": "clean sweep refactor remove draw paint color artist"
+},{
+"name": "paintbrush","group": "Things","words": "brush paintbrush design color colour decoration diy"
+},{
+"name": "shirt","group": "Places","words": "t-shirt shopping store clothing clothes"
+},{
+"name": "glasses","group": "Things","words": "glasses spectacles"
+},{
+"name": "watch","group": "Time","words": "clock time"
+},{
+"name": "umbrella","group": "Nature","words": "rain weather"
+},{
+"name": "anchor","group": "Things","words": "ship"
+},{
+"name": "sailboat","group": "Things","words": "ship boat harbor harbour dock"
+},{
+"name": "ambulance","group": "Things","words": "ambulance emergency medical vehicle siren healthcare transportation rescue urgent first aid"
+},{
+"name": "siren","group": "Time","words": "police ambulance emergency security alert alarm light"
+},{
+"name": "traffic-cone","group": "Things","words": "roadworks tarmac safety block"
+},{
+"name": "construction","group": "Work","words": "roadwork maintenance blockade barricade"
+},{
+"name": "fuel","group": "Things","words": "filling-station gas petrol tank"
+},{
+"name": "sprout","group": "Nature","words": "eco green growth leaf nature plant seed spring sustainability"
+},{
+"name": "shell","group": "Things","words": "beach sand holiday sealife fossil ammonite biology ocean terminal command line session bash zsh roll wrap chewing gum bubble gum sweet sugar hosepipe carpet string spiral spinner hypnotise hypnosis"
+},{
+"name": "feather","group": "Writing","words": "quill plume writing author literature poetry manuscript bird plumage lightweight soft"
+},{
+"name": "bean","group": "Things","words": "legume soy food seed"
+},{
+"name": "wheat","group": "Things","words": "corn cereal grain gluten"
+},{
+"name": "hourglass","group": "Time","words": "timer time sandglass"
+},{
+"name": "alarm-clock","group": "Time","words": "morning"
+},{
+"name": "timer","group": "Time","words": "time timer stopwatch"
+},{
+"name": "square-check-big","group": "Work","words": "done todo tick complete task"
+},{
+"name": "list-checks","group": "Work","words": "todo done check tick complete tasks items pending"
+},{
+"name": "list-todo","group": "Work","words": "todo done check tick complete tasks items pending"
+},{
+"name": "kanban","group": "Work","words": "projects manage overview board tickets issues roadmap plan intentions productivity work agile code coding"
+},{
+"name": "layout-grid","group": "Places","words": "app home start"
+},{
+"name": "layout-dashboard","group": "Things","words": "masonry brick"
+},{
+"name": "layout-list","group": "Work","words": "todo tasks items pending image photo"
+},{
+"name": "layout-template","group": "Things","words": "window webpage block section"
+},{
+"name": "table-properties","group": "Things","words": "property list plist spreadsheet grid dictionary object hash"
+},{
+"name": "calendar-range","group": "Time","words": "date day month year event range period"
+},{
+"name": "chart-gantt","group": "Work","words": "diagram graph timeline planning"
+},{
+"name": "chart-no-axes-column","group": "Work","words": "statistics analytics diagram graph"
+},{
+"name": "network","group": "Places","words": "tree"
+},{
+"name": "git-fork","group": "Things","words": "code version control"
+},{
+"name": "workflow","group": "Things","words": "action continuous integration ci automation devops network node connection"
+},{
+"name": "circle-dot","group": "Work","words": "pending dot progress issue code coding version control choices multiple choice choose album music songs format cd dvd vinyl sleeve cover platinum compilation ep recording playback spin rotate rpm dj"
+},{
+"name": "message-square","group": "Writing","words": "comment chat conversation dialog feedback speech bubble"
+},{
+"name": "message-circle","group": "Writing","words": "comment chat conversation dialog feedback speech bubble"
+},{
+"name": "messages-square","group": "Writing","words": "comment chat conversation dialog feedback speech bubbles copy multiple discussion interview debate"
+},{
+"name": "mail-open","group": "Writing","words": "email message letter read"
+},{
+"name": "inbox","group": "Things","words": "email"
+},{
+"name": "send","group": "Writing","words": "email message mail paper airplane paper aeroplane submit"
+},{
+"name": "megaphone","group": "Things","words": "advertisement announcement attention alert loudspeaker megaphone notification"
+},{
+"name": "quote","group": "Writing","words": "quotation"
+},{
+"name": "scroll-text","group": "Writing","words": "paper log scripture document notes parchment list long script story code coding"
+},{
+"name": "pen-line","group": "Writing","words": "pencil change create draw writer writing biro ink marker felt tip stationery artist"
+},{
+"name": "file-pen","group": "Writing","words": "signature"
+},{
+"name": "square-pen","group": "Writing","words": "pencil edit change create draw sketch draft writer writing biro ink marker felt tip stationery artist"
+},{
+"name": "pencil","group": "Writing","words": "rubber edit create draw sketch draft writer writing stationery artist"
+},{
+"name": "highlighter","group": "Writing","words": "mark text"
+},{
+"name": "languages","group": "Things","words": "translate"
+},{
+"name": "mic-vocal","group": "Media","words": "lyrics voice listen sound music radio podcast karaoke singing microphone"
+},{
+"name": "image-play","group": "Media","words": "picture gif photo"
+},{
+"name": "images","group": "Media","words": "picture photo multiple copy gallery album collection slideshow showcase"
+},{
+"name": "gallery-horizontal","group": "Writing","words": "carousel pictures images scroll swipe album portfolio"
+},{
+"name": "frame","group": "Work","words": "logo design tool"
+},{
+"name": "component","group": "People","words": "design element group module part symbol"
+},{
+"name": "shapes","group": "Things","words": "triangle equilateral square circle classification different collection toy blocks learning"
+},{
+"name": "boxes","group": "People","words": "cubes packages parts group units collection cluster geometry"
+},{
+"name": "container","group": "Things","words": "storage shipping freight supply chain environment devops code coding"
+},{
+"name": "layers","group": "Things","words": "stack pile pages sheets paperwork copies copy"
+},{
+"name": "blocks","group": "Things","words": "addon plugin integration extension package build stack toys kids children learning squares corner"
+},{
+"name": "sparkles","group": "Things","words": "stars effect filter night magic"
+},{
+"name": "wand","group": "Things","words": "magic selection"
+},{
+"name": "heart-pulse","group": "People","words": "heartbeat pulse health medical blood pressure cardiac systole diastole"
+},{
+"name": "brain-circuit","group": "Things","words": "mind intellect artificial intelligence ai deep learning machine learning computing"
+},{
+"name": "infinity","group": "Things","words": "unlimited forever loop math"
+},{
+"name": "scale-3d","group": "Things","words": "gizmo transform size axis"
+},{
+"name": "swatch-book","group": "Writing","words": "colors colours swatches pantone shades tint hue saturation brightness theme scheme palette samples textile carpet"
+},{
+"name": "pencil-ruler","group": "Writing","words": "edit create draw sketch draft writer writing stationery artist measurements centimeters cm millimeters mm metre foot feet inches units size length width height dimensions depth breadth extent"
+},{
+"name": "land-plot","group": "Places","words": "area surface square metres allotment parcel property plane acres measure distance isometric flag golf course hole"
+},{
+"name": "map-pinned","group": "Places","words": "location waypoint marker drop"
+},{
+"name": "locate-fixed","group": "Places","words": "map gps location cross"
+},{
+"name": "earth","group": "Places","words": "world browser language translate globe"
+},{
+"name": "mountain-snow","group": "Places","words": "alpine climb snow"
+},{
+"name": "cloud-sun","group": "Nature","words": "weather partly"
+},{
+"name": "thermometer","group": "Nature","words": "temperature celsius fahrenheit weather"
+},{
+"name": "wind","group": "Nature","words": "weather air blow"
+},{
+"name": "rainbow","group": "Things","words": "colors colours spectrum light prism arc clear sunshine"
+},{
+"name": "leafy-green","group": "Things","words": "salad lettuce vegetable chard cabbage bok choy"
+},{
+"name": "flower-2","group": "Nature","words": "sustainability nature plant"
+},{
+"name": "clover","group": "Nature","words": "leaf luck plant"
+},{
+"name": "tree-deciduous","group": "Places","words": "tree forest park nature"
+},{
+"name": "user-check","group": "People","words": "followed subscribed done todo tick complete task"
+},{
+"name": "user-cog","group": "People","words": "settings edit cog gear"
+},{
+"name": "user-search","group": "People","words": "person account contact find scan magnifier magnifying glass lens"
+},{
+"name": "contact-round","group": "People","words": "user person family friend acquaintance listing networking"
+},{
+"name": "badge-check","group": "Things","words": "verified check"
+},{
+"name": "circle-user","group": "People","words": "person account contact"
+},{
+"name": "person-standing","group": "People","words": "people human accessibility stick figure"
+},{
+"name": "accessibility","group": "Things","words": "disability disabled dda wheelchair"
+},{
+"name": "hand-heart","group": "People","words": "love like emotion"
+},{
+"name": "heart-handshake","group": "People","words": "agreement charity help deal terms emotion together handshake"
+},{
+"name": "party-popper","group": "Things","words": "emoji congratulations celebration party tada 🎉 🎊 excitement exciting excites confetti"
+},{
+"name": "cake-slice","group": "Things","words": "birthday birthdate celebration party surprise gateaux dessert candles wish fondant icing sugar sweet baking"
+},{
+"name": "tickets","group": "Places","words": "trip travel pass entry voucher event concert show perforated dashed"
+},{
+"name": "plane-takeoff","group": "Things","words": "departure plane trip airplane takeoff"
+},{
+"name": "luggage","group": "Places","words": "baggage luggage travel suitcase"
+},{
+"name": "hotel","group": "Places","words": "building hostel motel inn"
+},{
+"name": "bed-double","group": "Things","words": "sleep hotel furniture"
+},{
+"name": "car-front","group": "Things","words": "vehicle drive trip journey"
+},{
+"name": "footprints","group": "Things","words": "steps walking foot feet trail shoe"
+},{
+"name": "ad","group": "Media","words": "advert affiliate brand campaign commercial marketing monetize paid partner promo sponsor audio description video description described video visual description"
+},{
+"name": "air-vent","group": "Things","words": "air conditioner ac central air cooling climate-control"
+},{
+"name": "alarm-smoke","group": "Time","words": "fire alert warning detector carbon monoxide safety equipment amenities"
+},{
+"name": "amphora","group": "Things","words": "pottery artifact artefact vase ceramics clay archaeology museum wine oil"
+},{
+"name": "antenna","group": "Media","words": "signal connection connectivity tv television broadcast live frequency tune scan channels aerial receiver transmission transducer terrestrial satellite cable"
+},{
+"name": "anvil","group": "Things","words": "metal iron alloy materials heavy weight blacksmith forge acme"
+},{
+"name": "aperture","group": "Media","words": "camera photo pictures shutter exposure"
+},{
+"name": "armchair","group": "Things","words": "sofa furniture leisure lounge loveseat couch"
+},{
+"name": "audio-lines","group": "Media","words": "graphic equaliser sound noise listen hearing hertz frequency wavelength vibrate sine synthesizer synthesiser levels track music playback radio broadcast airwaves voice vocals singer song"
+},{
+"name": "audio-waveform","group": "Media","words": "sound noise listen hearing hertz frequency wavelength vibrate sine synthesizer synthesiser levels track music playback radio broadcast airwaves voice vocals singer song"
+},{
+"name": "axe","group": "Things","words": "hatchet weapon chop sharp equipment fireman firefighter brigade lumberjack woodcutter logger forestry"
+},{
+"name": "backpack","group": "Places","words": "bag hiking travel camping school childhood"
+},{
+"name": "baggage-claim","group": "Places","words": "baggage luggage travel cart trolley suitcase"
+},{
+"name": "balloon","group": "Time","words": "party festival congratulations celebration decoration colorful floating fun birthday event entertainment"
+},{
+"name": "ban","group": "Things","words": "cancel no stop forbidden prohibited error incorrect mistake wrong failure circle slash null void"
+},{
+"name": "barcode","group": "Things","words": "scan checkout till cart transaction purchase buy product packaging retail consumer"
+},{
+"name": "barrel","group": "Things","words": "keg drum tank wine beer oak wood firkin hogshead kilderkin barrique solera aging whiskey brewery distillery winery vineyard"
+},{
+"name": "beaker","group": "Things","words": "cup lab chemistry experiment test"
+},{
+"name": "beef","group": "Things","words": "food dish restaurant course meal meat bbq steak"
+},{
+"name": "biceps-flexed","group": "Things","words": "arm muscle strong working out athletic toned muscular forelimb curled"
+},{
+"name": "binoculars","group": "Places","words": "field glasses lorgnette pince-nez observation sightseeing nature wildlife birdwatching scouting surveillance search discovery monitoring lookout viewpoint travel tourism research"
+},{
+"name": "biohazard","group": "Things","words": "fallout waste biology chemistry chemical element"
+},{
+"name": "birdhouse","group": "Places","words": "birdhouse bird garden home house woodwork"
+},{
+"name": "bitcoin","group": "Work","words": "cryptocurrency digital blockchain finance coin market decentralized investment crypto currency money payment"
+},{
+"name": "blinds","group": "Places","words": "shades screen curtain shutter roller blind window lighting household home"
+},{
+"name": "bolt","group": "Work","words": "nut screw settings preferences configuration controls edit diy fixed build construction parts"
+},{
+"name": "boom-box","group": "Media","words": "radio speakers audio music sound broadcast live frequency"
+},{
+"name": "bottle-wine","group": "Things","words": "alcohol drink glass goblet chalice vineyard winery red white rose dry sparkling bar party nightclub nightlife sommelier restaurant dinner meal"
+},{
+"name": "bow-arrow","group": "Media","words": "archer archery game war weapon"
+},{
+"name": "brick-wall","group": "Work","words": "bricks mortar cement materials construction builder labourer quantity surveyor blocks stone"
+},{
+"name": "brick-wall-fire","group": "Work","words": "firewall security bricks mortar cement materials construction builder labourer quantity surveyor blocks stone campfire camping wilderness outdoors lit warmth wood twigs sticks"
+},{
+"name": "brick-wall-shield","group": "Work","words": "firewall security bricks mortar cement materials construction builder labourer quantity surveyor blocks stone cybersecurity secure safety protection guardian armored armoured defense defence defender block threat prevention antivirus vigilance vigilant detection scan find strength strong tough invincible invincibility invulnerable undamaged audit admin verification crest bravery knight foot soldier infantry trooper pawn battle war military army cadet scout"
+},{
+"name": "bridge","group": "Places","words": "overpass cross over traverse viaduct suspension infrastructure transportation crossing road river gate golden travel landmark route maritime clearance"
+},{
+"name": "broccoli","group": "Nature","words": "leafy crisp fresh culinary vegetation vegetable food healthy vegan vegetarian nutrition diet plant green produce"
+},{
+"name": "broom","group": "Things","words": "broomstick brush sweep sweeping floor cleaning housekeeping chores tidy spotless dust debris bristles handle janitor maintenance witch halloween"
+},{
+"name": "broom-sparkles","group": "Things","words": "broomstick brush sweep sweeping floor cleaning ai magic sparkle smart automation housekeeping chores tidy spotless pristine dust debris bristles handle janitor maintenance witch halloween"
+},{
+"name": "bubbles","group": "Nature","words": "water cleaning soap bath hygiene freshness wash foam cleanliness shampoo purity splash lightness airy relaxation spa bubbly fluid floating drop"
+},{
+"name": "calendars","group": "Time","words": "date month year event dates months years events"
+},{
+"name": "can","group": "Things","words": "food storage groceries tin metal recyclable container pantry grocery preserved"
+},{
+"name": "can-soda","group": "Things","words": "beverage drink food soda tin beer alcohol waste"
+},{
+"name": "cannabis","group": "Nature","words": "cannabis weed leaf"
+},{
+"name": "caravan","group": "Places","words": "trailer tow camping campsite mobile home holiday nomadic wilderness outdoors"
+},{
+"name": "card-sim","group": "Writing","words": "cellphone smartphone mobile network cellular service provider signal coverage disk data format storage flash digital contacts phone book contractual circuit board chip"
+},{
+"name": "carton","group": "Things","words": "milk dairy beverage drink diet lactose liquid liter litre pint pints pasteurized skim skimmed container packaging grocery juice cream cow"
+},{
+"name": "cassette-tape","group": "Media","words": "audio music recording play"
+},{
+"name": "cctv","group": "Media","words": "camera surveillance recording film videotape crime watching"
+},{
+"name": "chef-hat","group": "Things","words": "cooking food kitchen restaurant"
+},{
+"name": "chess-bishop","group": "Media","words": "mitre miter piece board game religion"
+},{
+"name": "chess-king","group": "Media","words": "ruler crown piece board game stalemate"
+},{
+"name": "chess-knight","group": "Media","words": "piece horse board game"
+},{
+"name": "chess-pawn","group": "Media","words": "piece board game"
+},{
+"name": "chess-queen","group": "Media","words": "ruler crown piece board game stalemate"
+},{
+"name": "chess-rook","group": "Media","words": "castle piece board game"
+},{
+"name": "circuit-board","group": "Things","words": "computing electricity electronics"
+},{
+"name": "clef-alto","group": "Writing","words": "do c music note key soprano mezzo alto staff pitch baritone major scale"
+},{
+"name": "clef-bass","group": "Writing","words": "fa f music note key baritone staff pitch bass subbass major scale"
+},{
+"name": "clef-treble","group": "Writing","words": "sol g music note key treble staff pitch violin solfege major scale"
+},{
+"name": "clipboard","group": "Things","words": "copy paste"
+},{
+"name": "closed-caption","group": "Media","words": "tv movie video closed captions subtitles subhead transcription transcribe dialogue accessibility"
+},{
+"name": "cloudy","group": "Nature","words": "weather clouds"
+},{
+"name": "club","group": "Things","words": "shape suit playing cards"
+},{
+"name": "cog","group": "Work","words": "computing settings cog edit gear preferences controls configuration fixed build construction parts"
+},{
+"name": "coins","group": "Work","words": "money cash finance gamble"
+},{
+"name": "computer","group": "Things","words": "pc chassis codespaces"
+},{
+"name": "concierge-bell","group": "Things","words": "reception bell porter"
+},{
+"name": "cooking-pot","group": "Things","words": "pod cooking recipe food kitchen chef restaurant dinner lunch breakfast meal eat"
+},{
+"name": "cross","group": "Things","words": "healthcare first aid"
+},{
+"name": "crosshair","group": "Work","words": "aim target"
+},{
+"name": "cupcake","group": "Things","words": "cake dessert food celebration sweet baking cooking"
+},{
+"name": "currency","group": "Work","words": "finance money"
+},{
+"name": "dam","group": "Nature","words": "electricity energy water"
+},{
+"name": "dessert","group": "Things","words": "pudding christmas xmas custard iced bun icing fondant cake ice cream gelato sundae scoop dollop sugar food sweet"
+},{
+"name": "dices","group": "Media","words": "dice random tabletop board game"
+},{
+"name": "disc","group": "Media","words": "album music songs format cd dvd vinyl sleeve cover platinum compilation ep recording playback spin rotate rpm dj"
+},{
+"name": "disc-album","group": "Media","words": "album music songs format cd dvd vinyl sleeve cover platinum compilation ep recording playback spin rotate rpm dj"
+},{
+"name": "dome","group": "Places","words": "roof cupola rotunda shelter building architecture structure church christian orthodox byzantine cathedral basilica chapel monument landmark museum observatory heritage"
+},{
+"name": "donut","group": "Things","words": "doughnut sprinkles topping fast food junk food snack treat sweet sugar dessert hollow ring"
+},{
+"name": "drafting-compass","group": "Places","words": "geometry trigonometry radius diameter circumference calculate measure arc curve draw sketch"
+},{
+"name": "drama","group": "Things","words": "drama masks theater theatre entertainment show"
+},{
+"name": "drone","group": "Things","words": "quadcopter uav aerial flight flying technology airborne robotics"
+},{
+"name": "droplets","group": "Nature","words": "water weather liquid fluid wet moisture damp bead globule"
+},{
+"name": "drumstick","group": "Things","words": "food chicken meat"
+},{
+"name": "ear","group": "Media","words": "hearing noise audio accessibility"
+},{
+"name": "eclipse","group": "Time","words": "lunar solar crescent moon sun earth day night planet space mode dark light toggle switch color css styles display accessibility contrast brightness blend shade"
+},{
+"name": "engine","group": "Things","words": "vehicle power energy drive repair car motor mechanical diagnostics maintenance warning dashboard parts"
+},{
+"name": "ethernet-port","group": "Things","words": "internet network connection cable lan port router switch hub modem web online networking communication socket plug slot controller connector interface console signal data input output"
+},{
+"name": "ev-charger","group": "Things","words": "electric charger station vehicle fast plug ev power electricity energy accumulator charge"
+},{
+"name": "eye-dashed","group": "Time","words": "view watch see hide conceal mask hidden invisible visibility vision"
+},{
+"name": "face-angry","group": "People","words": "anger rage fury resentment irritation disgust emoji emotion"
+},{
+"name": "face-expressionless","group": "People","words": "nuisance annoyed annoyance frustration emoji emotion"
+},{
+"name": "face-grinning","group": "People","words": "happy happiness good laugh broad smile pleasure good cheer humour funny emoji emotion"
+},{
+"name": "face-neutral","group": "People","words": "emoji neutral emotion meh blank stare social masking irritation concern deadpan"
+},{
+"name": "face-slightly-frowning","group": "People","words": "emoji bad sadness emotion concern disappointment"
+},{
+"name": "face-slightly-smiling","group": "People","words": "smile happy happiness good positive friendly patronizing passive aggressive ironic emoji emotion"
+},{
+"name": "fan","group": "Things","words": "air cooler ventilation ventilator blower"
+},{
+"name": "faucet","group": "Nature","words": "tap spigot water drinking fresh source pipes plumbing plumber sink basin kitchen bathroom washroom fixture valve flow drinkable potable amenities utilities hydration"
+},{
+"name": "fence","group": "Nature","words": "picket panels woodwork diy materials suburban garden property territory"
+},{
+"name": "ferris-wheel","group": "Things","words": "big wheel daisy wheel observation attraction entertainment amusement park theme park funfair"
+},{
+"name": "files","group": "Things","words": "multiple copy documents"
+},{
+"name": "fingerprint-pattern","group": "Things","words": "2fa authentication biometric identity security"
+},{
+"name": "fishing-hook","group": "Places","words": "sea boating angler bait reel tackle marine outdoors fish fishing hook sports travel"
+},{
+"name": "fishing-rod","group": "Things","words": "fishing rod hobby equipment reel"
+},{
+"name": "flashlight","group": "Work","words": "torch light beam emergency safety tool bright"
+},{
+"name": "forklift","group": "Places","words": "machinery industrial warehouse lifting storage equipment heavy-duty moving vehicle transport logistics"
+},{
+"name": "form","group": "Writing","words": "document page file layout paper stub formality structure template inputs design components"
+},{
+"name": "galaxy","group": "Things","words": "astronomy space stars cosmos universe spiral milky way nebula cosmology interstellar celestial constellation stargazing spaceflight"
+},{
+"name": "gallery-horizontal-end","group": "Time","words": "carousel pictures images scroll swipe album portfolio history versions backup time machine"
+},{
+"name": "gallery-thumbnails","group": "Media","words": "carousel pictures images album portfolio preview"
+},{
+"name": "gallery-vertical-end","group": "Time","words": "carousel pictures images scroll swipe album portfolio history versions backup time machine"
+},{
+"name": "gamepad","group": "Things","words": "console"
+},{
+"name": "georgian-lari","group": "Work","words": "currency money payment"
+},{
+"name": "germ","group": "Things","words": "virus microbe bacterium bacteria germ organism cilia pathogen infection disease contagion contamination microbiology health medicine biology science microorganism pandemic epidemic outbreak amoeba flu security single cell unicellular vaccine immunity quarantine"
+},{
+"name": "ghost","group": "Things","words": "spirit haunt specter apparition wraith shade phantom entity shadow silhouette pac-man spooky halloween haunted invisible hidden empty dead obsolete outdated"
+},{
+"name": "goal","group": "Places","words": "flag bullseye"
+},{
+"name": "gpu","group": "Media","words": "processor cores technology computer chip circuit specs graphics processing unit video card display adapter gddr rendering digital image processing crypto mining"
+},{
+"name": "ham","group": "Things","words": "food pork pig meat bone hock knuckle gammon cured"
+},{
+"name": "hamburger","group": "Things","words": "burger cheeseburger meat beef patty bun fast food junk food takeaway takeout snack dish restaurant lunch meal savory savoury cookery cooking grilled barbecue barbeque bbq lettuce tomato relish pickles onions ketchup mustard mayonnaise"
+},{
+"name": "hand-coins","group": "People","words": "savings banking money finance offers mortgage payment received wage payroll allowance pocket money handout pennies"
+},{
+"name": "hand-fist","group": "People","words": "clench strength power unity solidarity rebellion victory triumph support fight combat brawl"
+},{
+"name": "hand-grab","group": "People","words": "hand"
+},{
+"name": "hand-helping","group": "People","words": "agreement help proposal charity begging terms"
+},{
+"name": "hand-metal","group": "People","words": "rock"
+},{
+"name": "hand-platter","group": "People","words": "waiter waitress restaurant table service served dinner dining meal course luxury"
+},{
+"name": "handbag","group": "Places","words": "bag baggage carry clutch fashion luggage purse tote travel"
+},{
+"name": "hard-hat","group": "Work","words": "helmet construction safety"
+},{
+"name": "hat-glasses","group": "Things","words": "incognito disguise costume masked anonymous anonymity privacy private browsing stealth hidden undercover cloak invisible ghost spy agent detective identity cap fedora spectacles shades sunglasses eyewear"
+},{
+"name": "haze","group": "Things","words": "mist fog"
+},{
+"name": "hd","group": "Media","words": "tv resolution video high definition 720p 1080p"
+},{
+"name": "headset","group": "Media","words": "music audio sound gaming headphones headset call center phone telephone voip video"
+},{
+"name": "heater","group": "Nature","words": "heating warmth comfort fire stove electric electronics amenities"
+},{
+"name": "helicopter","group": "Things","words": "transport flying rotor aviation helipad gear flyer technology helicopter aircraft vehicle"
+},{
+"name": "hop","group": "Things","words": "beer brewery drink"
+},{
+"name": "houses","group": "Things","words": "homes housing estate living buildings development residences residential village neighbourhood accommodation community dwellings architecture"
+},{
+"name": "iv-bag","group": "Things","words": "intravenous therapy infusion medicine medication treatment healthcare hydration vitamin supplement blood donation chemotherapy clinic feeding tube administration health regeneration"
+},{
+"name": "joystick","group": "Media","words": "game console control stick"
+},{
+"name": "kayak","group": "Nature","words": "kayak boat paddle water sport recreation adventure outdoors equipment lake ocean"
+},{
+"name": "lambda","group": "Nature","words": "greek symbol math function programming serverless anonymous functional cloud wavelength calculus linear algebra"
+},{
+"name": "lectern","group": "Things","words": "pulpit podium stand"
+},{
+"name": "lens-concave","group": "Things","words": "concave lens optics light magnification curved focus refraction science physics eyeglass telescope microscope"
+},{
+"name": "lens-convex","group": "Things","words": "convex lens optics magnification focus light refraction physics eyeglass telescope microscope curved science"
+},{
+"name": "life-buoy","group": "Things","words": "preserver life belt lifesaver help rescue ship ring raft inflatable wheel donut"
+},{
+"name": "lighthouse","group": "Places","words": "lighthouse beacon coast navigation tower sea ocean maritime guide safety light shine port marine faro signal nautical harbor shore lightbeam wayfinding guidance onboarding help landmark"
+},{
+"name": "line-squiggle","group": "Work","words": "line snakes annotate curve doodle stroke pen tool gesture draw wave art road"
+},{
+"name": "lollipop","group": "Things","words": "lolly candy sugar food sweet dessert spiral"
+},{
+"name": "magnet","group": "Things","words": "horseshoe lock science snap"
+},{
+"name": "mailbox","group": "Things","words": "emails messages letters mailing list newsletter"
+},{
+"name": "mails","group": "Things","words": "emails messages letters multiple mailing list newsletter copy"
+},{
+"name": "mars","group": "Things","words": "gender sex male masculine man boy"
+},{
+"name": "mars-stroke","group": "Things","words": "gender androgyne transgender"
+},{
+"name": "memory-stick","group": "Things","words": "ram random access technology computer chip circuit specs capacity gigabytes gb"
+},{
+"name": "metronome","group": "Time","words": "metronome tempo rhythm beat bpm music audio sound practice timing timer time pulse sync cadence control playback studio tool"
+},{
+"name": "microchip","group": "Things","words": "processor cores technology computer chip integrated circuit memory ram specs gpu gigahertz ghz"
+},{
+"name": "microwave","group": "Things","words": "oven cooker toaster oven bake"
+},{
+"name": "midi-port","group": "Places","words": "musical instrument digital interface port connector socket jack din 5-pin audio music synthesizer keyboard controller interface input output io"
+},{
+"name": "mirror-rectangular","group": "Media","words": "reflection optics glass surface image physics science bathroom decor cosmetic shiny periscope vanity"
+},{
+"name": "mop","group": "Things","words": "cleaning sweeping scrubbing housekeeping hygiene sanitation chores swab tidy floor janitor maintenance wash wipe spotless pristine disinfect"
+},{
+"name": "mop-sparkles","group": "Things","words": "cleaning scrubbing sweeping ai magic sparkle smart automation housekeeping hygiene sanitation chores swab tidy floor spotless pristine polish sanitize disinfect"
+},{
+"name": "mosque","group": "Places","words": "mosque masjid islam muslim ramadan eid prayer worship building minaret dome architecture faith religion holy sacred landmark community spiritual tourism map heritage"
+},{
+"name": "motorbike","group": "Things","words": "moto motorcycle transport vehicle drive ride trip race racing journey delivery"
+},{
+"name": "mouth","group": "Things","words": "speech voice talk speaking taste tasting flavor palate tongue gustatory oral dental expression communication accessibility"
+},{
+"name": "navigation","group": "Places","words": "location travel"
+},{
+"name": "nepali-rupee","group": "Work","words": "currency money nepal rupee npr"
+},{
+"name": "nfc","group": "Work","words": "contactless payment near-field communication"
+},{
+"name": "non-binary","group": "Things","words": "gender nonbinary enby"
+},{
+"name": "notepad-text","group": "Places","words": "notebook notes pages paper stationery sketchbook organizer organiser planner diary journal writing write written reading high school university college academy student study homework research lines opened"
+},{
+"name": "notepad-text-dashed","group": "Writing","words": "notebook notes pages paper stationery diary journal writing write written draft template lines"
+},{
+"name": "nut","group": "Things","words": "hazelnut acorn food diet"
+},{
+"name": "orbit","group": "Things","words": "planet space physics satellites moons"
+},{
+"name": "origami","group": "Writing","words": "paper bird"
+},{
+"name": "panda","group": "Nature","words": "animal wildlife bear zoo bamboo"
+},{
+"name": "paper-bag","group": "Writing","words": "storage package lunch takeout eco-friendly kraft retail doggybag"
+},{
+"name": "parasol","group": "Places","words": "umbrella sunshade beach shade sun protection cover canopy garden outdoors resort travel vacation holiday summer apparel accessory sunbathing relax tropical"
+},{
+"name": "park","group": "Places","words": "nature green trees landscape rest walk leisure environment tree bench outdoors recreation"
+},{
+"name": "parking-meter","group": "Things","words": "driving car park pay sidewalk pavement"
+},{
+"name": "pc-case","group": "Things","words": "computer chassis"
+},{
+"name": "pen","group": "Writing","words": "pencil change create draw writer writing biro ink marker felt tip stationery artist"
+},{
+"name": "pencil-sparkles","group": "Work","words": "edit ai tools smart create draw sketch draft writer writing stationery artist magic wizard magician"
+},{
+"name": "phi","group": "Writing","words": "math golden-ratio symbol greek letter typography constant flux magnetic-flux"
+},{
+"name": "plant-pot","group": "Nature","words": "plant leaf nature pot houseplant gardening planter decor indoor"
+},{
+"name": "podium","group": "Places","words": "award stage winner celebration performance medal success achievement highlight ranking winning place placing leaderboard first second third gold silver bronze"
+},{
+"name": "popsicle","group": "Things","words": "ice lolly ice cream sweet food"
+},{
+"name": "projector","group": "Places","words": "cinema film movie home video presentation slideshow office meeting project planning"
+},{
+"name": "qr-code","group": "Things","words": "barcode scan link url information digital"
+},{
+"name": "radar","group": "Things","words": "scan sonar detect find locate"
+},{
+"name": "radiation","group": "Things","words": "radioactive nuclear fallout waste atomic physics particle element molecule"
+},{
+"name": "rat","group": "Nature","words": "mouse mice gerbil rodent pet pest plague disease"
+},{
+"name": "rectangle-goggles","group": "Things","words": "vr virtual augmented reality headset goggles"
+},{
+"name": "recycle","group": "Things","words": "sustainability salvage arrows"
+},{
+"name": "refrigerator","group": "Things","words": "frigerator fridge freezer cooler icebox chiller cold storage"
+},{
+"name": "ribbon","group": "Things","words": "awareness strip band tape strap cordon"
+},{
+"name": "road","group": "Places","words": "road street highway route path transport traffic drive map"
+},{
+"name": "robot-arm","group": "Places","words": "mechanical automation factory manufacture technology cyborg industrial hardware machinery"
+},{
+"name": "robot-vacuum","group": "Places","words": "appliance cleaning household housekeeping tool maintenance smarthome sweeping hygiene chores automation smart home device floor dust debris navigation sensor"
+},{
+"name": "rocking-chair","group": "Things","words": "chair furniture seat comfort relax"
+},{
+"name": "roller-coaster","group": "Things","words": "attraction entertainment amusement park theme park funfair"
+},{
+"name": "rose","group": "Time","words": "roses thorns petals plant stem leaves spring bloom blossom gardening botanical flora florist bouquet bunch gift date romance romantic valentines day special occasion"
+},{
+"name": "router","group": "Nature","words": "computer server cloud"
+},{
+"name": "rss","group": "Media","words": "feed subscribe news updates notifications content blog articles broadcast syndication reader channels posts publishing digest alert following inbox newsletter weblog podcast"
+},{
+"name": "satellite","group": "Things","words": "space station orbit transmitter"
+},{
+"name": "satellite-dish","group": "Things","words": "antenna receiver dish aerial saucer communication broadcast signal"
+},{
+"name": "scooter","group": "Things","words": "vehicle drive trip journey transport electric ride urban commute speed"
+},{
+"name": "scroll","group": "Writing","words": "paper log scripture document notes parchment list long script story code coding"
+},{
+"name": "section","group": "Writing","words": "mark typography punctuation legal type text prose symbol"
+},{
+"name": "sheet","group": "Things","words": "spreadsheets table excel"
+},{
+"name": "shelving-unit","group": "Places","words": "ledge rack storage inventory furniture sill shelves shelf organize display store arrange unit cabinet fixture retail warehouse"
+},{
+"name": "shovel","group": "Things","words": "dig spade treasure"
+},{
+"name": "shower-head","group": "Things","words": "shower bath bathroom amenities services"
+},{
+"name": "shredder","group": "Writing","words": "file paper tear cut delete destroy remove erase document destruction secure security confidential data trash dispose disposal information waste permanent"
+},{
+"name": "shrimp","group": "Things","words": "seafood shellfish crustacean prawn scallop whelk arthropod littleneck quahog marine creature fisherman ocean fresh cuisine marine-life"
+},{
+"name": "shrub","group": "Nature","words": "forest undergrowth park nature"
+},{
+"name": "signature","group": "Writing","words": "text format input contract autograph handwriting sign cursive ink scribble authorize personal agreement legal document identity authentic approval verification unique"
+},{
+"name": "snail","group": "Nature","words": "animal insect slow speed delicacy spiral"
+},{
+"name": "soap-dispenser-droplet","group": "Nature","words": "wash bath water liquid fluid wet moisture damp bead globule"
+},{
+"name": "solar-panel","group": "Nature","words": "solar panel solar panel sun energy electricity light"
+},{
+"name": "space","group": "Writing","words": "text selection letters characters font typography"
+},{
+"name": "spade","group": "Things","words": "shape suit playing cards"
+},{
+"name": "sparkle","group": "Things","words": "star effect filter night magic shiny glitter twinkle celebration"
+},{
+"name": "speaker","group": "Media","words": "sound audio music tweeter subwoofer bass production producer dj"
+},{
+"name": "speech","group": "People","words": "disability disabled dda human accessibility people sound"
+},{
+"name": "spool","group": "Things","words": "bobbin spindle yarn thread string sewing needlework"
+},{
+"name": "sport-shoe","group": "Things","words": "footwear sports running athletic shoe sneaker training exercise fitness"
+},{
+"name": "spotlight","group": "Things","words": "winner soapbox stage entertainment drama podium actor actress singer light beam play theatre show focus concert performance lens leaderboard followspot best highlight"
+},{
+"name": "spray-can","group": "Media","words": "paint color graffiti decoration aerosol deodorant shaving foam air freshener"
+},{
+"name": "stamp","group": "Writing","words": "mark print clone loyalty library"
+},{
+"name": "step-back","group": "Media","words": "arrow previous music left reverse"
+},{
+"name": "step-forward","group": "Media","words": "arrow next music right continue"
+},{
+"name": "sticker","group": "People","words": "reaction emotion smile happy feedback"
+},{
+"name": "sticky-notes","group": "People","words": "post-it annotation memo reminder todo tasks brainstorm documents notes multiple collection group stack clone duplicate copy"
+},{
+"name": "stone","group": "Nature","words": "mineral geology nature solid pebble crystal ore hard coal stone rock boulder"
+},{
+"name": "summary","group": "Writing","words": "brief abstract synopsis report digest outline recap condensation summary ai text overview"
+},{
+"name": "sunrise","group": "Time","words": "weather time morning day"
+},{
+"name": "sunset","group": "Time","words": "weather time evening night"
+},{
+"name": "switch-camera","group": "Media","words": "photo selfie front back"
+},{
+"name": "sword","group": "Media","words": "battle challenge combat duel fantasy game knight melee medieval offense rpg sharp weapon war warrior"
+},{
+"name": "swords","group": "Media","words": "battle challenge combat conflict crossed duel faction fantasy game melee medieval opponent rivalry rpg versus weapon war warrior"
+},{
+"name": "tablets","group": "Things","words": "medicine medication drug prescription pills pharmacy"
+},{
+"name": "tags","group": "Things","words": "labels badges tickets marks copy multiple"
+},{
+"name": "telescope","group": "Things","words": "astronomy space discovery exploration explore vision perspective focus stargazing observe view"
+},{
+"name": "test-tubes","group": "Things","words": "tubes vials phials flasks ampoules ampules lab chemistry experiment test"
+},{
+"name": "theater","group": "Things","words": "theater theatre entertainment podium stage musical"
+},{
+"name": "thermometer-snowflake","group": "Nature","words": "temperature celsius fahrenheit weather cold freeze freezing"
+},{
+"name": "thermometer-sun","group": "Nature","words": "temperature celsius fahrenheit weather warm hot"
+},{
+"name": "tic-tac-toe","group": "Media","words": "game board grid strategy noughts and crosses"
+},{
+"name": "tickets-plane","group": "Places","words": "plane trip airplane flight travel fly takeoff vacation passenger pass check-in airport"
+},{
+"name": "timeline","group": "Time","words": "tags history"
+},{
+"name": "timer-reset","group": "Time","words": "time timer stopwatch"
+},{
+"name": "toilet","group": "Things","words": "toilet potty bathroom washroom"
+},{
+"name": "tool-case","group": "Work","words": "tools maintenance repair"
+},{
+"name": "toolbox","group": "Work","words": "toolkit tools trunk chest box storage utility utilities container kit set repair fix service maintenance mechanic workshop construction hardware equipment gear handyman engineering craft diy"
+},{
+"name": "toothbrush","group": "Things","words": "dental care oral hygiene brushing teeth dentist bathroom toiletries personal care cleaning bristles handle plaque toothpaste selfcare grooming"
+},{
+"name": "toothbrush-sparkles","group": "Things","words": "dental care oral hygiene brushing teeth dentist bathroom toiletries personal care cleaning bristles handle plaque toothpaste selfcare grooming fresh clean"
+},{
+"name": "tornado","group": "Nature","words": "weather wind storm hurricane"
+},{
+"name": "towel-rack","group": "Things","words": "flannel bathroom toiletries sanitation clean fresh dry laundry laundrette hospitality housekeeping room service spa break health club amenities hanging"
+},{
+"name": "tower-control","group": "Places","words": "airport travel tower transportation lighthouse"
+},{
+"name": "toy-brick","group": "Things","words": "lego block addon plugin integration"
+},{
+"name": "tractor","group": "Things","words": "farming farmer ranch harvest equipment vehicle"
+},{
+"name": "trailer","group": "Things","words": "tow shipping delivery haulage vehicle equipment freight"
+},{
+"name": "tram-front","group": "Things","words": "railway metro subway underground track line tourism"
+},{
+"name": "transgender","group": "Things","words": "gender inclusive"
+},{
+"name": "tube-lotion","group": "Things","words": "sunscreen sunblock spf uv cream skincare toothpaste ointment bottle toiletries bathroom beach summer"
+},{
+"name": "turntable","group": "Media","words": "record player gramophone stereo phonograph vinyl lp disc platter cut music analog retro dj deck disc jockey scratch spinning"
+},{
+"name": "university","group": "Places","words": "building education childhood school college academy institute"
+},{
+"name": "utility-pole","group": "Things","words": "electricity energy transmission line telegraph pole power lines phone"
+},{
+"name": "van","group": "Places","words": "minivan cart wagon truck lorry trailer camper vehicle drive trip journey van transport carriage delivery travel"
+},{
+"name": "vault","group": "Work","words": "safe lockbox deposit locker coffer strongbox safety secure storage valuables bank"
+},{
+"name": "vegan","group": "Nature","words": "vegetarian fruitarian herbivorous animal rights diet"
+},{
+"name": "venetian-mask","group": "Things","words": "mask masquerade impersonate secret incognito"
+},{
+"name": "venus","group": "Things","words": "gender sex female feminine woman girl"
+},{
+"name": "venus-and-mars","group": "Things","words": "gender sex intersex androgynous hermaphrodite"
+},{
+"name": "videotape","group": "Media","words": "vhs movie film recording motion picture showreel cassette"
+},{
+"name": "virus","group": "Things","words": "pathogen infection disease illness contagion outbreak pandemic epidemic covid coronavirus germ microbe microorganism biology medical healthcare malware cybersecurity threat"
+},{
+"name": "voicemail","group": "Media","words": "phone cassette tape reel recording audio"
+},{
+"name": "volleyball","group": "Work","words": "beach sand net holiday vacation summer soccer football futbol kick pitch goal score bounce leather wool yarn knitting sewing thread embroidery textile"
+},{
+"name": "vote","group": "Things","words": "vote poll ballot political social check tick"
+},{
+"name": "wallpaper","group": "Media","words": "background texture image art design visual decor pattern screen cover lock screen"
+},{
+"name": "wand-sparkles","group": "Things","words": "magic wizard magician"
+},{
+"name": "washing-machine","group": "Things","words": "tumble dryer amenities electronics cycle clothes rinse spin drum"
+},{
+"name": "waves-ladder","group": "Nature","words": "swimming water pool lifeguard ocean 🌊 🏊‍♂️ 🏊‍♀️ 🏊 🥽"
+},{
+"name": "waypoints","group": "Things","words": "indirection vpn virtual private network proxy connections bounce reroute path journey planner stops stations shared spread viral"
+},{
+"name": "webcam","group": "Media","words": "camera security"
+},{
+"name": "weight","group": "Things","words": "mass heavy lead metal measure geometry scales balance"
+},{
+"name": "weight-tilde","group": "Things","words": "measure scale estimate load balance size measurement quantity mass"
+},{
+"name": "whistle","group": "Media","words": "alert signal sound blow noise coach trainer referee gym game training sports traffic cops police lifeguard safety rescue emergency"
+},{
+"name": "worm","group": "Things","words": "invertebrate grub larva snake crawl wiggle slither pest control computer virus malware"
+},{
+"name": "zodiac-aquarius","group": "Nature","words": "water bearer waves innovation air future astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-aries","group": "Nature","words": "ram horns fire energy initiative astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-cancer","group": "Nature","words": "crab shell protection water intuition astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-capricorn","group": "Places","words": "goat mountain ambition earth discipline astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-gemini","group": "Things","words": "twins duality communication air adaptability astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-leo","group": "Nature","words": "lion crown leadership fire confidence astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-libra","group": "Things","words": "scales balance justice air harmony astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-ophiuchus","group": "Things","words": "serpent snake holder healing knowledge astronomy astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-pisces","group": "Nature","words": "fish duality water dreams empathy astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-sagittarius","group": "Nature","words": "archer arrow exploration fire philosophy astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-scorpio","group": "Nature","words": "scorpion stinger intensity water transformation astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-taurus","group": "Nature","words": "bull strength stability earth endurance astrology star sign horoscope constellation celestial"
+},{
+"name": "zodiac-virgo","group": "Nature","words": "virgin maiden harvest precision earth analysis astrology star sign horoscope constellation celestial"
+}
+]
+}

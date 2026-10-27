@@ -384,7 +384,14 @@ public static class NendoFormat
     /// </summary>
     public const string ApplicationIconMinimumHostVersion = "1.55.0";
 
-    public const string CurrentHostVersion = ApplicationIconMinimumHostVersion;
+    /// <summary>
+    /// Icons from Nendo's set (ADR-0038): a record type's, stated by schema.setEntityIcon's evidence
+    /// and by its protected table on the rung above the file's own icon, and a screen's or custom
+    /// view's, stated by the node tree. A file that never chose one keeps the rung it had.
+    /// </summary>
+    public const string IconsMinimumHostVersion = "1.56.0";
+
+    public const string CurrentHostVersion = IconsMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

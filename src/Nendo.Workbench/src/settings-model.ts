@@ -35,6 +35,41 @@ export interface SettingRowState {
   actionLabel?: string;
   /** For an action: a word on its state, such as Approved. */
   status?: string;
+  /** For the icons: one row for each record type and screen. */
+  icons?: IconRow[];
+}
+
+/** A record type or a screen and the icon it shows. */
+export interface IconRow {
+  /** The pending-change key: `icon:` and the target as JSON. */
+  key: string;
+  title: string;
+  kind: 'Record type' | 'Screen';
+  glyph: string;
+  /** Chosen, guessed from the name, or neither. */
+  source: 'chosen' | 'guessed' | 'neutral';
+  pending: boolean;
+}
+
+/** The key of an icon change: a record type by its ID, a screen by its surface and root node. */
+export function iconKey(target: { entityId: string } | { surfaceId: string; nodeId: string }): string {
+  return `icon:${JSON.stringify(target)}`;
+}
+
+const iconSources = { chosen: 'Chosen', guessed: 'Guessed from the name', neutral: 'Nothing guessed' };
+
+function iconRowsMarkup(view: SettingView, row: SettingRowState): string {
+  const rows = row.icons ?? [];
+  if (rows.length === 0) return `<div class="settings-row" id="${settingRowId(view.setting.id)}" data-setting-row="${escapeAttribute(view.setting.id)}"><div class="settings-row-text"><span>${escapeHtml(view.setting.title)}</span><p class="settings-help">${escapeHtml(row.disabled ?? 'This file has no record type or screen yet.')}</p></div></div>`;
+  return rows.map((item, index) => {
+    const id = index === 0 ? settingRowId(view.setting.id) : `${settingRowId(view.setting.id)}-${index}`;
+    const labelId = `${id}-label`;
+    return `<div class="settings-row${item.pending ? ' is-pending' : ''}" id="${id}" data-setting-row="${escapeAttribute(view.setting.id)}">
+    <div class="settings-row-text"><div class="settings-row-title"><span id="${labelId}">${escapeHtml(item.title)}</span><span class="settings-home" data-home="file">${homeLabels.file}</span>${item.pending ? '<span class="settings-pending">Not reviewed</span>' : ''}</div>
+    <p class="settings-help">${escapeHtml(`${item.kind} · ${iconSources[item.source]}`)}</p></div>
+    <div class="settings-row-control"><span class="settings-icon-preview">${item.glyph}</span><button type="button" class="secondary-button" aria-describedby="${labelId}" data-setting-icon="${escapeAttribute(item.key)}"${row.disabled ? ' disabled' : ''}>Change</button></div>
+  </div>`;
+  }).join('');
 }
 
 export interface SettingsPage {
@@ -102,6 +137,7 @@ function controlMarkup(view: SettingView, row: SettingRowState, labelId: string)
       return `<input class="settings-number" type="number" inputmode="numeric" step="1" aria-labelledby="${labelId}" data-setting-number="${id}"${setting.minimum === null ? '' : ` min="${setting.minimum}"`}${setting.maximum === null ? '' : ` max="${setting.maximum}"`} value="${escapeAttribute(String(row.value ?? ''))}"${disabled} />${setting.unit ? `<span class="settings-unit">${escapeHtml(setting.unit)}</span>` : ''}`;
     case 'text':
       return `<input class="settings-text" type="text" autocomplete="off" aria-labelledby="${labelId}" data-setting-text="${id}"${setting.maximum === null ? '' : ` maxlength="${setting.maximum}"`} value="${escapeAttribute(String(row.value ?? ''))}"${disabled} />`;
+    case 'icons':
     case 'link':
     case 'action':
       return `${row.status ? `<span class="settings-status">${escapeHtml(row.status)}</span>` : ''}<button type="button" class="secondary-button" aria-describedby="${labelId}" data-setting-${setting.kind}="${id}"${disabled}>${escapeHtml(row.actionLabel ?? 'Open')}</button>`;
@@ -110,6 +146,7 @@ function controlMarkup(view: SettingView, row: SettingRowState, labelId: string)
 
 export function settingRowMarkup(view: SettingView, row: SettingRowState): string {
   const { setting } = view;
+  if (setting.kind === 'icons') return iconRowsMarkup(view, row);
   const rowId = settingRowId(setting.id);
   const labelId = `${rowId}-label`;
   const note = view.override ? `${view.override} sets this for the running Nendo.` : row.disabled ?? null;
@@ -142,6 +179,17 @@ export function settingsProposal(changes: ReadonlyMap<string, string>, definitio
   if (changes.size === 0) return null;
   const id = crypto.randomUUID().replaceAll('-', '');
   const mutations = [...changes].map(([setting, typed], index) => {
+    if (setting.startsWith('icon:')) {
+      const target = JSON.parse(setting.slice(5)) as { entityId?: string; surfaceId?: string; nodeId?: string };
+      const chosen = typed === '' ? null : typed;
+      const description = chosen === null ? 'Show the guessed icon' : `Show the ${chosen} icon`;
+      const operation = target.entityId !== undefined
+        ? { operationType: 'schema.setEntityIcon', payload: { entityId: target.entityId, icon: chosen, expectedDefinitionRevision: definitionRevision + index } }
+        : chosen === null
+          ? { operationType: 'ui.removeProperty', payload: { surfaceId: target.surfaceId, nodeId: target.nodeId, propertyName: 'icon' } }
+          : { operationType: 'ui.setProperty', payload: { surfaceId: target.surfaceId, nodeId: target.nodeId, propertyName: 'icon', value: chosen } };
+      return { idempotencyKey: `settings-${id}-${index}`, description, operations: [{ operationId: `settings-${id}-${index}`, ...operation }] };
+    }
     const text = typed.trim() === '' ? null : typed.trim();
     const purpose = setting === 'file.purpose';
     const description = purpose ? 'Say what this file is for' : 'Name a new file of this application';

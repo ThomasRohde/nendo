@@ -18,6 +18,9 @@ internal sealed record EntityMapping(
     internal NendoHierarchy? Hierarchy { get; init; }
     internal bool KeptInNewFiles { get; init; }
     internal NendoLinkRule? LinkRule { get; init; }
+
+    /// <summary>The icon the record type chose from Nendo's set (ADR-0038), as stored, or null.</summary>
+    internal string? Icon { get; init; }
 }
 
 internal sealed record FieldMapping(

@@ -741,6 +741,35 @@ Over budget is `NUI300`, naming the node, the property path, the composed count 
 each clause's source. The host never drops a clause, widens a query, deduplicates or
 raises the limit.
 
+## Icons
+
+A screen and a custom view may carry an **icon**: the name of one icon from Nendo's
+set ([ADR-0038](../decisions/0038-settings-in-one-place.md#icons-for-record-types-and-screens)),
+listed by `nendo://application/icons` with each icon's group and search words. It is
+drawn wherever the screen or view is: the navigation, the tabs, the breadcrumb
+pickers, the command box and the front page. Without one, the icon is guessed from the
+title.
+
+- **Where.** `icon` is an optional property of every surface root kind except
+  `recordCommand`, and of every custom-view kind: `extensionView`,
+  `extensionGraphSurface`, `extensionRecordsSurface` and `extensionRecordPanel`. On any
+  other kind it is `NUI090`. `ui.setProperty` sets it and `ui.removeProperty` clears it.
+- **What.** A name the set holds, as text. `ui.setProperty` refuses any other name when
+  it is written. A definition that already holds a name this version does not know, such
+  as one from a later set, still compiles: the warning `NUI461` names the node and the
+  name, and the screen is drawn with the guessed icon. A value that is not text is the
+  error `NUI462`. Both hints point at the icons read.
+- **The plan.** A node with an icon carries it twice: in `properties.icon` as stored,
+  and as `icon` beside `kind`, so a client reads it without knowing which kinds take
+  one. A node without an icon carries neither, which keeps its digest as it was. A name
+  the set does not hold stays in `properties.icon` and is left out of `icon`. A
+  record type's surfaces are at `applications[].surfaces[].icon`, the file's own views
+  at `views[].icon`, the front page at `overview.surface.icon`, and a record panel on
+  its page's node as one of the `children`.
+- **A record type's icon** is not a surface property. `schema.setEntityIcon` sets it in
+  the definition, and the session snapshot's `entities[].icon` and the MCP schema read
+  carry it ([MCP interface](mcp-interface.md#vocabulary-areas)).
+
 ## Capability versions
 
 A root's version number does not say what a host must understand.
@@ -777,6 +806,7 @@ fields where the shape cannot tell. The ladder is:
 | A `gallerySurface` with a `coverFieldId` | 1.52 |
 | A `filterClause` whose value kind is `thisWeek` or `thisMonth`; a formula that calls `AddDays` states it on its own evidence | 1.53 |
 | A `summaryTile`, `breakdownChart` or `rankedList` over a calculated number, or a `breakdownChart` grouped by a Reference | 1.54 |
+| A screen's root or a custom view with an `icon` | 1.56 |
 
 Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
 1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51 and 1.55 (`NendoFormat`).
@@ -807,7 +837,7 @@ An operation declares each on its own evidence, as it does 1.52 for a media fiel
 A history fold, which is not an operation, states 1.50.0 in the manifest, covering the
 fold table's 1.39.0; a file started with New states 1.50.0 too, since its copy is
 folded. At 1.19 and 1.22 a field operation also raises the rung: a choice tone and a
-rating scale.
+rating scale. At 1.56 `schema.setEntityIcon` does, for a record type's icon.
 
 Rows 1.27, 1.34, 1.40 and 1.54 read the stored fields beside the tree, because the
 shape alone cannot tell: a board or breakdown grouped by a reference looks like one

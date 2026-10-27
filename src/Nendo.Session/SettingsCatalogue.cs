@@ -9,7 +9,8 @@ internal sealed record SettingOption(string Value, string Label);
 /// <para>
 /// <c>Home</c> is <c>device</c> (this computer), <c>here</c> (this file, kept on this computer) or
 /// <c>file</c> (in the file's definition). <c>Kind</c> is <c>toggle</c>, <c>choice</c>, <c>number</c>
-/// or <c>text</c>, which the page changes in its row, or <c>link</c> and <c>action</c>, which open
+/// or <c>text</c>, which the page changes in its row, <c>icons</c>, which it draws as one row for each
+/// record type and screen, or <c>link</c> and <c>action</c>, which open
 /// the page that owns the setting or run its one command. <c>Store</c> names the ADR-0034 document,
 /// the page storage key or the definition that keeps the value; the catalogue keeps nothing itself.
 /// </para>
@@ -109,6 +110,9 @@ internal static class SettingsCatalogue
             InTheFile, "text", "definition: application.setPurpose", Maximum: 4000, NeedsFile: true),
         new("file.newFileLabel", "file", "Identity", "Name for a new file", "What File → New calls one more file of this application.",
             InTheFile, "text", "definition: application.setNewFileLabel", Maximum: 40, NeedsFile: true),
+        new("file.icons", "file", "Icons", "Icons",
+            "The icon of each record type and screen in the navigation. Right-click one there to change it too.",
+            InTheFile, "icons", "definition: schema.setEntityIcon and a screen's icon", NeedsFile: true),
         new("file.automaticActions", "file", "Automatic actions", "Automatic actions",
             "Whether this file's automatic actions may run on this computer. A copy you send asks again.", Here, "action",
             @"actions\consent.json", NeedsFile: true),

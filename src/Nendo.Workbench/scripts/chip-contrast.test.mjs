@@ -64,26 +64,3 @@ test('every chip, named tone or derived hue, reads at 4.5:1 in both themes', () 
   assert.deepEqual([...new Set(failures)].slice(0, 12), [], `Chips below 4.5:1 (${new Set(failures).size} in all).`);
 });
 
-// A type tile's letters on its tint, on each place it is drawn: the rail, a selected rail row,
-// the active tab and the address field. Drawn in the tone itself, they reach 2.71:1 at worst.
-test('every type tile reads at 4.5:1 wherever it is drawn, in both themes', () => {
-  const native = css('21-native.css');
-  const mica = (theme) => { const at = native.indexOf(`:root${theme} { --mica: `); return hex(native.slice(at).match(/--mica: (#[0-9a-fA-F]{6})/)[1]); };
-  const tileShare = (selector) => Number(native.slice(native.indexOf(`${selector} {`)).match(/color: color-mix\(in srgb, var\(--tile\) (\d+)%, var\(--ink\)\)/)[1]);
-  const tileTint = Number(native.slice(native.indexOf('.type-tile {')).match(/background: color-mix\(in srgb, var\(--tile\) (\d+)%/)[1]);
-  const failures = [];
-  for (const theme of [
-    { name: 'Light', block: light, ink: token(light, 'ink'), mica: mica(''), share: tileShare('.type-tile') },
-    { name: 'Dark', block: dark, ink: [255, 255, 255], mica: mica('[data-theme="dark"]'), share: tileShare(':root[data-theme="dark"] .type-tile') },
-  ]) {
-    const hosts = { rail: theme.mica, selected: mix(theme.ink, 6, theme.mica), tab: token(theme.block, 'canvas'), address: token(theme.block, 'surface') };
-    for (const name of CHOICE_TONES) {
-      const tile = token(theme.block, `tone-${name}`);
-      for (const [host, ground] of Object.entries(hosts)) {
-        const ratio = contrast(mix(tile, theme.share, theme.ink), mix(tile, tileTint, ground));
-        if (ratio < 4.5) failures.push(`${theme.name} ${name} on ${host} ${ratio.toFixed(2)}:1`);
-      }
-    }
-  }
-  assert.deepEqual(failures, []);
-});

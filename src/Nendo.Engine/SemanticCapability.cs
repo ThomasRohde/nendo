@@ -291,6 +291,11 @@ internal static class NendoSemanticCapability
             tree => tree.OfKind("summaryTile").Concat(tree.OfKind("breakdownChart")).Any(node => tree.NamesCalculated(node, Tree.Text(node, "fieldId"))) ||
                 tree.OfKind("rankedList").Any(node => tree.NamesCalculated(node, Tree.Text(node, "rankByFieldId"))) ||
                 tree.OfKind("breakdownChart").Any(node => tree.KindAbove(node, "groupByFieldId") == NendoStorageKind.Reference)),
+        // A record type's icon reaches the same rung through its operation's own evidence; only a
+        // screen's or a view's icon is a shape of the tree.
+        new(NendoFormat.IconsMinimumHostVersion,
+            "an icon on a screen or a custom view",
+            tree => tree.Nodes.Any(node => node.Properties.ContainsKey(NendoSemanticVocabulary.IconProperty))),
     ];
 
     private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];

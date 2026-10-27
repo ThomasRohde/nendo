@@ -21,6 +21,7 @@ const stubs = {
     export const announce = () => {}; export const clearError = () => {}; export const refreshChrome = () => {};
     export const showRetainedNotice = () => {}; export const showKeptAlert = () => {}; export const showOutcome = () => {}; export const requiredElement = (selector) => (h().elements[selector] ??= { hidden: true, textContent: '', innerHTML: '', addEventListener: () => {} });
     export const focusWithoutInteraction = () => {};`,
+  './view-settings': 'export const changeIconFromNavigation = async () => {};',
   './place-pickers': 'export const drawPlacePickers = (markup) => { globalThis.fileViewHost.pickers = markup; return { querySelector: () => null }; };',
   './view-frames': `export const wireViewFrames = () => { globalThis.fileViewHost.wired += 1; };
     export const viewAddCommand = () => globalThis.fileViewHost.add;`,
@@ -153,9 +154,9 @@ test('a record type with only its record page is no place: not in Showing, not i
 test('a view’s icon: the view the file opens on is its home when it has no front page, others are guessed from their title', async () => {
   const home = view('home', 'Overview', { opensFile: true }), garden = view('garden', 'Garden'), archi = view('archi', 'Archi');
   await openFile({ views: [home, garden, archi], front: false });
-  assert.deepEqual([home, garden, archi].map(p.viewIcon), ['home', 'sprout', 'surfaces'], 'Overview and Garden drew the same icon, or a title that says nothing lost the panels.');
+  assert.deepEqual([home, garden, archi].map(p.viewIcon), ['home', 'sprout', 'layout'], 'Overview and Garden drew the same icon, or a title that says nothing is not the layout icon.');
   await openFile({ views: [home, garden], front: true });
-  assert.equal(p.viewIcon(home), 'surfaces', 'With a front page, the front page alone is home.');
+  assert.equal(p.viewIcon(home), 'layout', 'With a front page, the front page alone is home.');
   p.drawRailPlaces();
   const glyphs = [...(host.elements['#nav-places']?.innerHTML ?? '').matchAll(/data-rail-place="([^"]+)"[^>]*><span class="nav-symbol" aria-hidden="true">(<svg[^]*?<\/svg>)/g)].map(([, place, svg]) => [place, svg]);
   const of = place => glyphs.find(([value]) => value === place)?.[1];

@@ -53,6 +53,7 @@ internal sealed partial class SqliteNendoStore
                 Hierarchy = mapping.Hierarchy,
                 KeptInNewFiles = mapping.KeptInNewFiles,
                 LinkRule = mapping.LinkRule,
+                Icon = KnownIcon(mapping.Icon),
             })
             .ToArray();
         var records = includeRecords ? await ReadRecordsAsync(mappings, transaction, cancellationToken) : [];
@@ -219,6 +220,7 @@ internal sealed partial class SqliteNendoStore
         var hierarchies = await ReadHierarchiesAsync(transaction, cancellationToken);
         var keptTypes = await ReadKeptTypesAsync(transaction, cancellationToken);
         var linkRules = await ReadLinkRulesAsync(transaction, cancellationToken);
+        var icons = await ReadEntityIconsAsync(transaction, cancellationToken);
         return entities
             .Select(entity => new EntityMapping(
                 entity.Id,
@@ -230,6 +232,7 @@ internal sealed partial class SqliteNendoStore
                 Hierarchy = hierarchies.GetValueOrDefault(entity.Id),
                 KeptInNewFiles = keptTypes.Contains(entity.Id),
                 LinkRule = linkRules.GetValueOrDefault(entity.Id),
+                Icon = icons.GetValueOrDefault(entity.Id),
             })
             .ToArray();
     }

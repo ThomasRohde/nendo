@@ -106,26 +106,29 @@ How one view on one screen is set up stays its `configuration`.
 ### Icons for record types and screens
 
 A record type, a semantic screen and a custom view may carry an **icon**: the name of one icon from
-Nendo's icon set. The set is a curated selection of about 400 icons from Lucide, at the version the
-design system pins, drawn as outline icons in the current text colour. It is listed with each icon's
-search words in the MCP vocabulary.
+Nendo's icon set. The set is a curated selection of 588 icons from Lucide, at the version the design
+system pins (`src/Nendo.Engine/icon-set.json`), in eight groups, drawn as outline icons in the current
+text colour. MCP lists it with each icon's group and search words.
 
 - The icon is part of the definition, set by `schema.setEntityIcon` and by an `icon` property on a
   surface or view definition. Each reverses to the icon it replaced.
-- It is used wherever that record type or screen is drawn with an icon: the navigation, the tabs,
-  the breadcrumb pickers, the command box and the front page.
+- It is used wherever that record type or screen is drawn with an icon: the navigation, the tabs
+  and the address row.
 - **Settings → This file → Icons** lists every record type and screen with its icon. **Change**
-  opens the picker. The picker can also be opened from a navigation item's menu (**Change icon**).
-  - It is a popover with a search field over the icons' names and search words, the set's groups,
-    and the icons used last.
+  opens the picker. Right-clicking a record type or a screen in the navigation opens it too, and its
+  choice opens straight in the review.
+  - It is a dialog with a search field over the icons' names and search words, the set's groups,
+    and the icons used last on this device.
   - It shows a grid the arrow keys move through. Enter chooses an icon.
   - **Use the guessed icon** clears the choice.
-  - A choice joins the page's changes to the file.
+  - In Settings, a choice joins the page's changes to the file.
 - **Without a choice, the icon is guessed from the name**, as today. **A name that suggests none
-  gets a neutral icon**: a box for a record type, a layout for a screen. The letter tiles in choice
-  tones are removed.
-- An icon name this version of Nendo does not know is treated as no choice. An older Nendo opens the
-  file with its guessed icons.
+  gets a neutral icon**: a box for a record type, a layout for a screen. No record type is drawn as
+  letters on a tile.
+- An icon name this version of Nendo does not know is treated as no choice, and a screen that holds
+  one compiles with a warning. A name is checked against the set when it is written.
+- The first icon a file chooses raises its minimum host version to the one that keeps icons, so an
+  older Nendo says the file needs a newer one rather than dropping the choice.
 
 ### What agents reach
 
@@ -149,7 +152,7 @@ search words in the MCP vocabulary.
 ### Negative
 
 - Changing a setting in the file takes a review, where a toggle on this computer takes none.
-- The Workbench carries about 400 icons instead of about 60.
+- The Workbench carries 588 more icons, about 200 KB of drawings.
 - Each app that moves its options from page storage to declared settings needs its own change, and
   a person's existing choices in page storage are not carried over.
 - A setting now has two ways to be changed (its old control and its row), both of which must stay

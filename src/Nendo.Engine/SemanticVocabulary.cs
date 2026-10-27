@@ -52,7 +52,7 @@ public static class NendoSemanticVocabulary
         new HashSet<string>(values, StringComparer.Ordinal);
 
     internal static IReadOnlyDictionary<string, NendoNodeKindRule> Kinds { get; } =
-        new ReadOnlyDictionary<string, NendoNodeKindRule>(
+        WithIcons(
             new Dictionary<string, NendoNodeKindRule>(StringComparer.Ordinal)
             {
                 [NendoExtensionViewDefinition.NodeKind] = new(
@@ -325,6 +325,25 @@ public static class NendoSemanticVocabulary
             });
 
     /// <summary>
+    /// Every kind a person sees as a screen or a view takes an optional <c>icon</c>, a name from
+    /// Nendo's set (ADR-0038): each surface root, and each custom view, the record panel included.
+    /// A command is a root but not a screen, so it takes none. Added here rather than in each set,
+    /// so a root kind added later takes it too.
+    /// </summary>
+    private static ReadOnlyDictionary<string, NendoNodeKindRule> WithIcons(Dictionary<string, NendoNodeKindRule> kinds)
+    {
+        foreach (var rule in kinds.Values.Where(CarriesIcon).ToArray())
+            kinds[rule.Kind] = rule with { Properties = Set([.. rule.Properties, IconProperty]) };
+        return new(kinds);
+    }
+
+    private static bool CarriesIcon(NendoNodeKindRule rule) =>
+        (rule.CanBeRoot && rule.Kind != "recordCommand") || NendoExtensionViewDefinition.IsViewKind(rule.Kind);
+
+    /// <summary>The property naming a screen's or a view's icon.</summary>
+    internal const string IconProperty = "icon";
+
+    /// <summary>
     /// Closed filter operators. The durable contract keeps `lte` and `gte`; the
     /// internal record query spells the same comparisons `le` and `ge`.
     /// </summary>
@@ -409,6 +428,10 @@ public static class NendoSemanticVocabulary
     /// </summary>
     internal static IReadOnlyDictionary<string, string> PropertyNoteTable { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        [IconProperty] = "On a screen's root or a custom view, the name of one icon from Nendo's set, listed by " + NendoIconSet.ResourceUri + ". " +
+            "It is drawn wherever the screen or view is: the navigation, the tabs, the breadcrumb pickers, the command box and the front page. " +
+            "Without it the icon is guessed from the title. Writing any other name is refused; a definition that already holds one compiles with the warning NUI461 and is drawn " +
+            "with the guessed icon. A value that is not text is NUI462. Clear it with ui.removeProperty.",
         ["visibleWhen"] = "The fieldId of a calculated field on this record type whose result is Boolean — not its definitionId, " +
             "and not a stored field. Only a definite false hides the node; Studio never reads it.",
         ["opens"] = "How a section starts on the page: open, which it is when the property is absent, or closed. Every section " +
@@ -745,6 +768,10 @@ public static class NendoSemanticVocabulary
                 "relations until it is opened. A tab's body neither folds nor takes opens (NUI313)."),
             Behaviour = NendoBehaviourVocabulary.Description(),
             PropertyNotes = PropertyNoteTable,
+            Icons = new NendoIconsDescription(NendoIconSet.ResourceUri, NendoIconSet.Icons.Count,
+                "A record type, a screen or a custom view may carry one of these icons: a record type by schema.setEntityIcon, " +
+                "a screen's root or a view by its icon property. Without one, the icon is guessed from the name. The list names each " +
+                "icon with its group and search words, and is static for a host build."),
             Charts = new NendoChartDescription(
                 ChartGroupings,
                 MaximumAggregateGroups,
@@ -852,6 +879,12 @@ public sealed record NendoSectionOpensDescription(
 /// hex value, or "gray", would otherwise learn the closed set one refusal late.
 /// </summary>
 public sealed record NendoChoiceToneDescription(IReadOnlyList<string> Values, string Note);
+
+/// <summary>
+/// The icon set (ADR-0038), by reference: the read that lists every icon, how many it lists, and
+/// the rule. The names themselves are a read of their own, so the vocabulary stays its size.
+/// </summary>
+public sealed record NendoIconsDescription(string Resource, int Count, string Note);
 
 /// <summary>
 /// The rules a chart is drawn under. Published so an author knows which fields
@@ -1156,6 +1189,9 @@ public sealed record NendoVocabularyDescription(
 
     /// <summary>The closed colours a choice option may carry, in picker order, with the rule.</summary>
     public NendoChoiceToneDescription? ChoiceTones { get; init; }
+
+    /// <summary>Where the icons a record type, a screen or a view may carry are listed, and how many there are.</summary>
+    public NendoIconsDescription? Icons { get; init; }
 
     /// <summary>What a chart is: the closed groupings, the ceiling on groups, and the exactness rule.</summary>
     public NendoChartDescription? Charts { get; init; }

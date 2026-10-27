@@ -144,7 +144,16 @@ public sealed record NendoMcpEntitySchema(
     /// otherwise (ADR-0022). False, the default, leaves them out.
     /// </summary>
     public bool KeptInNewFiles { get; init; }
+
+    /// <summary>
+    /// The icon the file chose for this record type from Nendo's set (ADR-0038), or null for the
+    /// one guessed from its name. Set with schema.setEntityIcon; nendo://application/icons lists the set.
+    /// </summary>
+    public string? Icon { get; init; }
 }
+
+/// <summary>Nendo's icon set as the icons read serves it: where it comes from, and every icon.</summary>
+public sealed record NendoMcpIcons(string Source, int Count, IReadOnlyList<NendoIcon> Icons);
 
 /// <summary>One calculated field, with the formula that produces it.</summary>
 public sealed record NendoMcpDerivedField(

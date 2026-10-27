@@ -4,7 +4,7 @@ import { deferWhileBusy } from './busy-queue';
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { applicationPlans } from './plan-selection';
-import { fileViewById, viewIcon } from './file-view-model';
+import { chosenEntityIcon, fileViewById, viewGlyph, viewIcon } from './file-view-model';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
@@ -67,7 +67,11 @@ export function tabLabel(place: Place | null): string {
 function tabGlyph(place: Place | null): string {
   if (place?.view === 'use' && place.showOverview !== true && place.fileView === null && place.applicationEntityId !== null) {
     const plan = applicationPlans().find((candidate) => candidate.entity.semanticId === place.applicationEntityId);
-    if (plan !== undefined) return typeGlyph(plan.entity.displayName);
+    if (plan !== undefined) return typeGlyph(plan.entity.displayName, chosenEntityIcon(plan.entity.semanticId));
+  }
+  if (place?.view === 'use' && place.showOverview !== true && place.fileView !== null) {
+    const view = fileViewById(place.fileView);
+    if (view !== null) return viewGlyph(view);
   }
   return icon(tabIcon(place));
 }
