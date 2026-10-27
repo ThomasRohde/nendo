@@ -109,6 +109,12 @@ export interface BrokerDeps {
   /** The Workbench's own host bridge. */
   request(method: string, payload: Record<string, unknown>): Promise<unknown>;
   /**
+   * The values of the settings a package declares (ADR-0038), each as the person sees it: the
+   * app's default, the file's value, then this computer's. Optional, so a host without settings
+   * answers every package as declaring none.
+   */
+  settings?(packageId: string): Record<string, unknown>;
+  /**
    * Tell the host what a view did: it connected, stopped answering, threw an error it did
    * not catch, or had a call refused. The host keeps the open file's last few for an agent to
    * read. At most `reportsPerSecond` from one view; optional, so a host without it still brokers.
@@ -811,6 +817,32 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       proposalId: textParam(call.params, 'proposalId', 64), actor: `extension:${call.deps.context(call.mount).packageId}`,
     })),
   },
+  // The settings the view's own package declares (ADR-0038), answered from the open file and
+  // this computer. A view reads no other package's.
+  'settings.all': {
+    host: null,
+    run: ({ mount, deps }) => deps.settings?.(deps.context(mount).packageId) ?? {},
+  },
+  'settings.get': {
+    host: null,
+    run: ({ params, mount, deps }) => {
+      const id = textParam(params, 'id', 64);
+      const values = deps.settings?.(deps.context(mount).packageId) ?? {};
+      if (!Object.prototype.hasOwnProperty.call(values, id)) throw invalid(`This package declares no setting ${id}.`);
+      return values[id];
+    },
+  },
+  // This computer's value, kept at once; null takes it away. A value in the file goes through
+  // proposals.prepare with package.setSetting, which the person reviews.
+  'settings.set': {
+    host: 'package.settings.set',
+    run: async ({ params, mount, deps }) => {
+      const packageId = deps.context(mount).packageId;
+      const id = textParam(params, 'id', 64);
+      await deps.request('package.settings.set', { packageId, settingId: id, value: params.value ?? null });
+      return null;
+    },
+  },
   // What a view keeps with the file (ADR-0013): small JSON values per view, or
   // shared by the package's views, each a Data revision History names the package on.
   'state.get': {
@@ -1023,6 +1055,8 @@ interface Connection {
   mount: BrokerMount;
   port: MessagePort;
   closed: boolean;
+  /** The package's settings as this view last heard them, so it hears only a change. */
+  settingsJson?: string;
   /** When this view's recent runtime events were reported, for the per-second bound. */
   reportTimes: number[];
   inFlight: number;
@@ -1059,6 +1093,8 @@ export interface ExtensionBroker {
   changes(changeSequence: number): void;
   /** The theme changed: hand every connected view its new colours. */
   theme(theme: ViewTheme): void;
+  /** Tell each connected view its package's settings when they differ from what it last heard. */
+  settingsChanged(): void;
   /** Hand a view its context again, when what it describes has changed. */
   refreshContext(mount: BrokerMount): void;
   /**
@@ -1289,6 +1325,21 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
         if (wait <= 0) { sendChanges(connection); continue; }
         connection.changesScheduled = true;
         deps.later(() => sendChanges(connection), wait);
+      }
+    },
+
+    settingsChanged() {
+      closeStale();
+      if (deps.settings === undefined) return;
+      for (const connection of connections.values()) {
+        if (connection.closed) continue;
+        const values = deps.settings(deps.context(connection.mount).packageId);
+        const json = JSON.stringify(values);
+        // The first time is what it read at connecting; a view hears only a change.
+        if (connection.settingsJson === undefined) { connection.settingsJson = json; continue; }
+        if (json === connection.settingsJson) continue;
+        connection.settingsJson = json;
+        post(connection, { t: 'evt', n: 'settingsChanged', d: values });
       }
     },
 

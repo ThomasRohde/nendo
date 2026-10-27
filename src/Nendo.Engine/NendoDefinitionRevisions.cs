@@ -32,7 +32,8 @@ public static class NendoDefinitionRevisions
         operationType.StartsWith("ui.", StringComparison.Ordinal) ||
         operationType.StartsWith("behaviour.", StringComparison.Ordinal) ||
         operationType.StartsWith("application.", StringComparison.Ordinal) ||
-        operationType.StartsWith("extension.", StringComparison.Ordinal);
+        operationType.StartsWith("extension.", StringComparison.Ordinal) ||
+        operationType.StartsWith("package.", StringComparison.Ordinal);
 
     /// <summary>The payload with <paramref name="revision"/> filled in, if it takes one and states none.</summary>
     public static JsonElement Resolve(string operationType, JsonElement payload, long revision)

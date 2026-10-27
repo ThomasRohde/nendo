@@ -809,7 +809,7 @@ fields where the shape cannot tell. The ladder is:
 | A screen's root or a custom view with an `icon` | 1.56 |
 
 Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
-1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51 and 1.55 (`NendoFormat`).
+1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51, 1.55 and 1.57 (`NendoFormat`).
 An operation declares each on its own evidence, as it does 1.52 for a media field:
 
 | Rung | A file that |
@@ -833,6 +833,7 @@ An operation declares each on its own evidence, as it does 1.52 for a media fiel
 | 1.51.0 | changed a reference's label with `schema.setReferenceLabel` |
 | 1.52.0 | has a media field or an embedded picture (ADR-0031) |
 | 1.55.0 | has its own picture as its icon |
+| 1.57.0 | carries a view package that declares settings (ADR-0038) |
 
 A history fold, which is not an operation, states 1.50.0 in the manifest, covering the
 fold table's 1.39.0; a file started with New states 1.50.0 too, since its copy is

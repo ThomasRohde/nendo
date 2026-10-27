@@ -73,6 +73,7 @@ internal sealed partial class SqliteNendoStore
             SetApplicationLookOperation setLook => await ExecuteSetApplicationLookAsync(setLook, transaction, cancellationToken),
             SetApplicationIconOperation setIcon => await ExecuteSetApplicationIconAsync(setIcon, transaction, cancellationToken),
             SetEntityIconOperation entityIcon => await ExecuteSetEntityIconAsync(entityIcon, transaction, cancellationToken),
+            SetPackageSettingOperation packageSetting => await ExecuteSetPackageSettingAsync(packageSetting, transaction, cancellationToken),
             BuildSearchIndexOperation buildSearch => await ExecuteBuildSearchIndexAsync(buildSearch, transaction, cancellationToken),
             SetFieldPresentationOperation presentation => await ExecuteSetFieldPresentationAsync(presentation, transaction, cancellationToken),
             SetKeptInNewFilesDefaultOperation keptDefault => await ExecuteSetKeptInNewFilesDefaultAsync(keptDefault, transaction, cancellationToken),

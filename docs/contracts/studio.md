@@ -392,5 +392,11 @@ It opens as a page from **Settings** in the navigation, **Ctrl ,** and the comma
   `ui.setProperty` / `ui.removeProperty` of the screen's `icon`. Right-clicking a record type or a
   screen in the navigation opens the same picker, and its choice opens straight in the review. A
   record type whose name suggests no icon shows a box, and a screen the layout icon.
+- **Apps.** Each app of the open file that declares settings has a section of its own, under *Apps
+  in this file*, with a row for each setting in its package's order. A `personal` setting is kept
+  on this computer and changes at once (`package.settings.set`). A `shared` one is in the file and
+  waits in the bar as `package.setSetting`. A `both` one changes this computer's value, says
+  whether the file's value or the default is under it, and offers **Use the file's** while a value
+  of this computer's is kept.
 - **Overrides.** `NENDO_DESKTOP_CLOSE_ACTION` makes its row read-only, and the row names it.
 - **A page in a browser** offers no window, tray or agent setting.

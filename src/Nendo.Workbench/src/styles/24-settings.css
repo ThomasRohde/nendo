@@ -15,6 +15,7 @@
 .settings-section[aria-current] { background: var(--nav-hover); }
 .settings-section[aria-current]::before { position: absolute; left: 0; top: 10px; width: 3px; height: 16px; border-radius: 2px; background: var(--cobalt); content: ""; }
 .settings-section .outline-icon { width: 16px; height: 16px; flex: 0 0 auto; }
+.settings-index-label { margin: 12px 0 2px; padding: 0 16px; font-size: 12px; font-weight: 600; color: var(--muted); }
 
 .settings-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; min-height: 0; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-6); }
 .settings-group { display: flex; flex-direction: column; gap: 4px; max-width: 920px; }

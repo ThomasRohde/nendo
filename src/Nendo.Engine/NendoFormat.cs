@@ -391,7 +391,15 @@ public static class NendoFormat
     /// </summary>
     public const string IconsMinimumHostVersion = "1.56.0";
 
-    public const string CurrentHostVersion = IconsMinimumHostVersion;
+    /// <summary>
+    /// Settings a view package declares (ADR-0038), and the values the file keeps for them, in two
+    /// protected tables on the rung above a record type's icon, stated by extension.setPackage's
+    /// evidence when it declares any and by package.setSetting's. A file whose packages declare none
+    /// keeps the rung it had.
+    /// </summary>
+    public const string PackageSettingsMinimumHostVersion = "1.57.0";
+
+    public const string CurrentHostVersion = PackageSettingsMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

@@ -429,6 +429,8 @@ internal sealed partial class SqliteNendoStore
             var findings = new List<NendoOpenFinding>();
             if (minimumHost < Version.Parse(NendoFormat.RevisionIndexesMinimumHostVersion) && await store.RevisionIndexesExistAsync(null, cancellationToken))
                 return Unreadable("layout-version-mismatch", "The history indexes a fold adds require the declared index-capable host version.", observedAt);
+            if (layout.Contains("-setting-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.PackageSettingsMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A package's settings require the declared settings-capable host version.", observedAt);
             if (layout.Contains("-entityicon-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.IconsMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A record type's icon requires the declared icon-capable host version.", observedAt);
             if (layout.Contains("-icon-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ApplicationIconMinimumHostVersion))
@@ -519,7 +521,8 @@ internal sealed partial class SqliteNendoStore
                 !await store.HierarchyMetadataIsValidAsync(mappings, cancellationToken) ||
                 !await store.FieldRuleMetadataIsValidAsync(mappings, cancellationToken) ||
                 !await store.LinkRuleMetadataIsValidAsync(mappings, cancellationToken) ||
-                !await store.EntityIconMetadataIsValidAsync(mappings, cancellationToken);
+                !await store.EntityIconMetadataIsValidAsync(mappings, cancellationToken) ||
+                !await store.PackageSettingsAreValidAsync(cancellationToken);
             if (mappingDrift)
             {
                 coreValid = false;
@@ -997,6 +1000,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-icon-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(EntityIconSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-icon-entityicon-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(PackageSettingSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-icon-entityicon-setting-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_package_setting_value; DROP TABLE __nendo_package_setting;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_entity_icon;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_application_icon;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_media_content; DROP TABLE __nendo_media;", null, CancellationToken.None);
@@ -1075,6 +1081,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-icon-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(EntityIconSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-icon-entityicon-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(PackageSettingSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-icon-entityicon-setting-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

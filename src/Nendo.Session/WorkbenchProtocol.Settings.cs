@@ -16,9 +16,17 @@ internal static partial class WorkbenchMethods
     /// are recorded. Every other setting is changed through the method its own control has always used.
     /// </summary>
     internal const string SettingsSet = "settings.set";
+
+    /// <summary>
+    /// Keep this computer's value for a setting an app of the open file declares, or with null take
+    /// it away (ADR-0038). Answers the session, whose package carries the value.
+    /// </summary>
+    internal const string PackageSettingsSet = "package.settings.set";
 }
 
 internal sealed record SettingChangePayload(string Id, JsonElement Value);
+
+internal sealed record PackageSettingPayload(string PackageId, string SettingId, JsonElement Value);
 
 internal sealed partial class WorkbenchProtocolHandler
 {
@@ -30,6 +38,12 @@ internal sealed partial class WorkbenchProtocolHandler
 
     /// <summary>Changes a setting only this host keeps; refuses any other.</summary>
     private partial void ChangeHostSetting(string id, bool value);
+
+    private async Task<DesktopSessionView> SetPackageSettingAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        var request = Deserialize<PackageSettingPayload>(payload);
+        return await _session.SetPackageSettingAsync(request.PackageId, request.SettingId, request.Value, cancellationToken);
+    }
 
     private SettingsView DescribeSettings() =>
         SettingsCatalogue.Describe(OffersWindowsSettings(), HostSettingValue, Environment.GetEnvironmentVariable);

@@ -27,6 +27,7 @@ public sealed class DesktopDeviceStateLayoutTests
         @"files\recent.json",
         @"logs\agent-failures.jsonl",
         @"logs\view-failures.jsonl",
+        @"views\app-settings.json",
         @"views\origin-carry.json",
         @"views\settings.json",
         @"window\appearance.json",
@@ -62,6 +63,7 @@ public sealed class DesktopDeviceStateLayoutTests
             "application-one", "instance-one", new string('0', 64), "behaviour-1", 3, NendoBehaviourCapabilities.UpdateRecords));
         using (var views = new DesktopExtensionSettingsStore(root)) views.SetFileEnabled("application-one", false);
         new ExtensionOriginCarry(root, () => new Dictionary<string, string>()).Holders();
+        new DesktopAppSettingsStore(root).Set("org.example.app", "zoom", System.Text.Json.JsonDocument.Parse("2").RootElement);
         var launch = new DesktopAgentLaunchStore(root);
         launch.SetLastAgent("claude");
         new DesktopAgentOptionsStore(root).Pick("claude", new Dictionary<string, string> { ["model"] = "default" });

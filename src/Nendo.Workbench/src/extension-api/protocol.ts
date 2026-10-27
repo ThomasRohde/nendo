@@ -411,7 +411,7 @@ export interface HelloMessage { nendo: 'hello'; apiVersion: number }
 export interface ConnectMessage { nendo: 'connect'; apiVersion: number; context: ViewContext }
 
 /** Every event a view can hear; `nendo.on` refuses any other name. */
-export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command', 'place', 'assistant'] as const);
+export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command', 'place', 'assistant', 'settingsChanged'] as const);
 
 /**
  * The launched agent as a view sees it (ADR-0033): its state, its name, whether a turn runs, and

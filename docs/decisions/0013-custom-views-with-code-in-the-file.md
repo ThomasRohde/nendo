@@ -158,8 +158,9 @@ growth of a commit carrying 4 MiB of new content.
   version checks as a person's edit; undo and redo its own batches
   ([ADR-0023](0023-a-view-undoes-its-own-revisions.md)); prepare a proposal; subscribe to
   changes (at most 4 events a second per frame); navigate, show a toast, set its height,
-  read the theme and keep a place in Back and Forward (`ui.setPlace`); and keep state in the
-  file.
+  read the theme and keep a place in Back and Forward (`ui.setPlace`); keep state in the
+  file; and read its package's declared settings and keep this computer's value of them
+  (`settings.*`, [ADR-0038](0038-settings-in-one-place.md)).
 - The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`, `agent.*`,
   `file.*`, `session.open*`, `appearance.set` or `history.compensate`. The production gate
   pins it. A view may message the person's launched agent through `assistant.*`, under

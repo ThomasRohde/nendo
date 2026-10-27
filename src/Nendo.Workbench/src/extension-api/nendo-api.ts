@@ -664,6 +664,19 @@ function install(host: Window & { nendo?: unknown }): void {
         queueState('state.delete', { key, ...options }) as Promise<null>,
       keys: (options: StateOptions = {}): Promise<Array<{ key: string; version: number }>> => call('state.keys', { ...options }),
     }),
+    settings: Object.freeze({
+      /**
+       * The settings this package declares in nendo-package.json (ADR-0038), as the person sees
+       * them: the app's default, the file's value, then this computer's. Nendo draws them on its
+       * Settings page, so they work while the views are off.
+       */
+      all: (): Promise<Record<string, Json>> => call<Record<string, Json>>('settings.all', {}),
+      get: (id: string): Promise<Json> => call<Json>('settings.get', { id }),
+      /** Keeps this computer's value at once, where the setting allows one; null takes it away. */
+      set: (id: string, value: Json | null): Promise<null> => call<null>('settings.set', { id, value }),
+      /** Hears every setting's value each time one of them changes, wherever it was changed. */
+      subscribe: (listener: (values: Record<string, Json>) => void): (() => void) => on('settingsChanged', listener as Listener),
+    }),
     changes: Object.freeze({
       /** Hears the file's change sequence each time anything commits, at most four times a second. */
       subscribe: (listener: (changeSequence: number) => void): (() => void) => on('changes', listener as Listener),

@@ -204,6 +204,7 @@ export function operationLabel(value: string): string {
     'schema.setChoiceMetadata': 'Change a choice',
     'schema.setFieldPresentation': 'Change how a field is shown',
     'schema.setEntityIcon': 'Choose a record type’s icon',
+    'package.setSetting': 'Set an app’s setting for this file',
     'schema.setFieldRequired': 'Make a field required or optional',
     'schema.setFieldSequence': 'Number a field automatically',
     'schema.setFieldUnique': 'Make a field unique or not',

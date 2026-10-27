@@ -340,7 +340,7 @@ has the whole shape.
 
 ## Following the file
 
-`nendo.on(name, listener)` subscribes to one of six events and returns a function
+`nendo.on(name, listener)` subscribes to one of seven events and returns a function
 that unsubscribes. Any other name is refused with `unknown-event`:
 
 | Event | Data | When |
@@ -351,6 +351,7 @@ that unsubscribes. Any other name is refused with `unknown-event`:
 | `place` | The place the view declared with `ui.setPlace`, or null | When Back or Forward moved the person to one of the view's places ([Back and Forward](#back-and-forward)) |
 | `command` | `{id, value, source}` | When the person pressed one of the controls the view declared ([Controls in Nendo's toolbar](#controls-in-nendos-toolbar)) |
 | `assistant` | `{state, name, working, access}` | When the person's launched agent starts, signs in, begins or ends a turn or ends, or the person changes what views may do ([Asking the person's agent](#asking-the-persons-agent)) |
+| `settingsChanged` | `{id: value}` for every setting your package declares | When one of them changes, on Nendo's Settings page, in the file or on this computer. `nendo.settings.all()` reads them; declare them under `settings` in `nendo-package.json` |
 
 An event is a nudge, not data. Read again what your view shows, and collapse a burst
 into one read, as the first view does. `nendo.changes.subscribe(listener)` is the same
@@ -771,7 +772,7 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `host-timeout` | Nendo did not answer in time. A write may have been kept, as with `disconnected` |
 | `written-not-read` | The write was kept, but reading the record back failed. Do not write it again; read the record |
 | `not-framed` | The page was opened on its own, not in Nendo |
-| `unknown-event` | `nendo.on` was given a name that is not one of its six events |
+| `unknown-event` | `nendo.on` was given a name that is not one of its seven events |
 | `assistant-off` | The person chose Never for views on the Agent page. Do not ask again |
 | `assistant-declined` | The person said Not now in Nendo's card. Nendo refuses your package without a card until the conversation changes |
 | `assistant-unavailable` | No agent can run now: access is Off, the file is read-only, or none is installed. Nendo showed the person the way |

@@ -66,9 +66,11 @@ The four operations are in the definition lane, and each declares
 `extension.setPackage` with `kind: "skill"` to 1.43.0 ([Skill packages](#skill-packages)).
 
 - `extension.setPackage` {`packageId`, `title`, `entryPoint`, `version`,
-  `description`} creates a package or changes its metadata. `entryPoint` defaults
+  `description`, `settings`} creates a package or changes its metadata. `entryPoint` defaults
   to `index.html`. `version` is an optional semantic version of at most 40
   characters. A title has 1–200 characters, and a description at most 1,000.
+  `settings` is the package's whole list of declared settings
+  ([Settings a package declares](#settings-a-package-declares)); leaving it out declares none.
 - `extension.putFile` {`packageId`, `path`, `mediaType`, `expectedSha256`, and
   exactly one of `text`, `base64`, or `sha256` with `byteLength`} adds a file or
   replaces what the path holds:
@@ -97,10 +99,73 @@ on such a revision, and one compensation reverses at most 12,800 operations, the
 Engine's bound for every compensation. A revision that mixes package operations with
 other operations is not compensated. Each inverse states the content it expects to
 find, so a file changed since refuses the compensation as `extension-file-changed`. The
-inverse of a metadata change expects the title, entry point, version and description the
-change left, and the inverse of a removal expects no package; a package changed since,
-or created again, refuses it as `extension-package-changed`. An exact retry of a
+inverse of a metadata change expects the title, entry point, version, description and
+declared settings the change left, and the inverse of a removal expects no package; a
+package changed since, or created again, refuses it as `extension-package-changed`. An exact retry of a
 compensation that succeeded returns its receipt and runs nothing again.
+
+### Settings a package declares
+
+A view package may declare settings in its manifest's `settings` (ADR-0038). Nendo draws
+them in Settings, so they work while the package's views are off or broken. The rules are
+in `src/Nendo.Engine/Extensions/PackageSettings.cs`:
+
+- At most 64 declarations, each with a unique `id`: a lowercase letter, then at most 63
+  letters, digits and `_ . -`.
+- `title` of 1–120 characters, optional `help` of at most 500.
+- `type` is `toggle`, `choice`, `number` or `text`, and `default` is a value that fits it.
+- `layers` is `personal`, `shared` or `both`: where a value may be kept.
+- A choice has `options`, 2–32 of {`value` of 1–80 characters, `label` of 1–120}, each
+  value unique; its default is one of them. A number may have a finite `min` and `max`,
+  with `min` ≤ `default` ≤ `max`, and a `unit` of at most 24 characters. Text may have a
+  `maxLength` of 1–1,000, 1,000 when it names none.
+- A key the type does not take is refused. A skill package declares none.
+
+A declaration that breaks a rule is refused by name, with the setting's ID, when the
+manifest is imported and when `extension.setPackage` is validated.
+
+**Storage.** Two protected tables on the layout ladder's `-setting-` rung, after the
+`-entityicon-` rung, hold what the manifest says; the manifest is still never a file:
+
+| Table | Holds |
+| --- | --- |
+| `__nendo_package_setting` | `package_id`, `setting_id`, `ordinal` (the manifest's order), `declaration_json` (the declaration as canonical JSON) |
+| `__nendo_package_setting_value` | `package_id`, `setting_id`, `value_json`: the file's shared value, while it keeps one |
+
+The first `extension.setPackage` that declares a setting creates both tables and raises
+the file's minimum host to 1.57.0; open refuses a `-setting-` layout that states less, as
+`layout-version-mismatch`. A file whose packages declare none keeps its layout and host. A
+declaration of a type this version does not know is left out rather than guessed at.
+
+**Changing declarations.** `extension.setPackage` states the whole list. A shared value
+that still fits its setting is kept; one that no longer fits, or whose setting is gone or
+now `personal`, is dropped. Removing the package removes its declarations and values. The
+inverse of either puts back the declarations and every value they dropped, unless the file
+holds a value for that setting again.
+
+**`package.setSetting`** {`packageId`, `settingId`, `value`, `expectedDefinitionRevision`}
+keeps a shared value in the file, in the definition lane, or clears it with `value: null`,
+so the default is used. `value` is text, a finite number, true or false. It declares
+`ReversibleWithRetainedState`: its undo restores the value it replaced, or none. It is
+refused as:
+
+- `extension-package-not-found` for a package the file does not carry;
+- `package-setting-not-found` for a setting the package does not declare;
+- `package-setting-personal` for a setting whose layers are `personal`;
+- `package-setting-invalid` for a value that does not fit: the wrong type, not one of the
+  options, outside `min` and `max`, or longer than `maxLength`. The message says which, such
+  as "The setting zoom is a number from 1 to 9, and 12 is not.";
+- `definition-version-conflict` for a stale revision.
+
+**Reading.** Each package in the session snapshot and in MCP carries `settings`, its
+declarations in order (a choice with its options, a text setting with its `maxLength`,
+null for a field the type does not take), and `sharedSettings`, the file's values by
+setting ID. A stored value that does not fit is not shown, and the default is used.
+
+**Personal values are the host's.** A `personal` or `both` setting's personal value is kept
+on each computer by package ID, in device state, never in the file. It holds for every file
+that carries the package. The host checks it with the same rule, `NendoPackageSettings.Fits`,
+before keeping it. MCP never reads or writes one.
 
 ### Bounds and refusals
 
@@ -572,7 +637,7 @@ Everything after the handshake travels on the port.
 | View | `{t: 'req', id, m, p}` | A request. `id` is a safe integer the view chooses, `m` a method name, `p` its parameters, an object |
 | Workbench | `{t: 'res', id, ok: true, r}` | The answer to request `id` |
 | Workbench | `{t: 'res', id, ok: false, e: {code, message}}` | A refusal of request `id` |
-| Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme`, `changes`, `command`, `place` or `assistant`, with its data ([Events](#events)) |
+| Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme`, `changes`, `command`, `place`, `assistant` or `settingsChanged`, with its data ([Events](#events)) |
 | Workbench | `{t: 'ping', id}` | A heartbeat. The script answers `{t: 'pong', id}` |
 | View | `{t: 'ping', id}` | The broker answers `{t: 'pong', id}` |
 | View | `{t: 'key', keys}` | A key pressed inside the view that is one of Nendo's own, or one its toolbar declares, normalised (`Ctrl+K`). The Workbench runs it as if it had been pressed there, and nothing answers ([Nendo's toolbar, menus and keys](#nendos-toolbar-menus-and-keys)) |
@@ -1088,7 +1153,7 @@ The script adds three readers on top of the table. None is a method of its own:
 ### Events
 
 `nendo.on(name, listener)` subscribes and returns a function that unsubscribes. A name
-other than these five throws `unknown-event`.
+other than these seven throws `unknown-event`.
 
 | Event | Data | When |
 | --- | --- | --- |
@@ -1098,9 +1163,32 @@ other than these five throws `unknown-event`.
 | `command` | `{id, value, source}` | The person pressed one of the controls the view declared: in Nendo's toolbar, one of its menus, Ctrl K, by its key, or Nendo's Add. `source` is `toolbar`, `menu`, `palette`, `key` or `add` |
 | `place` | The view's place, or null | Back or Forward moved the person to a place of this view's that differs from the one it has |
 | `assistant` | `{state, name, working, access}` | The launched agent started, signed in, began or ended a turn, or ended, or the person changed what views may do |
+| `settingsChanged` | `{id: value}` for every setting the package declares | One of them changed: on Nendo's Settings page, in the file, or on this computer by another view ([Settings a package declares](#settings-a-package-declares)) |
 
-`nendo.changes.subscribe(listener)` is the same as `nendo.on('changes', listener)`. An
-event is a nudge: the view decides what to read again.
+`nendo.changes.subscribe(listener)` is the same as `nendo.on('changes', listener)`, and
+`nendo.settings.subscribe(listener)` as `nendo.on('settingsChanged', listener)`. An event is a
+nudge: the view decides what to read again.
+
+### Reading the settings a package declares
+
+`nendo.settings.all()` answers `{id: value}` for every setting the view's package declares
+([Settings a package declares](#settings-a-package-declares)), each as the person sees it: the
+default, then the file's value where the setting allows one, then this computer's where it allows
+one. A value that no longer fits its declaration is passed over. `nendo.settings.get(id)` answers
+one; an ID the package does not declare is refused (`validation`). A view reads only its own
+package's settings, and the Workbench answers both from the open file and this computer.
+
+`nendo.settings.set(id, value)` keeps this computer's value at once, through the host method
+`package.settings.set`, for a setting whose layers are `personal` or `both`; null takes it away.
+The host checks the value with the Engine's own rule and refuses one that does not fit
+(`package-setting-invalid`), a setting the package does not declare (`package-setting-not-found`)
+and one kept only in the file (`package-setting-shared`). A value in the file is a definition
+change: prepare `package.setSetting` with `nendo.proposals.prepare`, which the person reviews.
+
+Personal values are kept in `views\app-settings.json` under the device-state root
+([ADR-0034](../decisions/0034-device-state-layout.md)), by package ID, so a choice holds for
+every file that carries the app. They never reach the file or MCP; the production gate refuses
+an MCP source file that names their store.
 
 The script applies the theme itself, before any listener runs. It sets each token as a
 custom property on the document's root, `--nendo-‹name›`, and sets `data-nendo-theme`
@@ -1152,7 +1240,7 @@ sentence.
 | `host-timeout` | Workbench | Nendo did not answer within 15 seconds. As `disconnected` |
 | `written-not-read` | Broker | The write was kept, but reading the record back failed. Read it; do not write it again |
 | `not-framed` | Script | The page was opened on its own, outside any frame, so nothing can connect it |
-| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes`, `command`, `place` or `assistant` |
+| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes`, `command`, `place`, `assistant` or `settingsChanged` |
 | `failed` | Broker | The answer could not be sent, or the failure had no code |
 | `assistant-off` | Workbench or host | The person chose Never for views on the Agent page |
 | `assistant-declined` | Workbench | The person said Not now in Nendo's card; refused without a card for 30 seconds while the conversation stays the same |
@@ -1400,6 +1488,7 @@ are allowed, and keys other than these are ignored:
 | `entryPoint` | Default: `index.html`. It must be one of the package's files. A skill package names none |
 | `description` | Optional |
 | `kind` | `view` (default) or `skill`. A skill folder needs a `SKILL.md` whose frontmatter names it, checked here and refused by the file's name |
+| `settings` | Optional, a view package's only: up to 64 declarations by the rules in [Settings a package declares](#settings-a-package-declares), each refused by its ID |
 
 The manifest is never stored as a file: the package row holds what it says.
 
@@ -1423,8 +1512,8 @@ to it.
 **Export** (`extension.export {packageId}`) reads the package and every file's bytes,
 then opens a native folder picker, with the button **Export here**. It writes the files
 to a new folder named by the package ID inside the folder picked, and a
-`nendo-package.json` that names the package ID, title, version, entry point and
-description, so exporting and importing again gives the same package. It refuses when a
+`nendo-package.json` that names the package ID, title, version, entry point,
+description and settings, so exporting and importing again gives the same package. It refuses when a
 folder of that name already holds anything (`extension-export-exists`). Nothing in the
 file changes. The answer names the folder, never a path.
 

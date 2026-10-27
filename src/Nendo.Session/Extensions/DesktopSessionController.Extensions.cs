@@ -28,6 +28,15 @@ internal sealed record DesktopExtensionPackageView(
     /// (ADR-0013), or null. The name only: the Workbench is never handed a path.
     /// </summary>
     public string? DevelopmentFolder { get; init; }
+
+    /// <summary>The settings the package declares in its manifest (ADR-0038).</summary>
+    public IReadOnlyList<NendoPackageSettingDeclaration> Settings { get; init; } = [];
+
+    /// <summary>The file's values for those settings, by ID: only values that fit.</summary>
+    public IReadOnlyDictionary<string, System.Text.Json.JsonElement> SharedSettings { get; init; } = new Dictionary<string, System.Text.Json.JsonElement>();
+
+    /// <summary>This computer's values for them, by ID: only values that fit.</summary>
+    public IReadOnlyDictionary<string, System.Text.Json.JsonElement> PersonalSettings { get; init; } = new Dictionary<string, System.Text.Json.JsonElement>();
 }
 
 /// <summary>
@@ -285,7 +294,12 @@ internal sealed partial class DesktopSessionController
             hosts[host] = package;
             packages.Add(new(package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description,
                 "https://" + host, package.Files.Count, package.TotalBytes, ContentDigest(package), package.Kind)
-            { DevelopmentFolder = DevelopmentFolderName(package.PackageId) });
+            {
+                DevelopmentFolder = DevelopmentFolderName(package.PackageId),
+                Settings = package.Settings,
+                SharedSettings = package.SharedSettings,
+                PersonalSettings = PersonalSettings(package),
+            });
         }
         _extensionServing = new(applicationId, offReason is null, hosts);
         return new(offReason is null, offReason, settings.Run, fileEnabled, packages) { Notice = settings.Notice };

@@ -360,6 +360,7 @@ internal static class SemanticDiff
                 PutExtensionFileOperation value => Entry("putExtensionFile", packages.Put(value), value.Reversibility, value.PackageId, value.Path),
                 RemoveExtensionFileOperation value => Entry("removeExtensionFile", packages.RemoveFile(value), value.Reversibility, value.PackageId, value.Path),
                 RemoveExtensionPackageOperation value => Entry("removeExtensionPackage", packages.Remove(value), value.Reversibility, value.PackageId),
+                SetPackageSettingOperation value => Entry("setPackageSetting", packages.Setting(value), value.Reversibility, value.PackageId, value.SettingId),
                 // A web page's changes (ADR-0035) carry its pictures and its views' kept values too.
                 PutMediaOperation value => Entry("putMedia",
                     $"Embed the picture {value.Name ?? value.Sha256[..12]} ({value.MediaType}, {value.ByteLength:N0} bytes) in the file.",
@@ -403,6 +404,7 @@ internal static class SemanticDiff
     {
         private readonly Dictionary<string, string> _titles = new(StringComparer.Ordinal);
         private readonly HashSet<string> _skills = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, IReadOnlyList<NendoPackageSettingDeclaration>> _settings = new(StringComparer.Ordinal);
         private readonly Dictionary<(string Package, string Path), (string Sha256, long Bytes, string MediaType)> _files = new();
 
         internal PackageState(NendoSessionSnapshot active)
@@ -411,6 +413,7 @@ internal static class SemanticDiff
             {
                 _titles[package.PackageId] = package.Title;
                 if (package.IsSkill) _skills.Add(package.PackageId);
+                _settings[package.PackageId] = package.Settings;
                 foreach (var file in package.Files) _files[(package.PackageId, file.Path)] = (file.Sha256, file.ByteLength, file.MediaType);
             }
         }
@@ -439,10 +442,41 @@ internal static class SemanticDiff
             }
             // A view package of an ID a skill package had: its code runs, whatever the ID was.
             _skills.Remove(operation.PackageId);
-            return existed
+            _settings[operation.PackageId] = operation.Settings;
+            var said = existed
                 ? $"Update the custom-view package {operation.Title} ({operation.PackageId}): it starts at {operation.EntryPoint}" +
                     (operation.Version is null ? "." : $" and is version {operation.Version}.")
                 : $"Add the custom-view package {operation.Title} ({operation.PackageId}), starting at {operation.EntryPoint}. Its code is kept in this file.";
+            return operation.Settings.Count switch
+            {
+                0 => said,
+                1 => $"{said} It declares one setting for Settings: {operation.Settings[0].Title}.",
+                var count => $"{said} It declares {count} settings for Settings: {string.Join(", ", operation.Settings.Select(setting => setting.Title))}.",
+            };
+        }
+
+        internal string Setting(SetPackageSettingOperation operation)
+        {
+            var declaration = _settings.GetValueOrDefault(operation.PackageId)?.FirstOrDefault(setting => setting.Id == operation.SettingId);
+            var name = declaration?.Title ?? operation.SettingId;
+            if (operation.Value is not { } value)
+                return $"Clear the file's value for {name} in {Title(operation.PackageId)}, so its default is used.";
+            return $"Set {name} in {Title(operation.PackageId)} to {Shown(declaration, value)} for everyone who opens this file.";
+        }
+
+        private static string Shown(NendoPackageSettingDeclaration? declaration, System.Text.Json.JsonElement value)
+        {
+            switch (value.ValueKind)
+            {
+                case System.Text.Json.JsonValueKind.True: return "on";
+                case System.Text.Json.JsonValueKind.False: return "off";
+                case System.Text.Json.JsonValueKind.Number:
+                    var number = value.GetDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                    return declaration?.Unit is { } unit ? $"{number} {unit}" : number;
+                default:
+                    var text = value.GetString() ?? "";
+                    return declaration?.Options?.FirstOrDefault(option => option.Value == text)?.Label ?? $"\"{text}\"";
+            }
         }
 
         internal string Put(PutExtensionFileOperation operation)
@@ -474,6 +508,7 @@ internal static class SemanticDiff
             // Its kind goes with it: the ID may come back as the other kind in the same change set,
             // and code put into a view package re-created there must read as code that runs.
             _skills.Remove(operation.PackageId);
+            _settings.Remove(operation.PackageId);
             return $"Remove {title} from this file.";
         }
 

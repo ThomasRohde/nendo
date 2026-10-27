@@ -1,4 +1,5 @@
 import { state } from './app-state';
+import { packageSettingValues } from './app-settings';
 import { client } from './client';
 import { brokerMethodNames, createExtensionBroker, type BrokerMount, type ExtensionBroker, type ViewEventReport } from './extension-broker';
 import { describeSchema, viewContext, viewTheme, type ViewSpec } from './extension-model';
@@ -156,6 +157,7 @@ export function installViewFrames(): void {
       else markState(view);
       keepTicking();
     },
+    settings: (packageId) => packageSettingValues(packageId),
     now: () => Date.now(),
     later: (callback, milliseconds) => { window.setTimeout(callback, milliseconds); },
   });
@@ -295,6 +297,8 @@ function markState(mount: Mount): void {
  * that draws placeholders, after it has drawn them.
  */
 export function wireViewFrames(scope: ParentNode): void {
+  // A redraw follows every change of the session, so a view hears its settings when they moved.
+  broker?.settingsChanged?.();
   for (const element of scope.querySelectorAll<HTMLElement>('[data-view-mount]')) {
     const spec = viewSpecOf(element.dataset);
     const stage = element.querySelector<HTMLElement>('[data-view-stage]');

@@ -120,6 +120,8 @@ internal static partial class WorkbenchMethods
         // The settings catalogue and the window's two settings: small device documents, no window.
         SettingsDescribe,
         SettingsSet,
+        // An app's personal setting: a small device document and a definition read.
+        PackageSettingsSet,
     };
 
     /// <summary>

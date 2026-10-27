@@ -144,6 +144,9 @@ internal static class NendoToolErrors
             "record-id-reserved", "record-exists-or-invalid", "kept-in-new-files-unchanged", "new-file-reference-left-out",
             "entity-not-found", "entity-exists", "entity-retired", "field-retired", "retired-binding",
             "record-version-exhausted", "command-unavailable", "move-receipt-unavailable", "ui-node-not-found",
+            // ADR-0038: a package setting's refusals name the package and the setting by ID, the
+            // declared options or range, and the value the caller sent, never one the file stores.
+            "package-setting-not-found", "package-setting-personal", "package-setting-invalid",
             "write-ceiling-bytes", "write-ceiling-rows", "write-ceiling-schema", "file-changed-before-open",
             "reference-conversion-required", "reference-conversion-incomplete", "reference-conversion-mismatch",
             "reference-conversion-too-large",

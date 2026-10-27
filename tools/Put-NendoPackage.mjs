@@ -103,6 +103,22 @@ async function readOperations() {
   return operations;
 }
 
+// Declarations compared as Nendo keeps them: keys in order, absent fields left out, blank help or
+// unit as none, and a text setting's maxLength filled in. Anything Nendo would refuse compares as
+// different, so the proposal carries it and Nendo names what is wrong.
+function settingsKey(settings) {
+  if (!Array.isArray(settings)) return JSON.stringify(settings ?? []);
+  return JSON.stringify(settings.map(setting => {
+    if (setting === null || typeof setting !== 'object') return setting;
+    const kept = { ...setting };
+    if (kept.type === 'text' && (kept.maxLength === undefined || kept.maxLength === null)) kept.maxLength = 1000;
+    for (const key of ['help', 'unit']) if (typeof kept[key] === 'string' && kept[key].trim() === '') delete kept[key];
+    return Object.fromEntries(Object.keys(kept).sort().filter(key => kept[key] !== null && kept[key] !== undefined)
+      .map(key => [key, key === 'options' && Array.isArray(kept.options)
+        ? kept.options.map(option => ({ label: option?.label, value: option?.value })) : kept[key]]));
+  }));
+}
+
 async function main() {
   const { manifest, files } = await readPackage();
   const extra = await readOperations();
@@ -113,10 +129,14 @@ async function main() {
 
   // A skill package (ADR-0024) names no entry point: its SKILL.md is what an agent reads first.
   const skill = manifest.kind === 'skill';
+  // The settings a view package declares (ADR-0038) travel in its description. The operation states
+  // the whole list, so a folder that declares none clears what the file held; Nendo refuses a bad
+  // declaration by name, and a skill package that declares any.
   const operations = [op('extension.setPackage', {
     packageId: manifest.packageId, title: manifest.title ?? manifest.packageId,
     ...(skill ? { kind: 'skill' } : { entryPoint: manifest.entryPoint ?? 'index.html' }),
     version: manifest.version, description: manifest.description,
+    ...(manifest.settings !== undefined && manifest.settings !== null ? { settings: manifest.settings } : {}),
   })];
   for (const held of current?.files ?? []) {
     if (!files.some(candidate => candidate.path === held.path))
@@ -135,7 +155,8 @@ async function main() {
   }
   const unchanged = current && operations.length === 1 && current.title === (manifest.title ?? manifest.packageId) &&
     (current.version ?? null) === (manifest.version ?? null) && (current.entryPoint ?? null) === (skill ? null : manifest.entryPoint ?? 'index.html') &&
-    (current.description ?? null) === (manifest.description ?? null);
+    (current.description ?? null) === (manifest.description ?? null) &&
+    settingsKey(current.settings) === settingsKey(manifest.settings);
   if (unchanged && extra.length === 0) fail(`The file already carries ${manifest.packageId} exactly as ${folder} has it.`);
 
   const title = option('--title') ?? `${current ? 'Update' : 'Add'} the ${skill ? 'skill package' : 'custom view package'} ${manifest.title ?? manifest.packageId}`;

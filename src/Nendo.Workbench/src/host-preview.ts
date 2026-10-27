@@ -292,6 +292,19 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         result = { session: this.session };
         break;
       }
+      case 'package.settings.set': {
+        // This computer's value of an app's setting (ADR-0038), kept on the preview's package.
+        const found = this.packages.find((candidate) => candidate.packageId === payload.packageId);
+        const declared = found?.settings?.find((setting) => setting.id === payload.settingId);
+        if (found === undefined || declared === undefined) throw new WorkbenchHostError('package-setting-not-found', 'That app declares no such setting.');
+        if (declared.layers === 'shared') throw new WorkbenchHostError('package-setting-shared', 'That setting is kept in the file.');
+        const personal = { ...(found.personalSettings ?? {}) };
+        if (payload.value === null || payload.value === undefined) delete personal[declared.id]; else personal[declared.id] = payload.value;
+        found.personalSettings = personal;
+        this.syncExtensions();
+        result = { session: this.session };
+        break;
+      }
       case 'extension.import':
         result = this.importPackage();
         break;

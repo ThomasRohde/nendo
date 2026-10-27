@@ -3054,6 +3054,35 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     assert(tiles === 0 && glyphs.length > 0 && glyphs.every(Boolean), `${tiles} letter tiles; record types with an outline icon: ${JSON.stringify(glyphs)}.`);
   });
 
+  // Settings an app declares (ADR-0038): its own section, layered rows, and a personal value the view hears.
+  await check('an app declares settings and Settings changes this computer\'s value', 'decision', async () => {
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const { state } = await import('/src/app-state.ts');
+      client.packages.push({ packageId: 'org.example.reader', title: 'Reader', version: '1.0.0', entryPoint: 'index.html', description: null,
+        origin: 'https://org-example-reader.example', kind: 'view', fileCount: 1, totalBytes: 10,
+        settings: [
+          { id: 'typeface', title: 'Typeface', help: null, type: 'choice', default: 'serif', layers: 'personal', options: [{ value: 'serif', label: 'Serif' }, { value: 'sans', label: 'Sans' }], min: null, max: null, unit: null, maxLength: null },
+          { id: 'size', title: 'Text size', help: null, type: 'number', default: 17, layers: 'both', options: null, min: 12, max: 24, unit: 'px', maxLength: null },
+        ],
+        sharedSettings: { size: 18 }, personalSettings: {} });
+      client.syncExtensions();
+      state.session = await client.request('session.getSnapshot');
+    });
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('[data-settings-section="app:org.example.reader"]') !== null, null, 'the app\'s section', 6000);
+    await page.click('[data-settings-section="app:org.example.reader"]');
+    const before = await page.evaluate(() => ({
+      home: document.querySelector('[data-setting-row="app:org.example.reader:typeface"] .settings-home')?.textContent,
+      layered: document.querySelector('[data-setting-row="app:org.example.reader:size"] .settings-help')?.textContent,
+      size: document.querySelector('[data-setting-number="app:org.example.reader:size"]')?.value }));
+    assert(before.home === 'This computer' && before.size === '18' && /file/.test(before.layered ?? ''), `the app's rows: ${JSON.stringify(before)}.`);
+    await page.click('[data-setting-choice="app:org.example.reader:typeface"][data-value="sans"]');
+    await until(() => document.querySelector('[data-setting-choice="app:org.example.reader:typeface"][data-value="sans"]')?.getAttribute('aria-checked') === 'true', null, 'Sans chosen', 4000);
+    const values = await page.evaluate(async () => (await import('/src/app-settings.ts')).packageSettingValues('org.example.reader'));
+    assert(values.typeface === 'sans' && values.size === 18, `a view of the app would read ${JSON.stringify(values)}.`);
+  });
+
   await check('dark window paints dark first', 'decision', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.evaluate(() => { try { localStorage.removeItem('nendo.appearance'); } catch { /* none kept */ } });

@@ -23,6 +23,16 @@ public sealed record NendoExtensionPackageSnapshot(
 
     /// <summary>The bytes the package's current files hold together.</summary>
     public long TotalBytes => Files.Sum(file => file.ByteLength);
+
+    /// <summary>The settings the package declares (ADR-0038), in the order its manifest gives them. Empty for most packages.</summary>
+    public IReadOnlyList<NendoPackageSettingDeclaration> Settings { get; init; } = [];
+
+    /// <summary>
+    /// The values the file keeps for its settings, by setting ID: only a value that fits a setting
+    /// whose layers allow <c>shared</c>. A personal value is never in the file.
+    /// </summary>
+    public IReadOnlyDictionary<string, System.Text.Json.JsonElement> SharedSettings { get; init; } =
+        new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.Ordinal);
 }
 
 /// <summary>

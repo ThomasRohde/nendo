@@ -433,7 +433,21 @@ public sealed record NendoMcpExtensionPackage(
     string? Description,
     string Kind,
     long TotalBytes,
-    IReadOnlyList<NendoMcpExtensionFile> Files);
+    IReadOnlyList<NendoMcpExtensionFile> Files)
+{
+    /// <summary>
+    /// The settings the package declares (ADR-0038), in its manifest's order: a choice with its
+    /// options, a text setting with its maxLength, and null for a field its type does not take.
+    /// </summary>
+    public IReadOnlyList<NendoPackageSettingDeclaration> Settings { get; init; } = [];
+
+    /// <summary>
+    /// The values the file keeps for those settings, by setting ID, changed with package.setSetting.
+    /// A setting without one uses its default. A value kept on a person's computer is never here.
+    /// </summary>
+    public IReadOnlyDictionary<string, System.Text.Json.JsonElement> SharedSettings { get; init; } =
+        new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.Ordinal);
+}
 
 /// <summary>
 /// The open file's custom views' recent runtime events. <paramref name="Source"/> says

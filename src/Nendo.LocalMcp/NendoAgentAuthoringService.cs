@@ -1421,7 +1421,8 @@ internal sealed partial class NendoAgentAuthoringService(
         // operation carries a stored value, bounded by the request body.
         var payloadBytes = operation.OperationType switch
         {
-            "extension.putFile" => PutFilePayloadBytes,
+            // A package's settings travel in its description, up to 64 of them with their help and options.
+            "extension.putFile" or "extension.setPackage" => PutFilePayloadBytes,
             _ when operation.OperationType.StartsWith("data.", StringComparison.Ordinal) => RecordPayloadBytes,
             _ => MaximumPayloadBytes,
         };

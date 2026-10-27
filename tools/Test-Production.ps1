@@ -255,7 +255,7 @@ try {
         if ($text -match '(?i)BehaviourGrantStore|ApproveBehaviourAsync|BehaviourAuthority') {
             throw "The local MCP surface can reach behaviour approval: $($file.FullName)"
         }
-        if ($text -match '(?i)DesktopExtensionSettingsStore|DesktopExtensionDevLinks|SetExtensionSettingAsync|SuspendExtensions') {
+        if ($text -match '(?i)DesktopExtensionSettingsStore|DesktopExtensionDevLinks|SetExtensionSettingAsync|SuspendExtensions|DesktopAppSettingsStore|SetPackageSettingAsync') {
             throw "The local MCP surface can switch this device's custom views: $($file.FullName)"
         }
         # The notification area is where an owner answers, so it must stay as far from

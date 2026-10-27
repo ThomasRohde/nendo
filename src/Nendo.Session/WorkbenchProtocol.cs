@@ -481,6 +481,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
                     WorkbenchMethods.SettingsDescribe => DescribeSettings(),
                     WorkbenchMethods.SettingsSet => ChangeSetting(payload),
+                    WorkbenchMethods.PackageSettingsSet => await SetPackageSettingAsync(payload, cancellationToken),
                     WorkbenchMethods.BehaviourApprove => await _session.ApproveBehaviourAsync(cancellationToken),
                     WorkbenchMethods.BehaviourRevoke => await _session.RevokeBehaviourAsync(cancellationToken),
                     // The host's own methods: its window, tabs, downloads, diagnostics and agents.

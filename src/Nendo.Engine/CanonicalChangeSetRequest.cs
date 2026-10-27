@@ -251,6 +251,14 @@ internal static class CanonicalChangeSetRequestCompiler
                 String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters),
                 String(request.Payload, "path", NendoExtensionLimits.PathCharacters),
                 OptionalString(request.Payload, "expectedSha256", 64)),
+            "package.setSetting" => new SetPackageSettingOperation(
+                request.OperationId,
+                String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters),
+                String(request.Payload, "settingId", NendoPackageSettings.IdCharacters),
+                request.Payload.TryGetProperty("value", out var settingValue)
+                    ? settingValue
+                    : throw new NendoValidationException("package.setSetting needs a value: text, a number, true or false, or null to clear it."),
+                Long(request.Payload, "expectedDefinitionRevision")),
             "extension.removePackage" => new RemoveExtensionPackageOperation(
                 request.OperationId,
                 String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters)),
@@ -276,7 +284,8 @@ internal static class CanonicalChangeSetRequestCompiler
             kind == NendoExtensionPackageKind.Skill ? entryPoint : entryPoint ?? "index.html",
             OptionalString(payload, "version", 40),
             OptionalString(payload, "description", 1000),
-            kind);
+            kind,
+            payload.TryGetProperty("settings", out var settings) ? NendoPackageSettings.Parse(settings, "extension.setPackage") : null);
     }
 
     /// <summary>

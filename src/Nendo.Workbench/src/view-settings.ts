@@ -8,6 +8,9 @@ import { escapeHtml, messageFor } from './format';
 import type { AgentAccessMode, LaunchableAgents, SettingSection, SettingView, SettingsView, ViewAgentAccess } from './host-types';
 import { loadsWebPictures, setLoadsWebPictures } from './media-model';
 import { type IconRow, type SettingRowState, iconKey, sectionOf, settingRowId, settingsPageMarkup, settingsProposal } from './settings-model';
+import { allowsPersonal, allowsShared, type AppSettingDeclaration } from './app-settings-model';
+import { packageSettings } from './app-settings';
+import type { DesktopSessionView, SettingDescriptor } from './host-types';
 import { knownIcon } from './chosen-icons';
 import { chosenEntityIcon, fileViews, viewGlyph, viewIcon } from './file-view-model';
 import { chooseIcon } from './icon-picker';
@@ -76,9 +79,63 @@ function readOnlyReason(): string | null {
   return state.session.capabilities.mutate ? null : 'This file is open read-only, so nothing in it can change.';
 }
 
+/** The apps of the open file that declare settings, and a row for each setting (ADR-0038). */
+function appSections(): { id: SettingSection; label: string }[] {
+  return (state.session.extensions?.packages ?? []).filter(item => (item.settings?.length ?? 0) > 0)
+    .map(item => ({ id: `app:${item.packageId}` as SettingSection, label: item.title }));
+}
+
+function appSettingViews(): SettingView[] {
+  return (state.session.extensions?.packages ?? []).flatMap(item => (item.settings ?? []).map((declaration): SettingView => {
+    const setting: SettingDescriptor = {
+      id: `app:${item.packageId}:${declaration.id}`, section: `app:${item.packageId}`, group: item.title, title: declaration.title,
+      help: declaration.help, home: declaration.layers === 'personal' ? 'device' : 'file', kind: declaration.type,
+      store: declaration.layers === 'personal' ? 'views\\app-settings.json' : 'definition: package.setSetting',
+      options: declaration.options, minimum: declaration.min, maximum: declaration.max, unit: declaration.unit,
+      windowsOnly: false, needsFile: true,
+    };
+    return { setting, value: null, override: null };
+  }));
+}
+
+/** The package and the declaration an app row names. */
+function appTarget(id: string): { packageId: string; declaration: AppSettingDeclaration; title: string } | null {
+  if (!id.startsWith('app:')) return null;
+  for (const item of state.session.extensions?.packages ?? [])
+    for (const declaration of item.settings ?? [])
+      if (id === `app:${item.packageId}:${declaration.id}`) return { packageId: item.packageId, declaration, title: item.title };
+  return null;
+}
+
+function shown(value: unknown, declaration: AppSettingDeclaration): string {
+  if (typeof value === 'boolean') return value ? 'on' : 'off';
+  if (declaration.type === 'choice') return declaration.options?.find(option => option.value === value)?.label ?? String(value);
+  return `${String(value)}${declaration.unit ? ` ${declaration.unit}` : ''}`;
+}
+
+function appRowState(id: string): SettingRowState {
+  const target = appTarget(id);
+  if (target === null) return { value: null, hidden: true };
+  const resolved = packageSettings(target.packageId).find(item => item.declaration.id === target.declaration.id);
+  if (resolved === undefined) return { value: null, hidden: true };
+  const { declaration } = target;
+  if (!allowsPersonal(declaration)) {
+    // Kept in the file: a change waits in the bar with the file's other changes.
+    const waiting = pending.get(id);
+    return { value: waiting === undefined ? resolved.value : JSON.parse(waiting), pending: waiting !== undefined, disabled: readOnlyReason() };
+  }
+  if (!allowsShared(declaration)) return { value: resolved.value };
+  const fileValue = resolved.shared !== undefined ? resolved.shared : declaration.default;
+  return { value: resolved.value,
+    layerNote: resolved.personal !== undefined ? `Yours, on this computer. The file says ${shown(fileValue, declaration)}.`
+      : resolved.shared !== undefined ? 'The file\'s value, for everyone who opens it. A change here is yours alone.' : 'The app\'s default. A change here is yours alone.',
+    resetLabel: resolved.personal !== undefined ? 'Use the file\'s' : undefined };
+}
+
 /** What a row shows now, read where the setting's own control reads it. */
 function rowState(view: SettingView): SettingRowState {
   const { setting } = view;
+  if (setting.id.startsWith('app:')) return appRowState(setting.id);
   if (setting.needsFile && !state.session.hasFile) return { value: null, disabled: noFile, actionLabel: 'Open' };
   const agent = state.agentStatus;
   switch (setting.id) {
@@ -128,8 +185,10 @@ export function renderSettings(): void {
     if (loading === null) void loadSettings().then(() => { if (state.view === 'settings') rerender(); });
     return;
   }
-  content.innerHTML = settingsPageMarkup({ settings: described.settings, section: state.settingsSection, query: state.settingsQuery,
-    state: rowState, pending: pending.size, fileName: state.session.fileName });
+  const apps = appSections();
+  if (state.settingsSection.startsWith('app:') && !apps.some(app => app.id === state.settingsSection)) state.settingsSection = 'file';
+  content.innerHTML = settingsPageMarkup({ settings: [...described.settings, ...appSettingViews()], section: state.settingsSection, query: state.settingsQuery,
+    state: rowState, pending: pending.size, fileName: state.session.fileName, apps });
   wireSettings();
   if (state.settingsRowId !== '') {
     const row = content.querySelector<HTMLElement>(`#${settingRowId(state.settingsRowId)}`);
@@ -180,6 +239,9 @@ function wireSettings(): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-link]')) button.addEventListener('click', () => {
     followLink(button.dataset.settingLink!);
   });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-reset]')) button.addEventListener('click', () => {
+    void changeSetting(button.dataset.settingReset!, null);
+  });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-icon]')) button.addEventListener('click', () => {
     void pickIcon(button.dataset.settingIcon!);
   });
@@ -197,6 +259,11 @@ function wireSettings(): void {
 /** Changes one setting through the method its own control uses, then shows it again. */
 async function changeSetting(id: string, value: unknown): Promise<void> {
   clearError();
+  const app = appTarget(id);
+  if (app !== null) {
+    await changeAppSetting(id, app, value);
+    return;
+  }
   try {
     switch (id) {
       case 'appearance.theme':
@@ -240,6 +307,32 @@ async function changeSetting(id: string, value: unknown): Promise<void> {
   // The redraw replaced the control: keep the person on it.
   const row = content.querySelector<HTMLElement>(`#${settingRowId(id)}`);
   (row?.querySelector<HTMLElement>('[aria-checked="true"][role="radio"]') ?? row?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])'))?.focus();
+}
+
+/**
+ * An app's setting: this computer's value is kept at once, where the setting allows one; a value
+ * kept only in the file waits in the bar for review.
+ */
+async function changeAppSetting(id: string, app: { packageId: string; declaration: AppSettingDeclaration; title: string }, value: unknown): Promise<void> {
+  if (!allowsPersonal(app.declaration)) {
+    const resolved = packageSettings(app.packageId).find(item => item.declaration.id === app.declaration.id);
+    if (resolved !== undefined && JSON.stringify(resolved.value) === JSON.stringify(value)) pending.delete(id);
+    else pending.set(id, JSON.stringify(value));
+    rerender();
+    content.querySelector<HTMLElement>(`#${settingRowId(id)} button:not([disabled]), #${settingRowId(id)} input:not([disabled])`)?.focus();
+    return;
+  }
+  try {
+    const result = await client.request<DesktopSessionView | { session: DesktopSessionView }>('package.settings.set',
+      { packageId: app.packageId, settingId: app.declaration.id, value: value ?? null });
+    state.session = 'session' in result ? result.session : result;
+    announce(value === null ? `${app.declaration.title}: the file's value again.` : `${app.declaration.title}: ${shown(value, app.declaration)}.`);
+  } catch (error) {
+    showError(messageFor(error));
+  }
+  if (state.view !== 'settings') return;
+  rerender();
+  content.querySelector<HTMLElement>(`#${settingRowId(id)} [aria-checked="true"][role="radio"], #${settingRowId(id)} button:not([disabled]), #${settingRowId(id)} input:not([disabled])`)?.focus();
 }
 
 /** A change to the file waits in the bar until the person reviews it with the others. */

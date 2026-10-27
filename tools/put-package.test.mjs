@@ -14,7 +14,7 @@ const source = (await fs.readFile(new URL('./Put-NendoPackage.mjs', import.meta.
 
 // held: the package the file already carries, as nendo://application/extensions reports
 // it. Without it the file carries no package and every run is the new-package path.
-async function run({ files = 16, extra = 0, acceptError, accept = false, held } = {}) {
+async function run({ files = 16, extra = 0, acceptError, accept = false, held, settings } = {}) {
   const calls = [], logs = [], errors = [];
   const mockProcess = { argv: ['node', 'uploader', '/fixture', '--endpoint', 'http://127.0.0.1:1/mcp',
     ...(extra ? ['--operations', '/extra.json'] : []), ...(accept ? ['--accept'] : [])], env: {}, exitCode: 0,
@@ -23,7 +23,8 @@ async function run({ files = 16, extra = 0, acceptError, accept = false, held } 
     async readdir(root) { return root === '/fixture' ? Array.from({ length: files }, (_, i) =>
       ({ isFile: () => true, name: `file-${i}.txt`, parentPath: '/fixture' })) : []; },
     async readFile(file) {
-      if (file.endsWith('nendo-package.json')) return JSON.stringify({ packageId: 'fixture', title: 'Fixture', entryPoint: 'file-0.txt' });
+      if (file.endsWith('nendo-package.json')) return JSON.stringify({ packageId: 'fixture', title: 'Fixture', entryPoint: 'file-0.txt',
+        ...(settings ? { settings } : {}) });
       if (file === '/extra.json') return JSON.stringify(Array.from({ length: extra }, (_, i) =>
         ({ operationType: 'definition.setNode', payload: { nodeId: `node-${i}` } })));
       return Buffer.from('content');
@@ -125,4 +126,44 @@ test('a folder the file already carries exactly is refused before a lease is tak
   assert.equal(result.exitCode, 1);
   assert.ok(result.errors.some(line => line.includes('already carries fixture')), result.errors.join('\n'));
   assert.ok(!result.calls.some(c => c.name === 'nendo.lease.acquire'), 'Nothing to propose must not take the edit lease.');
+});
+
+// The settings a view package declares (ADR-0038) travel in extension.setPackage, as the folder
+// has them; the file reports them normalised, with nulls and a text setting's maxLength filled in.
+const declared = [
+  { id: 'zoom', title: 'Zoom', type: 'number', default: 2, min: 1, max: 5, layers: 'both' },
+  { id: 'note', title: 'Note', type: 'text', default: '', layers: 'shared' },
+];
+const reported = [
+  { id: 'zoom', title: 'Zoom', help: null, type: 'number', default: 2, layers: 'both', options: null, min: 1, max: 5, unit: null, maxLength: null },
+  { id: 'note', title: 'Note', help: null, type: 'text', default: '', layers: 'shared', options: null, min: null, max: null, unit: null, maxLength: 1000 },
+];
+
+test('the folder\'s settings are sent in extension.setPackage as written', async () => {
+  const result = await run({ files: 1, settings: declared });
+  assert.equal(result.exitCode, 0);
+  const setPackage = result.calls.filter(c => c.name === 'nendo.change_set.add_operations')
+    .flatMap(c => c.args.mutations.flatMap(m => m.operations)).find(o => o.operationType === 'extension.setPackage');
+  assert.equal(JSON.stringify(setPackage.payload.settings), JSON.stringify(declared));
+});
+
+test('a package whose settings are all that changed proposes only its description', async () => {
+  const files = [{ path: 'file-0.txt', sha256: sha('content') }];
+  const same = await run({ files: 1, settings: declared, held: { ...heldPackage(files), settings: reported, sharedSettings: {} } });
+  assert.equal(same.exitCode, 1, 'settings the file already holds, as it reports them, are no change');
+  assert.ok(same.errors.some(line => line.includes('already carries fixture')), same.errors.join('\n'));
+
+  const changed = await run({ files: 1, settings: [{ ...declared[0], max: 9 }, declared[1]],
+    held: { ...heldPackage(files), settings: reported, sharedSettings: {} } });
+  assert.equal(changed.exitCode, 0);
+  const operations = changed.calls.filter(c => c.name === 'nendo.change_set.add_operations')
+    .flatMap(c => c.args.mutations.flatMap(m => m.operations));
+  assert.deepEqual([...operations.map(o => o.operationType)], ['extension.setPackage']);
+  assert.equal(operations[0].payload.settings[0].max, 9);
+
+  const dropped = await run({ files: 1, held: { ...heldPackage(files), settings: reported, sharedSettings: {} } });
+  assert.equal(dropped.exitCode, 0, 'a folder that declares none clears the declarations the file holds');
+  const cleared = dropped.calls.filter(c => c.name === 'nendo.change_set.add_operations')
+    .flatMap(c => c.args.mutations.flatMap(m => m.operations));
+  assert.equal(cleared[0].payload.settings, undefined);
 });

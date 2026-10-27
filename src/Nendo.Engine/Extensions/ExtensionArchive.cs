@@ -19,6 +19,9 @@ public sealed record NendoExtensionArchive(
 {
     /// <summary><see cref="NendoExtensionPackageKind.View"/>, or <see cref="NendoExtensionPackageKind.Skill"/> for a package with no entry point (ADR-0024).</summary>
     public string Kind { get; init; } = NendoExtensionPackageKind.View;
+
+    /// <summary>The settings the manifest declares (ADR-0038); empty for none, and always for a skill package.</summary>
+    public IReadOnlyList<NendoPackageSettingDeclaration> Settings { get; init; } = [];
 }
 
 public sealed record NendoExtensionArchiveFile(string Path, byte[] Content);
@@ -134,7 +137,8 @@ public static class NendoExtensionArchives
         var stem = "import-" + Guid.NewGuid().ToString("N");
         var operations = new List<NendoOperation>
         {
-            new SetExtensionPackageOperation(stem + "-package", archive.PackageId, archive.Title, archive.EntryPoint, archive.Version, archive.Description, archive.Kind),
+            new SetExtensionPackageOperation(stem + "-package", archive.PackageId, archive.Title, archive.EntryPoint, archive.Version, archive.Description,
+                archive.Kind, archive.Settings),
         };
         var incoming = archive.Files.Select(file => file.Path).ToHashSet(StringComparer.Ordinal);
         var existing = (current?.Files ?? []).ToDictionary(file => file.Path, StringComparer.Ordinal);
@@ -154,7 +158,8 @@ public static class NendoExtensionArchives
                 had?.Sha256 ?? PutExtensionFileOperation.ExpectAbsent));
         }
         if (current is not null && operations.Count == 1 && current.Title == archive.Title && current.Version == archive.Version &&
-            current.EntryPoint == archive.EntryPoint && current.Description == archive.Description && current.Kind == archive.Kind)
+            current.EntryPoint == archive.EntryPoint && current.Description == archive.Description && current.Kind == archive.Kind &&
+            NendoPackageSettings.Canonical(current.Settings) == NendoPackageSettings.Canonical(archive.Settings))
             throw new NendoPreconditionException("extension-unchanged", $"The file already carries {archive.Title} exactly as it is here.");
         var verb = current is null ? "Add" : "Update";
         var noun = archive.Kind == NendoExtensionPackageKind.Skill ? "skill package" : "custom-view package";
@@ -169,16 +174,24 @@ public static class NendoExtensionArchives
     public static byte[] Manifest(NendoExtensionPackageSnapshot package)
     {
         ArgumentNullException.ThrowIfNull(package);
-        var manifest = new Dictionary<string, string>(StringComparer.Ordinal)
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
         {
-            ["packageId"] = package.PackageId,
-            ["title"] = package.Title,
-        };
-        if (package.Version is { } version) manifest["version"] = version;
-        if (package.IsSkill) manifest["kind"] = package.Kind;
-        else manifest["entryPoint"] = package.EntryPoint!;
-        if (package.Description is { } description) manifest["description"] = description;
-        return JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true });
+            writer.WriteStartObject();
+            writer.WriteString("packageId", package.PackageId);
+            writer.WriteString("title", package.Title);
+            if (package.Version is { } version) writer.WriteString("version", version);
+            if (package.IsSkill) writer.WriteString("kind", package.Kind);
+            else writer.WriteString("entryPoint", package.EntryPoint!);
+            if (package.Description is { } description) writer.WriteString("description", description);
+            if (package.Settings.Count > 0)
+            {
+                writer.WritePropertyName("settings");
+                NendoPackageSettings.Write(writer, package.Settings);
+            }
+            writer.WriteEndObject();
+        }
+        return stream.ToArray();
     }
 
     private static NendoExtensionArchive Describe(byte[] manifest, List<NendoExtensionArchiveFile> files)
@@ -190,10 +203,19 @@ public static class NendoExtensionArchives
         var kind = Text(root, "kind") ?? NendoExtensionPackageKind.View;
         if (!NendoExtensionPackageKind.IsKnown(kind))
             throw new NendoValidationException($"The package manifest's kind '{kind}' is not one of: {NendoExtensionPackageKind.View}, {NendoExtensionPackageKind.Skill}.");
+        var declared = root.TryGetProperty("settings", out var settings) && settings.ValueKind != JsonValueKind.Null;
         if (kind == NendoExtensionPackageKind.Skill)
+        {
+            if (declared)
+                throw new NendoValidationException(
+                    $"The skill package {packageId} declares settings in {ManifestName}, and a skill package has none: nothing in it runs to read them. Remove settings.");
             return FinishSkill(packageId, title, Text(root, "version"), Text(root, "entryPoint"), Text(root, "description"), files);
+        }
         var entryPoint = Text(root, "entryPoint") ?? "index.html";
-        return Finish(packageId, title, Text(root, "version"), entryPoint, Text(root, "description"), files);
+        return Finish(packageId, title, Text(root, "version"), entryPoint, Text(root, "description"), files) with
+        {
+            Settings = declared ? NendoPackageSettings.Parse(settings, ManifestName) : [],
+        };
     }
 
     /// <summary>A package built for the retired helper. Its code used an older protocol; it is kept, not converted.</summary>

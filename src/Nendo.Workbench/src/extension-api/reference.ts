@@ -171,6 +171,23 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     params: 'A proposal this package prepared in this session.',
     answer: '{proposalId, title, state, diagnostics, opened}.',
   },
+  'settings.all': {
+    call: 'nendo.settings.all()',
+    params: 'None.',
+    answer: '{id: value} for every setting the package declares in nendo-package.json, as the person sees it: the app\'s default, the file\'s value, then this computer\'s.',
+    note: 'Nendo draws the settings on its Settings page, so they work while the views are off. A value that no longer fits its declaration is passed over.',
+  },
+  'settings.get': {
+    call: 'nendo.settings.get(id)',
+    params: 'id of a setting the package declares.',
+    answer: 'Its value, as settings.all gives it. An ID the package does not declare is refused (validation).',
+  },
+  'settings.set': {
+    call: 'nendo.settings.set(id, value)',
+    params: 'value fits the declaration, or null to take this computer\'s value away.',
+    answer: 'null; settingsChanged follows.',
+    note: 'Keeps this computer\'s value at once, for a setting whose layers are personal or both. A value in the file is a definition change: prepare package.setSetting with proposals.prepare, which the person reviews.',
+  },
   'state.get': {
     call: 'nendo.state.get(key, options?)',
     params: 'key of 1 to 128 characters. options is {scope?}: view (the default) keeps a value for this view, package for all the package\'s views.',
@@ -249,6 +266,7 @@ const helperLines: readonly Omit<MethodLine, 'params'>[] = [
   { call: 'nendo.has(name)', answer: 'Whether this Nendo answers a method, from context.methods. Feature-detect anything added later this way.' },
   { call: 'nendo.on(name, listener)', answer: 'Hears an event, as under events; answers a function that stops hearing it. Any other name throws unknown-event.' },
   { call: 'nendo.changes.subscribe(listener)', answer: 'The same as nendo.on(\'changes\', listener).' },
+  { call: 'nendo.settings.subscribe(listener)', answer: 'The same as nendo.on(\'settingsChanged\', listener).' },
   { call: 'nendo.records.queryAll(query, options?)', answer: 'Every record of records.query, a page of 200 at a time, up to options.max (10,000 by default). When the file changes between pages it reads again from the top, at most three times, then fails with stale-cursor.' },
   { call: 'nendo.records.treeAll(query, options?)', answer: 'Every node of records.tree the same way.' },
   { call: 'nendo.media.urlFor(address)', answer: 'The url of media.describe alone: where an img shows the picture, or null.' },
@@ -358,6 +376,7 @@ export function viewApiReference() {
       place: 'The view\'s place as it declared it with ui.setPlace, or null for none: Back or Forward moved the person there. Show that place; declaring it again does nothing.',
       command: '{id, value, source}: the person pressed one of the view\'s controls. source is toolbar, menu, palette (Ctrl K), key or add. value is a toggle\'s or a check\'s new state, the option chosen, the text searched for, a radio item\'s value, or null for a button or a menu item.',
       assistant: 'The launched agent\'s status, as assistant.status answers it, when it changes: it started, signed in, began or ended a turn, ended, or the person changed what views may do.',
+      settingsChanged: '{id: value} for every setting the package declares, as settings.all answers it, when one of them changed: on the Settings page, in the file, or on this computer by another view.',
       names: viewEventNames,
     },
     filters: {

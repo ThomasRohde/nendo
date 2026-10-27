@@ -1,3 +1,4 @@
+import type { AppSettingDeclaration } from './app-settings-model';
 import type { PendingMutation } from './pending-mutations';
 
 /**
@@ -228,6 +229,12 @@ export interface ExtensionPackageView {
   contentDigest?: string;
   /** The name of the folder this device runs the package from while it is developed (ADR-0013), or null. */
   developmentFolder?: string | null;
+  /** The settings the package declares in nendo-package.json (ADR-0038). */
+  settings?: AppSettingDeclaration[];
+  /** The file's values for those settings, by ID. */
+  sharedSettings?: Record<string, unknown>;
+  /** This computer's values for them, by ID. */
+  personalSettings?: Record<string, unknown>;
 }
 
 export interface FileCapabilities {
@@ -949,7 +956,8 @@ export interface RevisionSnapshot {
 /** Where a setting is kept (ADR-0038): this computer, this file on this computer, or the file. */
 export type SettingHome = 'device' | 'here' | 'file';
 export type SettingKind = 'toggle' | 'choice' | 'number' | 'text' | 'icons' | 'link' | 'action';
-export type SettingSection = 'general' | 'agents' | 'views' | 'file';
+/** A section of Nendo's own, or `app:` and the package ID for the settings an app declares. */
+export type SettingSection = 'general' | 'agents' | 'views' | 'file' | `app:${string}`;
 
 /** One setting as the host's settings catalogue names it (`settings.describe`). */
 export interface SettingDescriptor {

@@ -18,7 +18,8 @@ public sealed record SetExtensionPackageOperation : NendoOperation
         string? entryPoint,
         string? version = null,
         string? description = null,
-        string? kind = null)
+        string? kind = null,
+        IReadOnlyList<NendoPackageSettingDeclaration>? settings = null)
         : base(operationId)
     {
         PackageId = NendoExtensionContent.ValidPackageId(packageId)
@@ -52,10 +53,30 @@ public sealed record SetExtensionPackageOperation : NendoOperation
         Description = string.IsNullOrWhiteSpace(description) ? null : description;
         if (Description is { Length: > 1000 })
             throw new NendoValidationException("A package description is at most 1000 characters.");
+        Settings = settings ?? [];
+        if (Settings.Count > 0 && Kind == NendoExtensionPackageKind.Skill)
+            throw new NendoValidationException(
+                $"The skill package {packageId} declares settings, and a skill package has none: nothing in it runs to read them. Leave settings out.");
+        if (Settings.Count > NendoPackageSettings.Declarations)
+            throw new NendoValidationException($"A package declares at most {NendoPackageSettings.Declarations} settings, and {packageId} declares {Settings.Count}.");
+        if (Settings.Select(setting => setting.Id).Distinct(StringComparer.Ordinal).Count() != Settings.Count)
+            throw new NendoValidationException($"The package {packageId} declares a setting twice. Each setting's id is unique in its package.");
     }
 
     public string PackageId { get; }
     public string Title { get; }
+
+    /// <summary>
+    /// The settings the package declares (ADR-0038); empty for none. The operation states the
+    /// whole list, as it states the title: a shared value that no longer fits is dropped.
+    /// </summary>
+    public IReadOnlyList<NendoPackageSettingDeclaration> Settings { get; }
+
+    /// <summary>
+    /// The shared values a reversal puts back, by setting ID, as canonical JSON: the ones the
+    /// reversed operation dropped or removed. One the file holds again since is left as it is.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string>? RestoredSharedSettings { get; init; }
 
     /// <summary>The file a view's frame loads first; null for a skill package.</summary>
     public string? EntryPoint { get; }
@@ -86,6 +107,23 @@ public sealed record SetExtensionPackageOperation : NendoOperation
         // over them, are what they were before packages had a kind.
         if (Kind != NendoExtensionPackageKind.View) writer.WriteString("kind", Kind);
         writer.WriteString("packageId", PackageId);
+        // Both written only when there is something to say, so a package without settings
+        // keeps the canonical bytes it had before packages declared them.
+        if (RestoredSharedSettings is { Count: > 0 } restored)
+        {
+            writer.WriteStartObject("restoredSharedSettings");
+            foreach (var (settingId, value) in restored.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                writer.WritePropertyName(settingId);
+                writer.WriteRawValue(value);
+            }
+            writer.WriteEndObject();
+        }
+        if (Settings.Count > 0)
+        {
+            writer.WritePropertyName("settings");
+            NendoPackageSettings.Write(writer, Settings);
+        }
         writer.WriteString("title", Title);
         if (Version is not null) writer.WriteString("version", Version);
         writer.WriteEndObject();
@@ -262,23 +300,27 @@ public sealed record RemoveExtensionPackageOperation : NendoOperation
 /// </summary>
 /// <remarks>
 /// The kind is not compared: a package keeps its kind, and a skill package is told from a view
-/// package by having no entry point.
+/// package by having no entry point. <c>Settings</c> is the canonical JSON of the declarations,
+/// or null for none.
 /// </remarks>
-internal sealed record ExtensionPackageExpectation(bool Absent, string? Title, string? EntryPoint, string? Version, string? Description)
+internal sealed record ExtensionPackageExpectation(bool Absent, string? Title, string? EntryPoint, string? Version, string? Description,
+    string? Settings = null)
 {
     internal static ExtensionPackageExpectation Missing { get; } = new(true, null, null, null, null);
 
-    internal static ExtensionPackageExpectation Holding(string title, string? entryPoint, string? version, string? description) =>
-        new(false, title, entryPoint, version, description);
+    internal static ExtensionPackageExpectation Holding(string title, string? entryPoint, string? version, string? description,
+        string? settings = null) =>
+        new(false, title, entryPoint, version, description, settings);
 
     /// <summary>Whether the stored metadata, or its absence, is what this expects.</summary>
-    internal bool Matches(string? title, string? entryPoint, string? version, string? description, bool present) =>
+    internal bool Matches(string? title, string? entryPoint, string? version, string? description, bool present, string? settings = null) =>
         Absent
             ? !present
             : present && string.Equals(Title, title, StringComparison.Ordinal) &&
               string.Equals(EntryPoint, entryPoint, StringComparison.Ordinal) &&
               string.Equals(Version, version, StringComparison.Ordinal) &&
-              string.Equals(Description, description, StringComparison.Ordinal);
+              string.Equals(Description, description, StringComparison.Ordinal) &&
+              string.Equals(Settings, settings, StringComparison.Ordinal);
 
     internal void Write(Utf8JsonWriter writer)
     {
@@ -287,6 +329,11 @@ internal sealed record ExtensionPackageExpectation(bool Absent, string? Title, s
         writer.WriteStartObject();
         if (Description is not null) writer.WriteString("description", Description);
         if (EntryPoint is not null) writer.WriteString("entryPoint", EntryPoint);
+        if (Settings is not null)
+        {
+            writer.WritePropertyName("settings");
+            writer.WriteRawValue(Settings);
+        }
         writer.WriteString("title", Title);
         if (Version is not null) writer.WriteString("version", Version);
         writer.WriteEndObject();

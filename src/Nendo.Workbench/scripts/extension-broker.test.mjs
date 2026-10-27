@@ -92,6 +92,9 @@ function close(h) {
 
 // proposal.get reads a proposal the view's own package prepared, and nothing else.
 const readMethods = ['media.describe', 'media.readWindow', 'data.queryRecords', 'data.searchRecords', 'data.treeRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
+// This computer's value of a setting the view's own package declares (ADR-0038): device state, never
+// the file, and the broker names the package itself.
+const deviceMethods = ['package.settings.set'];
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013). The host
 // admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
@@ -314,6 +317,9 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['proposals.prepare', 'proposal.prepareChangeSet'],
     ['proposals.get', 'proposal.get'],
     ['proposals.open', 'proposal.get'],
+    ['settings.all', null],
+    ['settings.get', null],
+    ['settings.set', 'package.settings.set'],
     ['state.get', 'extension.state.read'],
     ['state.keys', 'extension.state.read'],
     ['state.set', 'extension.state.set'],
@@ -346,7 +352,7 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     if (writes) assert.ok(writeMethods.includes(host), `${method} writes through ${host}, which is not one of the record writes.`);
     else {
       assert.doesNotMatch(method, /create|update|delete|execute|write|run/i, method);
-      if (host !== null) assert.ok(readMethods.includes(host), `${method} becomes ${host}, which is not one of the host's reads.`);
+      if (host !== null) assert.ok(readMethods.includes(host) || deviceMethods.includes(host), `${method} becomes ${host}, which is not one of the host's reads.`);
     }
   }
   assert.deepEqual([...new Set(table.filter((entry) => entry.writes).map((entry) => entry.host))], writeMethods);

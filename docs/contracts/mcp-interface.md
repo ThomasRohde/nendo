@@ -227,7 +227,7 @@ File resources carry private, zero-TTL cache hints. `vocabulary`, `examples`, `i
 
 | Resource | Service | What it returns |
 | --- | --- | --- |
-| `nendo://application/describe{?include}` | `GetDescriptionAsync` | What the file is for, the manifest, authoring limits, every record type with its fields, every compiled screen, health, `extensions` (packages with their files, not their bytes), `newFile`, and `reads`: every URI this host serves, generated from the declared resources. `include` takes a comma-separated subset of `manifest`, `limits`, `entities`, `surfaces`, `health`, `reads`, `extensions`, `newFile`; a facet left out is null or empty, `included` says what came, and an unknown facet is refused naming the eight. Every facet describes one moment: one definition snapshot, with counts, compiled screens and the new-file preview checked against its change sequence. A commit in between restarts the read; after three attempts it is `NENDO_READ_INTERRUPTED`. |
+| `nendo://application/describe{?include}` | `GetDescriptionAsync` | What the file is for, the manifest, authoring limits, every record type with its fields, every compiled screen, health, `extensions` (packages with their files, not their bytes, and their settings), `newFile`, and `reads`: every URI this host serves, generated from the declared resources. `include` takes a comma-separated subset of `manifest`, `limits`, `entities`, `surfaces`, `health`, `reads`, `extensions`, `newFile`; a facet left out is null or empty, `included` says what came, and an unknown facet is refused naming the eight. Every facet describes one moment: one definition snapshot, with counts, compiled screens and the new-file preview checked against its change sequence. A commit in between restarts the read; after three attempts it is `NENDO_READ_INTERRUPTED`. |
 | `nendo://application/examples` | `NendoAuthoringExamples.Description` | Twenty complete contract version 3 change sets that can be sent unchanged: `create-entity-with-required-fields`, `configure-a-reference`, `a-breakdown-and-a-ring`, `a-trend-and-an-activity-grid`, `a-matrix-and-a-ranking`, `a-board-with-a-lane-per-project`, `build-a-detail-surface`, `define-a-command`, `two-commands-and-a-filtered-list`, `several-views-tabs-and-a-calendar`, `a-timeline-of-spans`, `a-gallery-and-a-rating`, `a-front-page-for-the-file`, `say-what-the-file-is-for`, `replace-a-screen-in-its-place`, `calculate-and-act-automatically`, `show-a-custom-graph`, `put-a-custom-view-in-the-file`, `ask-the-agent-from-a-view`, `teach-an-agent-this-file`. Each carries the rule it conveys; each screen has a `surfaceId` of its own, its root's `nodeId`. `AuthoringExampleTests` replays every example through the real authoring boundary. |
 | `nendo://application/manifest` | `NendoResourceProjection.GetManifestAsync` | What the file is for, identity and revision counters. `look`: the tone and letter of the file's icon badge, with `toneChosen` and `letterChosen` saying which the file chose (`application.setLook`), and `icon`, the `media:` address of the file's own picture drawn instead of the badge (`application.setIcon`), or null. The picture is embedded first with `nendo.data.put_media` naming no field; it must be a square PNG, 16 to 1,024 pixels, at most 1 MiB (`icon-invalid`). |
 | `nendo://application/vocabulary{?include}` | `NendoSemanticVocabulary.Description` + `NendoAuthoringOperations.All` | Every contract version 3 node kind with its properties, children and root ceiling (`maxRootsPerEntity`, or `maxRootsPerFile`); the closed filter operators, value kinds, directions and aggregates; the `and` combinator (no OR, no grouping); `choiceTones`; the `charts` and `overview` rules; `icons`, which names the icons read and how many icons it lists; the limits; `operations` with each one's payload fields; and `authoringRules`. `include` takes a comma-separated subset of top-level sections (`included` says what came; an unknown name is refused listing them). Generated from the tables the compiler and authoring boundary validate against, so a documented field is an accepted field. |
@@ -246,7 +246,7 @@ File resources carry private, zero-TTL cache hints. `vocabulary`, `examples`, `i
 | `nendo://application/proposal/{proposalId}` | `NendoAgentProposalStore.TryGet`, else `GetProposalAsync` | One proposal in full: semantic diff, diagnostics, package changes, behaviour and the after-acceptance summary. No lease is needed. `changeSetId` and `owner` say whose it is, null for one another client prepared. An accepted proposal reads `active`: with its title and diff while this host run holds them (the last 64 accepted), otherwise from the Engine's receipt alone, where the title says so and the diff is empty. |
 | `nendo://application/proposals` | `NendoAgentProposalStore.Snapshot` | Every validated proposal waiting for a person: title, `changeSetId`, `owner` pseudonym, captured revision, state, operation and diagnostic counts, the most severe reversibility class, and `behaviour`. A `previewable` proposal whose captured definition revision is no longer the file's reads `stale`. The recovery path after a reconnect or a lost response. |
 | `nendo://application/health` | `GetHealthAsync` | Status with the time of the last integrity check and the change sequence; a read does not run integrity. `changesSinceIntegrityCheck` and `integrityStale` say how far the file has moved since. `nendo.health.verify_integrity` requests a measurement. |
-| `nendo://application/extensions` | `GetExtensionsAsync` | Every custom-view package: ID, title, version, entry point, description, total size, and each file's path, media type, SHA-256 and size. No content ([custom-view contract](custom-views.md#packages-in-the-file)). |
+| `nendo://application/extensions` | `GetExtensionsAsync` | Every custom-view package: ID, title, version, entry point, description, total size, and each file's path, media type, SHA-256 and size; `settings`, the settings it declares, and `sharedSettings`, the values the file keeps for them by setting ID ([package settings](#vocabulary-areas)). No content ([custom-view contract](custom-views.md#packages-in-the-file)). |
 | `nendo://application/extension-events{?packageId}` | `ViewEvents.Read` | What the file's custom views did in this Nendo ([ADR-0032](../decisions/0032-a-views-runtime-events-reach-its-agent.md)): each package's last 50 events, oldest first, each `loaded`, `stopped`, `error` (an uncaught error's sentence) or `refused` (with `method` and `code`), and how many were `dropped`. Memory only, gone when the file closes. |
 | `nendo://application/media/{sha256}{?content}` | `GetMediaAsync` | One embedded picture ([ADR-0031](../decisions/0031-media-in-user-data.md)): `{address, mediaType, byteLength, name, width, height}`. With `content=true`, the picture as a blob when at most 4 MiB; a larger one is refused, naming its description's address. A linked picture is not read here. |
 | `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` | One package file, a page of bytes at a time; see [Paging](#paging). A text page arrives as `text`; any other page, or a text page that would split a UTF-8 sequence, as `base64`. `sha256` and `byteLength` describe the whole file; `nextOffset` is null on the last page. |
@@ -511,7 +511,9 @@ it as code. Accepted code runs in the Workbench when a view naming its package i
 reaches the file only through `window.nendo`
 ([custom-view contract](custom-views.md#packages-in-the-file)). `extension.setPackage` with
 `kind` `skill` writes the file's own agent skill instead, which never runs
-([skill packages](custom-views.md#skill-packages); example `teach-an-agent-this-file`). No
+([skill packages](custom-views.md#skill-packages); example `teach-an-agent-this-file`). A view
+package's `settings` and `package.setSetting` are under **Package settings** below; one
+`extension.setPackage` payload may carry as much as one `extension.putFile` part. No
 tool or resource reaches this device's custom-view switches. `limits.extensions`:
 
 - `fileBytes`: 4 MiB for one file;
@@ -546,6 +548,22 @@ its host. A screen's root or a custom view takes an icon as its `icon` property 
 `ui.setProperty`, which refuses a name outside the set when it is written (a definition
 already holding one compiles with the warning `NUI461`; see
 [semantic surfaces](semantic-surfaces.md#icons)), which states the same host.
+
+**Package settings.** A view package declares its settings in `extension.setPackage`'s
+`settings`, the same list its `nendo-package.json` carries
+([custom-view contract](custom-views.md#settings-a-package-declares)). The operation states the
+whole list: leaving it out declares none, and a shared value that no longer fits is dropped. A
+bad declaration is refused as invalid, naming the setting. `package.setSetting`
+`{packageId, settingId, value}` keeps a value in the file for everyone who opens it, or with
+`value` null clears it so the default is used; `expectedDefinitionRevision` is filled in like any
+definition operation's. It is refused as `extension-package-not-found`,
+`package-setting-not-found`, `package-setting-personal` (a setting whose layers are `personal`)
+or `package-setting-invalid` (a value that does not fit, with the reason). Its undo restores the
+value it replaced, or none. The first declared settings state host 1.57.0, on the `-setting-`
+rung above `-entityicon-`. The extensions read and `describe` show each package's `settings`
+(normalised: a choice with its `options`, a text setting with its `maxLength`, null for a field
+the type does not take) and `sharedSettings`, only values that fit. A setting's personal value
+is kept on each computer and is never read or written here.
 
 **Reference labels.** `schema.setReferenceLabel` `{entityId, fieldId, labelFieldId}` shows a
 bound reference's records by another active Text field of its target. No value changes; its
@@ -645,6 +663,9 @@ audited list in `NendoToolErrors` (`DiagnosablePreconditions`):
 - undo: `revision-not-found`, `not-an-undo`, `revision-not-yours`,
   `deletion-state-conflict`, `field-not-retired`;
 - saving and size: `file-busy`, `value-too-large`, `values-too-large`;
+- package settings ([ADR-0038](../decisions/0038-settings-in-one-place.md#apps-declare-their-settings)):
+  `package-setting-not-found`, `package-setting-personal`, `package-setting-invalid`, naming the
+  package and setting by ID and the declared options or range beside the value the caller sent;
 - behaviour: `field-requirement-in-use`, `action-target-mismatch`;
 - data writes and reads: `record-id-reserved`, `record-exists-or-invalid`,
   `kept-in-new-files-unchanged`, `new-file-reference-left-out`, `entity-not-found`,
