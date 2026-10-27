@@ -105,7 +105,9 @@ pictures, sound and video embedded in the file or linked by address
 the same Engine and no install
 ([ADR-0036](decisions/0036-nendo-runs-in-a-browser.md)), and exporting an application as one
 web page that runs it, a copy whose edits Nendo replays
-([ADR-0035](decisions/0035-an-app-exported-as-one-web-page.md)).
+([ADR-0035](decisions/0035-an-app-exported-as-one-web-page.md)), or as a web app that
+installs and opens offline
+([ADR-0037](decisions/0037-an-exported-app-as-an-installable-web-app.md)).
 
 **Out:** general scripting in formulas, extension code that runs without a view
 (a skill's script runs in the agent's client, never in Nendo:

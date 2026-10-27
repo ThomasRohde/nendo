@@ -24,7 +24,8 @@ no server.
 ### What the page is
 
 - **File → Web page…** in the Desktop host offers both directions: export this file as a page,
-  or apply the changes made in one.
+  or apply the changes made in one. The same page, in a folder with a manifest and a service
+  worker, is the installable web app of [ADR-0037](0037-an-exported-app-as-an-installable-web-app.md).
 - **Export** writes the page where the person picks, after saying
   that the page holds a copy of every record. It never replaces an existing file. The file
   inside is a Duplicate ([ADR-0010](0010-file-identity-duplicate-fork-backup-and-restore.md)):
@@ -49,7 +50,9 @@ no server.
 - The page carries its file in a `nendo-file` script element, gzipped and base64, and opens it as
   it starts.
 - The page keeps its working file in the browser's IndexedDB, keyed by a digest of the file it
-  carries, so each exported page has its own and a new export starts from what it carries. It
+  carries, so each exported page has its own and a new export starts from what it carries (a
+  web app keeps one per application at its address and carries it across a republish:
+  [ADR-0037](0037-an-exported-app-as-an-installable-web-app.md)). It
   writes the working file after each answer that changed it. Reopening the page continues from
   there. The page asks for persistent storage. When the browser will not store the working file,
   the page says that edits are held for the visit only, and **Download file** says so too.
