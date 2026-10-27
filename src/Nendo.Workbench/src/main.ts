@@ -6,6 +6,7 @@ import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-c
 import { destroyGrid, renderData, stopGridEditing, markDataGridChanged } from './view-data';
 import { openHealth, renderHealth } from './view-health';
 import { renderHelp } from './view-help';
+import { openSettings, renderSettings } from './view-settings';
 import { renderHistory } from './view-history';
 import { renderProposal } from './view-proposal';
 import { renderStructure } from './view-structure';
@@ -151,10 +152,14 @@ function render(): void {
   content.setAttribute('aria-busy', String(state.actionInFlight));
   // Help owns its own two scroll regions; every other view scrolls the content pane.
   content.classList.toggle('is-help', state.view === 'help');
+  content.classList.toggle('is-settings', state.view === 'settings');
   // The agent's tab owns its scroll region too, so its composer stays at the foot (ADR-0030).
   content.classList.toggle('is-fill', state.view === 'agentChat');
   if (state.view === 'help') {
     renderHelp();
+  } else if (state.view === 'settings') {
+    // Drawn by the host with or without a file, read-only or in recovery (ADR-0038).
+    renderSettings();
   } else if (client.mode === 'unavailable') {
     renderUnavailable();
   } else if (state.view === 'health' || (state.session.health === 'recoveryRequired' && state.session.manifest === null)) {
@@ -178,7 +183,8 @@ function render(): void {
   }
   endPlacePickers();
   const awaitingSave = renderPendingMutation();
-  if (state.view !== 'help' && (!state.session.capabilities.mutate || awaitingSave)) {
+  // Settings disables only what is in the file: this computer's settings still change.
+  if (state.view !== 'help' && state.view !== 'settings' && (!state.session.capabilities.mutate || awaitingSave)) {
     for (const control of content.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(alwaysAvailable)) {
       if (!awaitingSave && control.closest('#studio-query') && state.session.capabilities.readData) continue;
       // A custom view's controls are the view's to disable: it is told the file is
@@ -311,6 +317,7 @@ function currentHeading(): { eyebrow: string; title: string } {
   return ((): { eyebrow: string; title: string } => {
     switch (state.view) {
       case 'help': return { eyebrow: 'How it works, guides & this app', title: 'Help' };
+      case 'settings': return { eyebrow: 'This computer, this file and its apps', title: 'Settings' };
       case 'agent': return { eyebrow: 'Local collaboration', title: 'Agent access' };
       case 'agentProposal': return { eyebrow: 'Local collaboration', title: 'Review changes' };
       case 'agentChat': return { eyebrow: 'Local collaboration', title: agentChatTitle() };
@@ -428,7 +435,7 @@ function updateChrome(): void {
   const selected = state.view === 'proposal' ? state.proposalReturnView : state.view === 'agentProposal' || state.view === 'agentChat' ? 'agent' : state.view;
   for (const [name, button] of Object.entries(navigation)) {
     button.title = name === 'use' ? 'Use application' : name === 'agent' ? 'Agent access' : name === 'surfaces' ? 'Screens' : capitalise(name);
-    const active = name === selected && !button.disabled && (state.session.hasFile || name === 'help' || name === 'health');
+    const active = name === selected && !button.disabled && (state.session.hasFile || name === 'help' || name === 'health' || name === 'settings');
     button.classList.toggle('is-selected', active);
     button.classList.toggle('is-current', active);
     if (active) button.setAttribute('aria-current', 'page');
@@ -532,6 +539,7 @@ function applyShortcuts(shown: boolean, persist = false): void {
   const label = shown ? 'Hide keyboard shortcuts' : 'Show keyboard shortcuts';
   shortcutsToggle.setAttribute('aria-label', label);
   shortcutsToggle.title = `${label} (${shortcut('hints').keys})`;
+  if (state.view === 'settings' && content.querySelector('[data-setting-toggle="appearance.shortcutHints"]') !== null) rerender();
   if (!persist) return;
   try { window.localStorage.setItem(shortcutsStorageKey, shown ? 'shown' : 'hidden'); } catch {
     // The hints still follow the choice in this window when device persistence is unavailable.
@@ -544,7 +552,7 @@ shortcutsToggle.addEventListener('click', () => { applyShortcuts(root.dataset.sh
 // Named for assistive technology on the controls themselves, whether or not the hints show.
 const shortcutTargets: Partial<Record<ShortcutId, HTMLButtonElement>> = {
   use: navigation.use, data: navigation.data, structure: navigation.structure, surfaces: navigation.surfaces,
-  history: navigation.history, health: navigation.health, agent: navigation.agent, help: navigation.help,
+  history: navigation.history, health: navigation.health, agent: navigation.agent, help: navigation.help, settings: navigation.settings,
   back: historyBack, forward: historyForward, rail: railToggle,
 };
 for (const [id, button] of Object.entries(shortcutTargets)) button!.setAttribute('aria-keyshortcuts', shortcut(id as ShortcutId).aria);
@@ -794,6 +802,12 @@ fileDetails.addEventListener('keydown', event => {
   buttons[next]?.focus();
 });
 navigation.help.addEventListener('click', () => { void openHelp(); });
+navigation.settings.addEventListener('click', () => { void openSettings(); });
+// A control that has its row in Settings links to it (ADR-0038).
+content.addEventListener('click', (event) => {
+  const link = (event.target as Element | null)?.closest<HTMLElement>('[data-open-setting]');
+  if (link) void openSettings(link.dataset.openSetting ?? '');
+});
 navigation.use.addEventListener('click', () => { void openWorkspaceView('use'); });
 navigation.studio.addEventListener('click', () => { void openWorkspaceView('data'); });
 navigation.data.addEventListener('click', () => { void openWorkspaceView('data'); });

@@ -117,6 +117,9 @@ internal static partial class WorkbenchMethods
         LookEmbedIcon,
         // A view's runtime event: kept in memory, and no window is involved.
         ExtensionEventsReport,
+        // The settings catalogue and the window's two settings: small device documents, no window.
+        SettingsDescribe,
+        SettingsSet,
     };
 
     /// <summary>

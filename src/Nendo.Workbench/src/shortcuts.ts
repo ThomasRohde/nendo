@@ -13,7 +13,7 @@ import { chordKey } from './extension-api/protocol';
 
 export type ShortcutId =
   | 'palette' | 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent'
-  | 'help' | 'back' | 'forward' | 'rail' | 'file' | 'hints' | 'newTab' | 'closeTab' | 'nextTab';
+  | 'help' | 'settings' | 'back' | 'forward' | 'rail' | 'file' | 'hints' | 'newTab' | 'closeTab' | 'nextTab';
 
 export interface Shortcut {
   id: ShortcutId;
@@ -34,6 +34,7 @@ export const shortcuts: readonly Shortcut[] = [
   { id: 'health', keys: 'Ctrl 6', aria: 'Control+6', label: 'Health' },
   { id: 'agent', keys: 'Ctrl 7', aria: 'Control+7', label: 'Agent access' },
   { id: 'help', keys: 'F1', aria: 'F1', label: 'Help' },
+  { id: 'settings', keys: 'Ctrl ,', aria: 'Control+,', label: 'Settings' },
   { id: 'back', keys: 'Alt ←', aria: 'Alt+ArrowLeft', label: 'Back' },
   { id: 'forward', keys: 'Alt →', aria: 'Alt+ArrowRight', label: 'Forward' },
   { id: 'rail', keys: 'Ctrl B', aria: 'Control+B', label: 'Fold or open the navigation' },
@@ -90,6 +91,7 @@ export function matchShortcut(event: KeyLike): ShortcutId | null {
     if (key === 'k') return 'palette';
     if (key === 'b') return 'rail';
     if (key === '/') return 'hints';
+    if (key === ',') return 'settings';
     if (key === 't') return 'newTab';
     if (key === 'w') return 'closeTab';
     if (key === 'Tab') return 'nextTab';

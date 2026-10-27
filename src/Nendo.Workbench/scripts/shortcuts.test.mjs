@@ -66,7 +66,8 @@ test('a chord is read by its physical key when the layout types a non-Latin lett
   // What stays somebody else's key.
   assert.equal(ctrl('!', 'Digit1', { shiftKey: true }), null, 'US: Ctrl Shift 1 is not Ctrl 1');
   assert.equal(ctrl('a', 'KeyQ'), null, 'AZERTY A is A, wherever its key sits');
-  assert.equal(ctrl(',', 'KeyM'), null, 'an ASCII symbol on a letter key is that symbol');
+  assert.equal(ctrl(',', 'KeyM'), 'settings', 'an ASCII symbol on a letter key is that symbol: AZERTY Ctrl , is Settings, not Ctrl M');
+  assert.equal(ctrl(';', 'KeyM'), null, 'a symbol no shortcut uses is nobody\'s');
   assert.equal(ctrl('л', 'KeyK', { shiftKey: true }), null, 'Shift still makes a letter chord somebody else’s');
   assert.equal(matchShortcut(key('л', { code: 'KeyK' })), null, 'a bare letter types');
   assert.equal(ctrl('k', 'KeyK'), 'palette');

@@ -79,7 +79,7 @@ export function currentCommands(): PaletteCommand[] {
   const go: [string, ShortcutId | null, string][] = [
     ['#nav-use', 'use', 'Use'], ['#nav-data', 'data', 'Data'], ['#nav-structure', 'structure', 'Structure'],
     ['#nav-surfaces', 'surfaces', 'Screens'], ['#nav-history', 'history', 'History'],
-    ['#nav-health', 'health', 'Health'], ['#nav-agent', 'agent', 'Agent access'], ['#nav-help', 'help', 'Help'],
+    ['#nav-health', 'health', 'Health'], ['#nav-agent', 'agent', 'Agent access'], ['#nav-settings', 'settings', 'Settings'], ['#nav-help', 'help', 'Help'],
   ];
   for (const [selector, id, label] of go) {
     const button = document.querySelector(selector);

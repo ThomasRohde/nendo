@@ -28,6 +28,13 @@ internal sealed partial class WorkbenchProtocolHandler
                 "unknown-method",
                 $"Workbench method {method} is not part of protocol version {protocolVersion}.");
 
+    // A page has no window of Nendo's, no tray and no agents, so it offers none of their settings.
+    private partial bool OffersWindowsSettings() => false;
+
+    private partial object? HostSettingValue(string id) => null;
+
+    private partial void ChangeHostSetting(string id, bool value) => throw NotInThisHost(WorkbenchMethods.SettingsSet);
+
     private static NendoPreconditionException NotInThisHost(string method) =>
         new("not-in-this-host", $"{method} is answered by Nendo for Windows, not by this host.");
 }

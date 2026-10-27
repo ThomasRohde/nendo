@@ -68,6 +68,8 @@ const notSettled = new Set([
   // A host's own method (its window, tabs, downloads, diagnostics, agents) that the browser host does not have
   // (ADR-0036). None is a journaled write.
   'not-in-this-host',
+  // The Settings page's own settings (ADR-0038): a variable fixes one, or the device could not keep it. No journaled write.
+  'setting-overridden', 'setting-not-saved',
   // The browser host refusing a file too large to open in a page (ADR-0036). A file action, not a journaled write.
   'file-too-large',
   // Apply changes from a web page (ADR-0035): a file action preparing a proposal, not a journaled write.

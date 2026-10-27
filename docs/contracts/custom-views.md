@@ -633,7 +633,7 @@ nothing a view sends is used as a method name, a host payload or an identity.
 | `assistant.cancel` | none | `agentSession.cancel` with this mount's own `turnId` | null |
 
 The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
-`agent.*`, `file.*`, `session.open*`, `appearance.set` or `history.compensate`, and
+`agent.*`, `file.*`, `session.open*`, `appearance.set`, `settings.*` or `history.compensate`, and
 never will: acceptance stays with the person. `assistant.*` reaches the launched agent only
 through the Workbench, which asks the person first ([The launched agent](#the-launched-agent)). A view's reads carry no actor. They are
 the Workbench's reads, under its file session.

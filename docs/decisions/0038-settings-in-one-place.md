@@ -4,7 +4,7 @@
 - **Date:** 2026-10-27
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** Pending; accepted on the owner's standing pre-acceptance of ADR changes
+- **Evidence:** `WorkbenchSettingsTests`; `settings-model.test.mjs`; the Workbench shell lane's Settings checks; accepted on the owner's standing pre-acceptance of ADR changes
 - **Amends:** ADR-0013 (a package declares settings; the view API gains `nendo.settings`), ADR-0034 (a folder for apps' personal settings)
 - **Depends on:** ADR-0004, ADR-0007, ADR-0009, ADR-0012, ADR-0013, ADR-0034
 - **Contract:** [custom views](../contracts/custom-views.md), [Studio](../contracts/studio.md), [MCP interface](../contracts/mcp-interface.md)
@@ -30,7 +30,7 @@ the route back to the data, including turning custom views off, is always reacha
 ## Decision
 
 **One Settings page, drawn by the host, holds every setting of Nendo and of the apps a file
-carries.** It opens as a tab with Ctrl , or File → Settings, and from the command box. Its sections
+carries.** It opens from Settings in the navigation, with Ctrl , and from the command box. Its sections
 are General, Agents, Custom views and This file, then one section per app the file carries. A search
 field finds a setting in any section. Every row has an address (`settings/<id>`), so help, a notice
 or a refusal can open it.
@@ -41,7 +41,7 @@ Every setting has exactly one home, and its row names it in these words:
 
 | Home | Holds | Kept | Travels with the file |
 | --- | --- | --- | --- |
-| **This computer** | Theme, shortcut hints, what Close does, Record failures, run custom views, load pictures from the web, the agent connection, views may message the agent, each agent's options, an app's personal settings | Device state (ADR-0034) | Never |
+| **This computer** | Theme, shortcut hints, what Close does, Record failures, run custom views, load pictures from the web, the agent connection, views may message the agent, each agent's options, an app's personal settings | Device state (ADR-0034); shortcut hints and pictures from the web in the Workbench's page storage on this device | Never |
 | **This file, here** | The agent access level and port, approval of automatic actions, run this file's views, development links, start agents in the file's repository | Device state, keyed by the file's application ID | Never |
 | **In the file** | The look, icon, purpose and new-file label; record-type and screen icons; an app's shared settings | The definition, as typed operations | Always |
 
@@ -57,8 +57,8 @@ A file can never set a setting of the first two homes. An app's setting is never
   then shows in History and can be undone where its operation says so.
 - In a file opened read-only, in safe mode, or in recovery, the page still opens. Rows kept on this
   computer work, so Run custom views is always reachable. Rows in the file are read-only and say why.
-- An environment variable that overrides a setting (`NENDO_DESKTOP_CLOSE_ACTION`,
-  `NENDO_AGENT_PORTS`) makes its row read-only, and the row says which variable is set.
+- An environment variable that fixes a setting for the running Nendo (`NENDO_DESKTOP_CLOSE_ACTION`)
+  makes its row read-only, and the row says which variable is set.
 
 ### One catalogue
 

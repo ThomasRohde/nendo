@@ -391,7 +391,8 @@ internal sealed partial class WorkbenchProtocolHandler
             // its gate, including after every interactive picker/confirmation wait.
             var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet
                 or WorkbenchMethods.SessionGetRecentFiles or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar
-                or WorkbenchMethods.DiagnosticsResizeWindow || IsHostIndependent(method);
+                or WorkbenchMethods.DiagnosticsResizeWindow or WorkbenchMethods.SettingsDescribe or WorkbenchMethods.SettingsSet
+                || IsHostIndependent(method);
             var expectedSession = independent ? null : RequiredString(root, "fileSessionId", 120);
             using var projection = _session.BindReadProjection(root.TryGetProperty("boundedRead", out var boundedRead) &&
                 boundedRead.ValueKind == JsonValueKind.True);
@@ -478,6 +479,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.MediaRemoveUnused => await _session.RemoveUnusedMediaAsync(cancellationToken),
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
+                    WorkbenchMethods.SettingsDescribe => DescribeSettings(),
+                    WorkbenchMethods.SettingsSet => ChangeSetting(payload),
                     WorkbenchMethods.BehaviourApprove => await _session.ApproveBehaviourAsync(cancellationToken),
                     WorkbenchMethods.BehaviourRevoke => await _session.RevokeBehaviourAsync(cancellationToken),
                     // The host's own methods: its window, tabs, downloads, diagnostics and agents.

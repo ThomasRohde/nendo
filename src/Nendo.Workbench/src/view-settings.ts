@@ -1,0 +1,255 @@
+import { prepareApplication } from './actions';
+import { fileScopedClearable, state } from './app-state';
+import { deferWhileBusy } from './busy-queue';
+import { client } from './client';
+import { refuseWhileDirty } from './draft-guard';
+import { openAboutFile } from './file-actions';
+import { escapeHtml, messageFor } from './format';
+import type { AgentAccessMode, LaunchableAgents, SettingSection, SettingView, SettingsView, ViewAgentAccess } from './host-types';
+import { loadsWebPictures, setLoadsWebPictures } from './media-model';
+import { type SettingRowState, sectionOf, settingRowId, settingsPageMarkup, settingsProposal } from './settings-model';
+import { announce, applyTheme, clearError, content, isThemePreference, navigation, readPreference, requiredElement, rerender, showError } from './shell';
+import { saveAgentSettings, setAgentMode } from './view-agent';
+import { assistantAccessChanged } from './view-assistant';
+import { setBehaviourApproval } from './view-health';
+import { openCustomViews, setViewSwitch } from './view-packages';
+
+/**
+ * Settings (ADR-0038): every setting of Nendo in one page, drawn by the host like Studio, so it
+ * opens without a file, read-only and in safe mode. The rows come from the host's settings
+ * catalogue; each value is read and changed through the method its own control has always used,
+ * so the Agent page, Studio, Health, the status line and the tray change the same values.
+ */
+
+let described: SettingsView | null = null;
+let launchable: LaunchableAgents | null = null;
+let loading: Promise<void> | null = null;
+/** Why the catalogue could not be read, until Try again. Never read again by itself, or a refusal would loop. */
+let unreadable: string | null = null;
+/** Changes to the file typed here and not yet reviewed, by setting ID. */
+const pending = fileScopedClearable(new Map<string, string>());
+// The launch choices are the open file's: another file reads its own.
+fileScopedClearable({ clear(): void { launchable = null; } });
+
+/** Open Settings, at one setting when a link names it (`settings/<id>`). */
+export async function openSettings(settingId = ''): Promise<void> {
+  if (deferWhileBusy(() => { void openSettings(settingId); })) return;
+  if (refuseWhileDirty('opening Settings')) return;
+  state.settingsRowId = settingId;
+  state.settingsQuery = '';
+  state.view = 'settings';
+  state.creatingRecord = false;
+  await loadSettings();
+  if (settingId !== '' && described) state.settingsSection = sectionOf(described.settings, settingId) ?? state.settingsSection;
+  rerender();
+}
+
+/** Reads the catalogue and the values that live with the agents; the rest are in the session. */
+async function loadSettings(): Promise<void> {
+  loading ??= (async () => {
+    try {
+      described = await client.request<SettingsView>('settings.describe');
+      unreadable = null;
+      const agents = described.settings.some(view => view.setting.section === 'agents');
+      if (agents && state.session.hasFile) {
+        try { state.agentStatus = await client.request('agent.getStatus'); } catch { /* The rows say they cannot be read. */ }
+        try { launchable = await client.request<LaunchableAgents>('agentSession.list'); } catch { launchable = null; }
+      }
+    } catch (error) {
+      unreadable = messageFor(error);
+    } finally {
+      loading = null;
+    }
+  })();
+  await loading;
+}
+
+const noFile = 'Open a file to choose this.';
+
+function readOnlyReason(): string | null {
+  return state.session.capabilities.mutate ? null : 'This file is open read-only, so nothing in it can change.';
+}
+
+/** What a row shows now, read where the setting's own control reads it. */
+function rowState(view: SettingView): SettingRowState {
+  const { setting } = view;
+  if (setting.needsFile && !state.session.hasFile) return { value: null, disabled: noFile, actionLabel: 'Open' };
+  const agent = state.agentStatus;
+  switch (setting.id) {
+    case 'appearance.theme': return { value: isThemePreference(document.documentElement.dataset.themePreference ?? null) ? document.documentElement.dataset.themePreference : readPreference() };
+    case 'appearance.shortcutHints': return { value: document.documentElement.dataset.shortcuts === 'shown' };
+    case 'media.webPictures': return { value: loadsWebPictures() };
+    case 'window.closeToTray':
+    case 'diagnostics.recordFailures': return { value: view.value };
+    case 'agents.access': return { value: agent?.mode ?? 'off', disabled: agent ? null : 'Agent access could not be read.' };
+    case 'agents.port': return { value: agent?.portPreference ?? '', disabled: !agent ? 'Agent access could not be read.' : agent.fixedPort ? null : 'Used only while each file keeps its port.' };
+    case 'agents.fixedPort': return { value: agent?.fixedPort ?? false, disabled: agent ? null : noFile };
+    case 'agents.leaseExpiry': return { value: agent?.leaseExpiry ?? false, disabled: agent ? null : noFile };
+    case 'agents.leaseExpirySeconds': return { value: agent?.leaseExpirySeconds ?? '', disabled: !agent ? noFile : agent.leaseExpiry ? null : 'Used only while an idle lease ends.' };
+    case 'agents.viewMessages': return { value: launchable?.viewAccess ?? 'ask', disabled: launchable ? null : noFile };
+    case 'agents.startInRepository': return { value: launchable?.startInRepository === true, disabled: launchable ? null : 'Launching agents is not available here.' };
+    case 'agents.options': return { value: null, actionLabel: 'Open Agent page', disabled: state.session.hasFile ? null : noFile };
+    case 'views.run': return { value: state.session.extensions?.deviceEnabled ?? true };
+    case 'views.runThisFile': return { value: state.session.extensions?.fileEnabled ?? true };
+    case 'views.developmentLinks': return { value: null, actionLabel: 'Open Custom views' };
+    case 'file.look': return { value: null, actionLabel: 'Change look', disabled: readOnlyReason() };
+    case 'file.purpose':
+    case 'file.newFileLabel': {
+      const kept = (setting.id === 'file.purpose' ? state.session.manifest?.purpose : state.session.manifest?.newFileLabel) ?? '';
+      return { value: pending.get(setting.id) ?? kept, pending: pending.has(setting.id), disabled: readOnlyReason() };
+    }
+    case 'file.automaticActions': {
+      const trust = state.session.behaviourTrust;
+      if (!trust?.requiresApproval) return { value: null, hidden: true };
+      return { value: trust.isApproved, status: trust.isApproved ? 'Approved here' : 'Not approved', actionLabel: trust.isApproved ? 'Withdraw approval' : 'Approve' };
+    }
+    default: return { value: view.value, disabled: 'This Nendo cannot change this here.' };
+  }
+}
+
+export function renderSettings(): void {
+  if (described === null) {
+    if (unreadable !== null) {
+      content.innerHTML = `<div class="settings-empty" role="alert"><p>${escapeHtml(`Settings could not be read. ${unreadable}`)}</p><button type="button" class="secondary-button" data-settings-retry>Try again</button></div>`;
+      content.querySelector('[data-settings-retry]')?.addEventListener('click', () => {
+        unreadable = null;
+        void loadSettings().then(() => { if (state.view === 'settings') rerender(); });
+      });
+      return;
+    }
+    content.innerHTML = '<p class="settings-empty" role="status">Reading settings…</p>';
+    if (loading === null) void loadSettings().then(() => { if (state.view === 'settings') rerender(); });
+    return;
+  }
+  content.innerHTML = settingsPageMarkup({ settings: described.settings, section: state.settingsSection, query: state.settingsQuery,
+    state: rowState, pending: pending.size, fileName: state.session.fileName });
+  wireSettings();
+  if (state.settingsRowId !== '') {
+    const row = content.querySelector<HTMLElement>(`#${settingRowId(state.settingsRowId)}`);
+    state.settingsRowId = '';
+    if (row) {
+      row.classList.add('is-target');
+      row.scrollIntoView({ block: 'center' });
+      row.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])')?.focus();
+    }
+  }
+}
+
+function setting(id: string): SettingView | undefined {
+  return described?.settings.find(view => view.setting.id === id);
+}
+
+function wireSettings(): void {
+  const search = requiredElement<HTMLInputElement>('#settings-search');
+  search.addEventListener('input', () => {
+    state.settingsQuery = search.value;
+    const at = search.selectionStart;
+    rerender();
+    // The redraw replaced the field: carry on typing where the person was.
+    const again = content.querySelector<HTMLInputElement>('#settings-search');
+    again?.focus();
+    if (again && at !== null) again.setSelectionRange(at, at);
+  });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-settings-section]')) button.addEventListener('click', () => {
+    state.settingsSection = button.dataset.settingsSection as SettingSection;
+    state.settingsQuery = '';
+    rerender();
+    content.querySelector<HTMLElement>('.settings-index [aria-current]')?.focus();
+  });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-toggle]')) button.addEventListener('click', () => {
+    void changeSetting(button.dataset.settingToggle!, button.getAttribute('aria-checked') !== 'true');
+  });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-choice]')) button.addEventListener('click', () => {
+    void changeSetting(button.dataset.settingChoice!, button.dataset.value!);
+  });
+  for (const input of content.querySelectorAll<HTMLInputElement>('[data-setting-number]')) input.addEventListener('change', () => {
+    const value = Number(input.value);
+    if (!Number.isInteger(value)) { showError('Enter a whole number.'); return; }
+    void changeSetting(input.dataset.settingNumber!, value);
+  });
+  for (const input of content.querySelectorAll<HTMLInputElement>('[data-setting-text]')) input.addEventListener('change', () => {
+    keepPending(input.dataset.settingText!, input.value);
+  });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-link]')) button.addEventListener('click', () => {
+    followLink(button.dataset.settingLink!);
+  });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-action]')) button.addEventListener('click', () => {
+    void setBehaviourApproval(state.session.behaviourTrust?.isApproved !== true).then(() => rerender());
+  });
+  content.querySelector('[data-settings-discard]')?.addEventListener('click', () => {
+    pending.clear();
+    announce('Changes to the file discarded.');
+    rerender();
+  });
+  content.querySelector('[data-settings-review]')?.addEventListener('click', () => { void reviewChanges(); });
+}
+
+/** Changes one setting through the method its own control uses, then shows it again. */
+async function changeSetting(id: string, value: unknown): Promise<void> {
+  clearError();
+  try {
+    switch (id) {
+      case 'appearance.theme':
+        if (typeof value === 'string' && isThemePreference(value)) applyTheme(value, true);
+        break;
+      case 'appearance.shortcutHints':
+        if ((document.documentElement.dataset.shortcuts === 'shown') !== value) document.querySelector<HTMLButtonElement>('#shortcuts-toggle')?.click();
+        break;
+      case 'media.webPictures':
+        setLoadsWebPictures(value === true);
+        announce(value === true ? 'Pictures from the web are shown.' : 'Pictures from the web are not loaded.');
+        break;
+      case 'window.closeToTray':
+      case 'diagnostics.recordFailures':
+        described = await client.request<SettingsView>('settings.set', { id, value });
+        announce(`${setting(id)?.setting.title ?? 'Setting'}: ${value === true ? 'on' : 'off'}.`);
+        break;
+      case 'agents.access': await setAgentMode(value as AgentAccessMode); break;
+      case 'agents.fixedPort': await saveAgentSettings({ fixedPort: value === true }); break;
+      case 'agents.leaseExpiry': await saveAgentSettings({ leaseExpiry: value === true }); break;
+      case 'agents.leaseExpirySeconds': await saveAgentSettings({ leaseExpirySeconds: value as number }); break;
+      case 'agents.port': await saveAgentSettings({ port: value as number }); break;
+      case 'agents.viewMessages':
+        launchable = await client.request<LaunchableAgents>('agentSession.setViewAccess', { access: value });
+        assistantAccessChanged(value as ViewAgentAccess);
+        announce(`Views may message the agent: ${setting(id)?.setting.options?.find(option => option.value === value)?.label ?? value}.`);
+        break;
+      case 'agents.startInRepository':
+        launchable = await client.request<LaunchableAgents>('agentSession.setStartIn', { repository: value === true });
+        announce(value === true ? 'Agents start in this file\'s repository from the next launch.' : 'Agents start in an empty folder from the next launch.');
+        break;
+      case 'views.run': await setViewSwitch('device', value === true); break;
+      case 'views.runThisFile': await setViewSwitch('file', value === true); break;
+      default: return;
+    }
+  } catch (error) {
+    showError(messageFor(error));
+  }
+  if (state.view !== 'settings') return;
+  rerender();
+  // The redraw replaced the control: keep the person on it.
+  const row = content.querySelector<HTMLElement>(`#${settingRowId(id)}`);
+  (row?.querySelector<HTMLElement>('[aria-checked="true"][role="radio"]') ?? row?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])'))?.focus();
+}
+
+/** A change to the file waits in the bar until the person reviews it with the others. */
+function keepPending(id: string, typed: string): void {
+  const kept = (id === 'file.purpose' ? state.session.manifest?.purpose : state.session.manifest?.newFileLabel) ?? '';
+  if (typed.trim() === kept.trim()) pending.delete(id); else pending.set(id, typed);
+  rerender();
+  content.querySelector<HTMLInputElement>(`[data-setting-text="${id}"]`)?.focus();
+}
+
+async function reviewChanges(): Promise<void> {
+  const manifest = state.session.manifest;
+  const payload = manifest ? settingsProposal(pending, manifest.definitionRevision) : null;
+  if (payload === null) return;
+  const opened = await prepareApplication({ actionLabel: 'Review', applicationName: state.session.fileName ?? '', proposalPayload: payload }, 'settings');
+  if (opened) pending.clear();
+}
+
+function followLink(id: string): void {
+  if (id === 'agents.options') navigation.agent.click();
+  else if (id === 'views.developmentLinks') void openCustomViews();
+  else if (id === 'file.look') openAboutFile();
+}

@@ -2925,6 +2925,91 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       `the dropped picture did not become a 256-pixel square ready to review: ${JSON.stringify(sent)}.`);
   });
 
+  // Settings (ADR-0038): reached from the rail, Ctrl , and the File menu, every row naming
+  // where its value is kept, and a change made there being the one the status line shows.
+  await check('settings opens from the rail, Ctrl , and the command box', 'decision', async () => {
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('.settings-page [data-setting-row]') !== null, null, 'the Settings page', 6000);
+    assert(await page.evaluate(() => document.querySelector('#nav-settings')?.getAttribute('aria-current')) === 'page', 'Settings is not the current page.');
+    await page.click('#nav-use');
+    await until(() => document.querySelector('.settings-page') === null, null, 'Use');
+    await page.keyboard.press('Control+Comma');
+    await until(() => document.querySelector('.settings-page') !== null, null, 'Settings from Ctrl ,', 4000);
+    await page.click('#nav-use');
+    await until(() => document.querySelector('.settings-page') === null, null, 'Use');
+    await page.keyboard.press('Control+K');
+    await page.keyboard.type('Settings');
+    await page.keyboard.press('Enter');
+    await until(() => document.querySelector('.settings-page') !== null, null, 'Settings from the command box', 4000);
+  });
+
+  await check('every settings row names where it is kept', 'decision', async () => {
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('.settings-page [data-setting-row]') !== null, null, 'the Settings page', 6000);
+    const rows = [];
+    for (const section of ['general', 'agents', 'views', 'file']) {
+      await page.click(`[data-settings-section="${section}"]`);
+      rows.push(...await page.evaluate(() => [...document.querySelectorAll('[data-setting-row]')].map(row => ({
+        id: row.dataset.settingRow, home: row.querySelector('.settings-home')?.textContent ?? '' }))));
+    }
+    const homeless = rows.filter(row => !['This computer', 'This file, here', 'In the file'].includes(row.home));
+    assert(rows.length >= 18 && homeless.length === 0, `${rows.length} rows, and these name no home: ${JSON.stringify(homeless)}.`);
+  });
+
+  await check('a theme chosen in Settings is the one the status line shows', 'decision', async () => {
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('[data-setting-choice="appearance.theme"]') !== null, null, 'the theme row', 6000);
+    await page.click('[data-setting-choice="appearance.theme"][data-value="dark"]');
+    const after = await page.evaluate(() => ({ theme: document.documentElement.dataset.theme,
+      status: document.querySelector('[data-theme-option="dark"]')?.getAttribute('aria-pressed'),
+      row: document.querySelector('[data-setting-choice="appearance.theme"][data-value="dark"]')?.getAttribute('aria-checked') }));
+    assert(after.theme === 'dark' && after.status === 'true' && after.row === 'true', `choosing Dark in Settings gave ${JSON.stringify(after)}.`);
+    await page.click('[data-theme-option="light"]');
+    // A redraw waits for the pointer to be let go, so the row follows a moment later.
+    await page.waitForFunction(() => document.querySelector('[data-setting-choice="appearance.theme"][data-value="light"]')?.getAttribute('aria-checked') === 'true', null, { timeout: 2000 }).catch(() => {});
+    const back = await page.evaluate(() => document.querySelector('[data-setting-choice="appearance.theme"][data-value="light"]')?.getAttribute('aria-checked'));
+    assert(back === 'true', `the status line chose Light and Settings still shows ${back}.`);
+    const before = await page.evaluate(() => document.querySelector('[data-setting-toggle="appearance.shortcutHints"]')?.getAttribute('aria-checked'));
+    await page.keyboard.press('Control+Slash');
+    await page.waitForFunction(before => document.querySelector('[data-setting-toggle="appearance.shortcutHints"]')?.getAttribute('aria-checked') !== before, before, { timeout: 2000 }).catch(() => {});
+    const hints = await page.evaluate(() => document.querySelector('[data-setting-toggle="appearance.shortcutHints"]')?.getAttribute('aria-checked'));
+    assert(hints !== undefined && hints !== before, `Ctrl / switched the hints and Settings still shows ${hints}.`);
+  });
+
+  await check('a change to the file in settings waits for review', 'decision', async () => {
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('[data-settings-section="file"]') !== null, null, 'the Settings page', 6000);
+    await page.click('[data-settings-section="file"]');
+    await page.fill('[data-setting-text="file.purpose"]', 'Decisions we took and why');
+    await page.press('[data-setting-text="file.purpose"]', 'Tab');
+    await until(() => document.querySelector('.settings-changes') !== null, null, 'the changes bar', 4000);
+    const bar = await page.evaluate(() => document.querySelector('.settings-changes strong')?.textContent);
+    assert(bar === '1 change to the file', `the bar says ${JSON.stringify(bar)}.`);
+    await page.click('[data-settings-review]');
+    await until(() => document.querySelector('#studio-content')?.textContent?.includes('Say what this file is for'), null, 'the review of the purpose', 6000);
+  });
+
+  await check('settings opens with no file and keeps this computer\'s settings', 'decision', async () => {
+    await page.click('#file-menu > summary');
+    await page.click('[data-file-action="file.close"]');
+    await until(() => document.querySelector('[data-testid="no-file-state"]') !== null, null, 'the start screen', 6000);
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('.settings-page [data-setting-row]') !== null, null, 'Settings with no file', 6000);
+    const general = await page.evaluate(() => [...document.querySelectorAll('[data-setting-toggle], [data-setting-choice]')].filter(control => !control.disabled).length);
+    assert(general > 0, 'with no file open, no setting of this computer can be changed.');
+    await page.click('[data-settings-section="file"]');
+    const note = await page.evaluate(() => document.querySelector('[data-setting-row="file.purpose"] .settings-note')?.textContent);
+    assert(note === 'Open a file to choose this.', `a setting in the file says ${JSON.stringify(note)} with no file open.`);
+  });
+
+  await check('a control links to its row in settings', 'decision', async () => {
+    await agentPage('connect');
+    await page.click('[data-open-setting="agents.fixedPort"]');
+    await until(() => document.querySelector('[data-setting-row="agents.fixedPort"].is-target') !== null, null, 'the row the link names', 6000);
+    const focused = await page.evaluate(() => document.activeElement?.closest('[data-setting-row]')?.dataset.settingRow ?? null);
+    assert(focused === 'agents.fixedPort', `the link opened Settings with ${JSON.stringify(focused)} focused.`);
+  });
+
   await check('dark window paints dark first', 'decision', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.evaluate(() => { try { localStorage.removeItem('nendo.appearance'); } catch { /* none kept */ } });

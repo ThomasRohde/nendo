@@ -1,0 +1,80 @@
+/* Settings (ADR-0038): sections on the left with a search, rows on the right, each naming where
+   its value is kept. Two scroll regions, like Help.
+   Slice 24 of styles.css; see that file for why the order matters. */
+
+.studio-content.is-settings { overflow: hidden; }
+.studio-content.is-settings > .settings-page { height: 100%; min-height: 0; }
+.settings-page { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100%; }
+
+.settings-index { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; padding: var(--space-5) var(--space-3); border-right: 1px solid var(--line); }
+.settings-index > label { font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 4px; }
+.settings-index input { width: 100%; min-width: 0; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--ink); font: inherit; }
+.settings-index nav { display: grid; gap: 4px; margin-top: 8px; }
+.settings-section { position: relative; display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px 0 16px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; text-align: left; }
+.settings-section:hover { background: var(--nav-hover); }
+.settings-section[aria-current] { background: var(--nav-hover); }
+.settings-section[aria-current]::before { position: absolute; left: 0; top: 10px; width: 3px; height: 16px; border-radius: 2px; background: var(--cobalt); content: ""; }
+.settings-section .outline-icon { width: 16px; height: 16px; flex: 0 0 auto; }
+
+.settings-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; min-height: 0; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-6); }
+.settings-group { display: flex; flex-direction: column; gap: 4px; max-width: 920px; }
+.settings-group h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.settings-rows { display: flex; flex-direction: column; gap: 4px; }
+.settings-row { display: flex; align-items: center; gap: 16px; min-height: 44px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
+.settings-row.is-target { border-color: var(--cobalt); }
+.settings-row.is-pending { border-color: var(--cobalt); background: var(--cobalt-soft); }
+.settings-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.settings-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.settings-help, .settings-note { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.settings-note { font-style: italic; }
+.settings-home, .settings-pending { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 999px; font-size: 12px; line-height: 18px; white-space: nowrap; background: var(--surface-soft); color: var(--muted); }
+.settings-home[data-home="file"] { background: var(--cobalt-soft); color: var(--ink); }
+.settings-pending { border: 1px solid var(--cobalt); background: transparent; color: var(--ink); }
+.settings-row-control { display: flex; align-items: center; gap: 10px; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; }
+
+.settings-switch { display: inline-flex; align-items: center; padding: 2px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
+.settings-switch:disabled { cursor: default; opacity: 0.62; }
+.settings-switch[aria-checked="true"] .switch-glyph { background: var(--cobalt); }
+.settings-switch[aria-checked="true"] .switch-glyph::after { left: 19px; background: var(--on-accent); }
+.settings-switch-state, .settings-unit, .settings-status { font-size: 0.85rem; color: var(--muted); }
+.settings-switch-state { min-width: 24px; text-align: right; }
+
+.settings-choice { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-raised); overflow: hidden; }
+.settings-choice button { height: 30px; padding: 0 12px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 0.9rem; }
+.settings-choice button:first-child { border-left: 0; }
+.settings-choice button:hover:not(:disabled) { background: var(--surface-soft); }
+.settings-choice button[aria-checked="true"] { background: var(--cobalt-soft); font-weight: 600; }
+.settings-choice button:disabled { opacity: 0.62; }
+
+.settings-number, .settings-text { height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--ink); font: inherit; }
+.settings-number { width: 110px; font-family: var(--mono); }
+.settings-text { width: min(320px, 40vw); }
+.settings-number:focus, .settings-text:focus { border-color: var(--cobalt); outline: 2px solid color-mix(in srgb, var(--cobalt) 22%, transparent); outline-offset: 0; }
+
+.settings-changes { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; max-width: 920px; padding: 10px 16px; border: 1px solid var(--cobalt); border-radius: var(--radius-control); background: var(--cobalt-soft); }
+.settings-changes p { flex: 1 1 280px; margin: 0; }
+.settings-changes p span { color: var(--muted); }
+.settings-count, .settings-empty { margin: 0; color: var(--muted); }
+.settings-empty { padding: var(--space-5); }
+
+@media (forced-colors: active) {
+  .settings-switch[aria-checked="true"] .switch-glyph,
+  .settings-choice button[aria-checked="true"],
+  .settings-section[aria-current]::before { background: Highlight; }
+  .settings-row.is-pending, .settings-row.is-target { border: 3px solid Highlight; }
+}
+
+/* A narrow window: the sections stack over the rows, and a row's control goes under its words. */
+@media (max-width: 840px) {
+  .studio-content.is-settings { overflow-y: auto; }
+  .settings-page { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .settings-index { border-right: 0; border-bottom: 1px solid var(--line); overflow: visible; }
+  .settings-index nav { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .settings-list { overflow: visible; }
+  .settings-row { flex-wrap: wrap; }
+  .settings-row-control { justify-content: flex-start; }
+}
+
+/* The link from a control that also has its row in Settings: the Agent page, Custom views, Health. */
+.settings-elsewhere { margin: 0 0 8px; }
+.settings-elsewhere .text-button, .behaviour-approval-actions [data-open-setting] { color: var(--cobalt); text-decoration: underline; text-underline-offset: 3px; }

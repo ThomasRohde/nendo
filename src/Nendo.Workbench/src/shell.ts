@@ -75,7 +75,7 @@ function scrollPositions(): HTMLElement[] {
   // A Filter menu stays open across the redraw that lists a reference's records.
   // Help scrolls its index and its article rather than the pane, and a file-change redraw sent
   // an article being read back to its top once a second while an agent wrote.
-  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel, .help-index, .help-topics, .help-article, .preview-content, .grid-column-options')];
+  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel, .help-index, .help-topics, .help-article, .settings-index, .settings-list, .preview-content, .grid-column-options')];
 }
 
 export function rerender(): void {
@@ -356,6 +356,7 @@ export const navigation = {
   health: requiredElement<HTMLButtonElement>('#nav-health'),
   agent: requiredElement<HTMLButtonElement>('#nav-agent'),
   help: requiredElement<HTMLButtonElement>('#nav-help'),
+  settings: requiredElement<HTMLButtonElement>('#nav-settings'),
 };
 
 export function isThemePreference(value: string | null): value is ThemePreference {
@@ -398,6 +399,8 @@ export function applyTheme(preference: ThemePreference, persist = false): void {
       showError('Appearance changed in this view, but the native window could not save it. Try selecting the theme again.');
     });
   }
+  // Settings shows the same choice: chosen in the status line or another window, it is redrawn.
+  if (state.view === 'settings' && content.querySelector('[data-setting-choice="appearance.theme"]') !== null) rerender();
 }
 
 /**

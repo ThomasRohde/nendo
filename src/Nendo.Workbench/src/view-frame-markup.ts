@@ -260,7 +260,7 @@ export function customViewsPanelMarkup(extensions: ExtensionRuntimeView | null |
     : '';
   const toggle = (scope: 'device' | 'file', on: boolean, label: string, detail: string): string =>
     `<div class="connection-setting"><button class="connection-toggle" type="button" data-view-switch="${scope}" aria-pressed="${on}"><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></span></button></div>`;
-  const toggles = `<div class="connection-settings custom-views-switches">${toggle('device', extensions.deviceEnabled, 'Run custom views', 'On this device, for every file')}${toggle('file', extensions.fileEnabled, 'Run this file’s views', fileName === null ? 'On this device, for this file' : `On this device, for ${fileName}`)}</div>`;
+  const toggles = `<p class="settings-elsewhere"><button type="button" class="text-button" data-open-setting="views.run">Also in Settings</button></p><div class="connection-settings custom-views-switches">${toggle('device', extensions.deviceEnabled, 'Run custom views', 'On this device, for every file')}${toggle('file', extensions.fileEnabled, 'Run this file’s views', fileName === null ? 'On this device, for this file' : `On this device, for ${fileName}`)}</div>`;
   const packages = extensions.packages.length === 0
     ? '<p class="package-empty">No custom-view packages in this file yet.</p>'
     : `<div class="package-list" role="list" aria-label="Packages in this file">${extensions.packages.map((pkg) => {

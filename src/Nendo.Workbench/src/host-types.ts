@@ -944,6 +944,44 @@ export interface RevisionSnapshot {
  * router does not have. It is the whole payload: a host event is a nudge to look
  * at something, never a carrier of state the renderer did not read for itself.
  */
+/** Where a setting is kept (ADR-0038): this computer, this file on this computer, or the file. */
+export type SettingHome = 'device' | 'here' | 'file';
+export type SettingKind = 'toggle' | 'choice' | 'number' | 'text' | 'link' | 'action';
+export type SettingSection = 'general' | 'agents' | 'views' | 'file';
+
+/** One setting as the host's settings catalogue names it (`settings.describe`). */
+export interface SettingDescriptor {
+  id: string;
+  section: SettingSection;
+  group: string;
+  title: string;
+  help: string | null;
+  home: SettingHome;
+  kind: SettingKind;
+  /** The ADR-0034 document, page storage key or definition that keeps the value. */
+  store: string;
+  options: { value: string; label: string }[] | null;
+  minimum: number | null;
+  maximum: number | null;
+  unit: string | null;
+  windowsOnly: boolean;
+  needsFile: boolean;
+}
+
+/**
+ * A setting this host offers. `value` is filled only where the bridge has no other read of it;
+ * `override` names the environment variable that fixes it for the running Nendo.
+ */
+export interface SettingView {
+  setting: SettingDescriptor;
+  value: unknown;
+  override: string | null;
+}
+
+export interface SettingsView {
+  settings: SettingView[];
+}
+
 export type HostRoute = 'open' | 'agent' | 'health' | 'studio';
 /**
  * The renderer behind these custom-view frames ended (ADR-0013). Each name is an iframe's

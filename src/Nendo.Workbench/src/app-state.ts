@@ -1,4 +1,5 @@
 import type { FileHelpPage } from './help';
+import type { SettingSection } from './host-types';
 import type { QuickFilter, QuickFilterTargets } from './quick-filter-model';
 import { emptySession, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary, type HistoryFoldPreview } from './host';
 import type { BucketResult, CellResult, GroupedResult } from './charts';
@@ -17,7 +18,7 @@ import type { OutlineState } from './outline-model';
  * not what is stored.
  */
 
-export type ViewName = 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent' | 'proposal' | 'agentProposal' | 'agentChat' | 'help';
+export type ViewName = 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent' | 'proposal' | 'agentProposal' | 'agentChat' | 'help' | 'settings';
 
 // A window owns the query it was opened with. Paging resends exactly those
 // arguments, because the host hashes the whole query into the cursor scope and
@@ -234,6 +235,10 @@ export interface AppState {
   /** The open file's own help pages (ADR-0027), read when Help opens. */
   helpPages: FileHelpPage[];
   helpQuery: string;
+  /** The Settings page's section, its search, and the row a link asked for, focused once (ADR-0038). */
+  settingsSection: SettingSection;
+  settingsQuery: string;
+  settingsRowId: string;
 }
 
 export const state: AppState = {
@@ -267,6 +272,9 @@ export const state: AppState = {
   helpTopicId: '',
   helpPages: [],
   helpQuery: '',
+  settingsSection: 'general',
+  settingsQuery: '',
+  settingsRowId: '',
 };
 
 /**

@@ -50,6 +50,7 @@ export function behaviourApprovalMarkup(): string {
       ${trust.isApproved
         ? '<button id="revoke-behaviour" class="secondary-button" data-action type="button">Withdraw approval</button>'
         : '<button id="approve-behaviour" class="primary-button" data-action type="button">Approve automatic actions</button>'}
+      <button type="button" class="text-button" data-open-setting="file.automaticActions">Also in Settings</button>
     </div>
   </div>`;
 }

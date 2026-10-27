@@ -1,4 +1,5 @@
 import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ExtensionFileChange, type ExtensionPackageView, type ProposalBehaviour, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
+import { previewSettings } from './preview-settings';
 import {
   previewFixture,
   previewFixtureForEntity,
@@ -88,6 +89,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
   // Custom views (ADR-0013): the two device switches, the file's packages, and a package
   // proposal waiting for review. Frames cannot load here, so placeholders say where views run.
   private readonly viewSwitches = { device: true, file: true };
+  private readonly shellSettings = { closeToTray: true, recordFailures: true };
   private packages: ExtensionPackageView[] = [];
   private packageProposal: { proposal: ProposalPreview; apply: () => void } | null = null;
   // A launched agent (ADR-0030), played by a script so Launch and its tab can be seen here.
@@ -260,6 +262,17 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'agent.getStatus':
         result = this.agentStatus;
         break;
+      case 'settings.describe':
+        result = previewSettings(this.shellSettings);
+        break;
+      case 'settings.set': {
+        const key = payload.id === 'window.closeToTray' ? 'closeToTray' : payload.id === 'diagnostics.recordFailures' ? 'recordFailures' : null;
+        if (key === null) throw new WorkbenchHostError('validation', 'That setting is changed by its own control.');
+        if (typeof payload.value !== 'boolean') throw new WorkbenchHostError('validation', 'That setting is on or off.');
+        this.shellSettings[key] = payload.value;
+        result = previewSettings(this.shellSettings);
+        break;
+      }
       case 'agent.setMode':
         result = this.setAgentMode(payload);
         this.agentSession.levelChanged();

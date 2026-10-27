@@ -77,6 +77,7 @@ function tabIcon(place: Place | null): IconName {
     case 'use': return place.showOverview === true ? 'home' : place.fileView !== null ? (fileViewById(place.fileView) === null ? 'surfaces' : viewIcon(fileViewById(place.fileView)!)) : 'box';
     case 'data': case 'structure': case 'surfaces': case 'history': case 'health': case 'help': return place.view;
     case 'agent': case 'agentProposal': case 'agentChat': return 'agent';
+    case 'settings': return 'settings';
     case 'proposal': return 'studio';
     default: return 'file';
   }

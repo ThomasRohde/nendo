@@ -360,3 +360,29 @@ recovery panel, which can also restart without custom views
 - Custom surfaces can fail while Studio stays usable.
 - The packaged experience works offline.
 - Ordinary SQLite inspection still exposes understandable user data.
+
+## 11. Settings
+
+Settings is drawn by the host beside Studio ([ADR-0038](../decisions/0038-settings-in-one-place.md)).
+It opens as a page from **Settings** in the navigation, **Ctrl ,** and the command box, with or without a file, in a read-only file and in recovery.
+
+- **Rows.** The host's settings catalogue (`settings.describe`, `SettingsCatalogue`) names each
+  setting, its section (General, Agents, Custom views, This file), its group, its control and its
+  home. The page draws a row for each, in the catalogue's order, and searches their titles, help,
+  groups, sections and homes.
+- **Homes.** Each row says where its value is kept: **This computer**, **This file, here** or
+  **In the file**. A row that needs a file says *Open a file to choose this.* without one; a row in
+  the file is read-only, with the reason, while the file is.
+- **Values.** Each value is read and changed through the method its own control has always used:
+  `appearance.set`, `agent.setMode` and `agent.setSettings`, `agentSession.setViewAccess` and
+  `agentSession.setStartIn`, `extension.settings.set`, `behaviour.approve` and `behaviour.revoke`.
+  What Close does and Record failures, which only the tray changed, are changed with
+  `settings.set`. Shortcut hints and pictures from the web stay in the page storage of this device.
+  A change made at the status line, the tray, the Agent page, Custom views or Health is the one
+  Settings shows, and those places link to their row (*Also in Settings*).
+- **Changes to the file.** A purpose or a name for a new file typed here waits in **N changes to
+  the file** with **Review** and **Discard**. Review prepares one proposal with an operation each
+  (`application.setPurpose`, `application.setNewFileLabel`) and opens Studio's review. The look is
+  changed in About this file.
+- **Overrides.** `NENDO_DESKTOP_CLOSE_ACTION` makes its row read-only, and the row names it.
+- **A page in a browser** offers no window, tray or agent setting.
