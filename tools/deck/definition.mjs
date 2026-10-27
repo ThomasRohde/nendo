@@ -34,6 +34,8 @@ export const BRAND_SOURCES = ['Brandkits', 'By hand'];
 /** The layouts and charts the layouts stage adds; the schema stage makes the Layout and Chart choices without them. */
 export const ADDED_LAYOUTS = ['Title only', 'Picture grid', 'Process', 'Cycle'];
 export const ADDED_CHARTS = ['Pie', 'Area', 'Stacked'];
+/** The layout the video stage adds, with the slide's Video link. */
+export const VIDEO_LAYOUT = 'Video';
 
 const op = (operationType, payload) => ({ operationType, payload });
 const field = (entityId, fieldId, displayName, storageKind, presentation, { required = false, options = [] } = {}) =>
@@ -77,8 +79,8 @@ function chunk(operations, description, size = 16) {
 
 export const PURPOSE = [
   'Slide decks. A Deck has Slides in order; each slide has a layout (Title, Bullets, Two columns, Big',
-  'numbers, Process, Chart and fifteen more), a title, a kicker, a Markdown body, speaker notes and',
-  'perhaps pictures. A deck draws with a Template (its look) and perhaps a Brand kit, imported from a',
+  'numbers, Process, Chart, Video and fifteen more), a title, a kicker, a Markdown body, speaker notes,',
+  'perhaps pictures and perhaps a YouTube link that plays from YouTube. A deck draws with a Template (its look) and perhaps a Brand kit, imported from a',
   'Brandkits export, whose colours, fonts and logo override the template\'s.',
   '',
   'The Deck view is where decks are written, presented and exported to HTML and PowerPoint. The person',
@@ -155,7 +157,7 @@ export const STAGES = {
         op('schema.createEntity', { entityId: E.slide, displayName: 'Slides' }),
         reference(E.slide, F.slide.deck, 'Deck', true),
         integer(E.slide, F.slide.order, 'Order'),
-        choice(E.slide, F.slide.layout, 'Layout', LAYOUT_IDS.filter(id => !ADDED_LAYOUTS.includes(id)), true),
+        choice(E.slide, F.slide.layout, 'Layout', LAYOUT_IDS.filter(id => !ADDED_LAYOUTS.includes(id) && id !== VIDEO_LAYOUT), true),
         text(E.slide, F.slide.title, 'Title'),
         text(E.slide, F.slide.kicker, 'Kicker'),
         markdown(E.slide, F.slide.body, 'Body'),
@@ -319,6 +321,13 @@ export const STAGES = {
     mutations: () => chunk(layoutsOperations(), 'More layouts and charts'),
   },
 
+  video: {
+    title: 'Deck: the Video layout, which plays a YouTube video from its link',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.schema(E.slide)).fields.some(f => f.fieldId === F.slide.video),
+    mutations: () => [{ description: 'A video on a slide', operations: videoOperations() }],
+  },
+
   search: {
     title: 'Deck: build the search index, so Find reads every slide',
     needs: ENTITIES,
@@ -338,7 +347,7 @@ const TONES = [
 
 // The seeds come after every stage that declares a field or a choice they use. A built file has the
 // stages before them already, so the order only decides how an empty file is built.
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'format', 'design', 'present', 'layouts', 'seed', 'keep', 'search', 'tour'];
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'format', 'design', 'present', 'layouts', 'video', 'seed', 'keep', 'search', 'tour'];
 
 /**
  * Four layouts and three charts more, as choices added to the slide's Layout and Chart, and the
@@ -354,6 +363,19 @@ function layoutsOperations() {
     picture(E.slide, F.slide.image3, 'Picture 3'),
     picture(E.slide, F.slide.image4, 'Picture 4'),
     node('dk.slide.page', F.slide.image2, 13), node('dk.slide.page', F.slide.image3, 14), node('dk.slide.page', F.slide.image4, 15),
+  ];
+}
+
+/**
+ * A slide's video: the Video layout, and the link it plays. The link is text, never media: the
+ * video stays on YouTube and plays from there, so nothing of it is in the file.
+ */
+function videoOperations() {
+  return [
+    op('application.setPurpose', { purpose: PURPOSE }),
+    op('schema.addChoice', { entityId: E.slide, fieldId: F.slide.layout, choiceId: VIDEO_LAYOUT, displayName: VIDEO_LAYOUT }),
+    text(E.slide, F.slide.video, 'Video'),
+    op('ui.addNode', { surfaceId: SURFACE, nodeId: `dk.slide.page.${F.slide.video}`, parentNodeId: 'dk.slide.page', kind: 'fieldBinding', position: 16, properties: { fieldId: F.slide.video } }),
   ];
 }
 
@@ -527,7 +549,7 @@ export function seedOperations() {
 // ---- What the fixture broker serves the view in tools/Review-Deck.ps1. -----------------------------
 
 export function fixture({ seeds = true } = {}) {
-  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations(), ...STAGES.layouts.mutations()].flatMap(m => m.operations);
+  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations(), ...STAGES.layouts.mutations(), ...STAGES.video.mutations()].flatMap(m => m.operations);
   const entities = schemaOps.filter(o => o.operationType === 'schema.createEntity').map(o => ({ entityId: o.payload.entityId, displayName: o.payload.displayName, hierarchy: null, fields: [] }));
   const byId = Object.fromEntries(entities.map(e => [e.entityId, e]));
   for (const o of schemaOps) {

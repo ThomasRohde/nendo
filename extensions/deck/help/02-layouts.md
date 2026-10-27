@@ -12,7 +12,7 @@ A layout says what a slide shows and where. Choose one in the **Layout** row und
 | `**bold**`, `*italic*`, `` `code` `` | Bold, italic and code. |
 | `- 42% \| what it counts \| where from` | Parts of one line, split by a bar, for Big numbers, Agenda, Timeline, Process, Cycle and Cards. |
 
-## The twenty-one layouts
+## The twenty-two layouts
 
 | Layout | Use it for | Body |
 | --- | --- | --- |
@@ -26,6 +26,7 @@ A layout says what a slide shows and where. Choose one in the **Layout** row und
 | **Image left**, **Image right** | Words beside a picture | Bullets |
 | **Full image** | A picture that carries the slide | No body |
 | **Picture grid** | Two to four pictures side by side | One caption per picture: `- The harbour at dawn` |
+| **Video** | A YouTube video, played from YouTube | Optional: with a body, its points stand beside the video |
 | **Quote** | Somebody's words | The quote; the kicker says who |
 | **Big numbers** | Two to four figures | `- 42% \| label \| source` |
 | **Agenda** | What the talk covers | `- Item \| note` |
@@ -46,3 +47,9 @@ Deck makes the text smaller until it fits. If it is at its smallest size and sti
 On a slide with a picture, choose **Choose picture…** or drop a picture on the stage. The picture is kept in the file, not linked, so the deck travels with it. Write what it shows under **Picture text**: screen readers read it, and both exports keep it. A picture dropped on a slide without a picture place turns it into **Image right**.
 
 A **Picture grid** has up to four pictures. Drop a picture on a place in the grid, or click the place, to put a picture there. You can also use **Choose picture…** and **More pictures** on the **Slide** tab. Write the captions in **Captions**, one line for each picture, in the same order. A screen reader reads the caption for its picture.
+
+## Videos
+
+A **Video** slide plays a YouTube video. Paste the video's address in **Video** on the **Slide** tab, or drag a YouTube link from your browser onto the slide. A link with a start time, such as `https://youtu.be/…?t=42`, starts there.
+
+The video is never copied into the file: it plays from YouTube, so it needs the internet when you show it. Until it plays, the slide shows YouTube's picture for the video with a play button, and nothing is loaded from YouTube. Click the video to play it, on the stage or when you present. To show your own picture before it plays, choose a **Poster**. With a **Body**, the points stand beside the video; without one, the video takes the whole space under the title.

@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LAYOUTS, LAYOUT_IDS, layoutOf, slideFrom, sortSlides, reorder, inline, paragraphs, plainText, rows, table, numberIn, chartData, formatNumber, niceScale, signedScale, F } from '../../extensions/deck/model.mjs';
 
-test('twenty-one layouts, each named once, each saying the fields it reads', () => {
-  assert.equal(LAYOUTS.length, 21);
-  assert.equal(new Set(LAYOUT_IDS).size, 21);
-  const fields = new Set(['title', 'kicker', 'body', 'body2', 'image', 'pictures', 'chart']);
+test('twenty-two layouts, each named once, each saying the fields it reads', () => {
+  assert.equal(LAYOUTS.length, 22);
+  assert.equal(new Set(LAYOUT_IDS).size, 22);
+  const fields = new Set(['title', 'kicker', 'body', 'body2', 'image', 'pictures', 'chart', 'video']);
   for (const layout of LAYOUTS) {
     assert.ok(layout.uses.length > 0 && layout.uses.every(u => fields.has(u)), layout.id);
     assert.ok(layout.hint.length > 10, `${layout.id} has a hint`);

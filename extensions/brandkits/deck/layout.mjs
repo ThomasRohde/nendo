@@ -9,6 +9,8 @@
 //   path            {points: [[x, y]…], closed, fill, alpha, stroke, width}
 //   arc             {cx, cy, r, inner, start, end, fill}   degrees, 0 at the top, clockwise
 //   image           {x, y, w, h, src, fit: cover|contain, align, radius, alt, slot}
+//   video           {x, y, w, h, video: videoOf(link), poster, radius, alt, slot}   a YouTube video
+//                    played from YouTube; `poster` is the picture shown until it plays
 //   text            {x, y, w, h, font, size, weight, italic, color, align, valign, lineHeight,
 //                    tracking, caps, paragraphs: [{runs, bullet, number, level, heading}], role,
 //                    key, and while editing `edit`: where its words are in the slide (below)}
@@ -20,7 +22,7 @@
 // `step` k, comes on with the k-th click; one without is there from the start. The slide says how
 // many clicks it has in `steps`.
 
-import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat, PICTURES } from './model.mjs';
+import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat, PICTURES, videoOf } from './model.mjs';
 import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast, colorsOn } from './themes.mjs';
 import { slotOf } from './design.mjs';
 
@@ -379,6 +381,29 @@ function picture(g, x, y, w, h, opts = {}) {
   }
 }
 
+/**
+ * The slide's video, at 16:9 and as large as the box lets it be, centred in the box. Its poster is
+ * the slide's Picture, else YouTube's own; a slide with no link, or a link that is no YouTube
+ * video, gets a drawn place for one. Answers the box the video takes.
+ */
+function video(g, x, y, w, h, opts = {}) {
+  const { slide, c } = g;
+  const vw = Math.min(w, h * 16 / 9), vh = vw * 9 / 16;
+  const vx = x + (opts.align === 'left' ? 0 : (w - vw) / 2), vy = y + (h - vh) / 2;
+  const radius = opts.radius ?? 0;
+  const v = videoOf(slide.video);
+  if (v) {
+    g.items.push({ type: 'video', x: vx, y: vy, w: vw, h: vh, video: v, poster: slide.image || v.poster, radius, alt: slide.imageAlt || slide.title || 'A video', role: 'video', slot: 0 });
+    return { x: vx, y: vy, w: vw, h: vh };
+  }
+  g.items.push({ type: 'rect', x: vx, y: vy, w: vw, h: vh, fill: mix(c.ink, c.surface, 0.12), radius, role: 'video', slot: 0 });
+  const cx = vx + vw / 2, cy = vy + vh / 2, r = Math.min(46, vh * 0.12);
+  g.items.push({ type: 'path', points: [[cx - r * 0.55, cy - r * 0.8], [cx + r * 0.85, cy], [cx - r * 0.55, cy + r * 0.8]], closed: true, fill: c.surface, alpha: 0.8, role: 'video' });
+  if (g.ctx.editing) g.items.push(text({ x: vx, y: cy + r + 18, w: vw, h: 24, size: 15, align: 'center', color: c.surface, font: g.fonts.body,
+    text: slide.video ? 'This is not a YouTube link. Paste one in Video.' : 'Paste a YouTube link in Video', markdown: false, role: 'video', slot: 0 }));
+  return { x: vx, y: vy, w: vw, h: vh };
+}
+
 // ---- The layouts -------------------------------------------------------------------------------
 
 const LAYOUT_FUNCTIONS = {
@@ -546,6 +571,18 @@ const LAYOUT_FUNCTIONS = {
     }
     for (const p of captions) fit(p, g.measure, 12);
     if (captions.length) alike(captions);
+  },
+
+  Video(g) {
+    const { W, H, X, slide, theme } = g;
+    const top = header(g);
+    const h = H - top - 76, radius = Math.min(theme.style.radius, 12);
+    // On its own the video takes the whole space; with words, three fifths of it, the words beside.
+    if (!shows(g, 'body')) { video(g, X, top, W - 2 * X, h, { radius }); return; }
+    const gap = 48, vw = (W - 2 * X - gap) * 0.62;
+    const v = video(g, X, top, vw, h, { radius, align: 'left' });
+    const x = X + vw + gap;
+    body(g, slide.body, x, v.y, W - X - x, h - (v.y - top), { size: Math.min(24, bodySize(paragraphs(slide.body))), build: true });
   },
 
   Quote(g) {

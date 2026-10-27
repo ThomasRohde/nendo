@@ -1,5 +1,9 @@
 // Draws a laid-out slide as HTML: absolutely placed boxes in the slide's own pixels. The stage,
 // the thumbnails, Present and the HTML export all use this, so they cannot disagree.
+//
+// A video is drawn as its poster with a play button, and nothing is loaded from YouTube until a
+// click asks for it: playVideo puts YouTube's own player in the poster's place. So a thumbnail,
+// a slide not yet reached and a printed page never stream.
 
 import { fontStack, parseHex } from './themes.mjs';
 import { bulletIndent } from './layout.mjs';
@@ -18,6 +22,13 @@ export const SLIDE_CSS = `
 .dk-slide .dk-ghost{opacity:.38}
 .dk-slide [data-step]{transition:opacity .45s ease,transform .45s cubic-bezier(.2,.7,.2,1)}
 .dk-slide .dk-later{opacity:0!important;transform:translateY(14px)}
+.dk-slide .dk-v{position:absolute;overflow:hidden;background:#0f0f10;cursor:pointer}
+.dk-slide .dk-v img,.dk-slide .dk-v iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;object-fit:cover}
+.dk-slide .dk-v .dk-vb{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:22%/32%;background:rgba(15,15,16,.78);transition:background .15s}
+.dk-slide .dk-v:hover .dk-vb{background:#e00}
+.dk-slide .dk-v .dk-vb::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-38%,-50%);border-style:solid;border-color:transparent transparent transparent #fff;border-width:.23em 0 .23em .4em}
+.dk-slide .dk-v.playing{cursor:auto}
+.dk-slide .dk-v.playing>:not(iframe){display:none}
 .dk-slide svg.dk-later{transform:none}
 `;
 
@@ -132,9 +143,41 @@ function imageHtml(p, urlFor) {
   return `<img class="dk-i" data-role="${esc(p.role ?? '')}"${stepOf(p)}${slotOf(p)} src="${esc(url)}" alt="${esc(p.alt ?? '')}" draggable="false" style="${style}">`;
 }
 
+/**
+ * A video as its poster and a play button. The box carries the player's address and the video's
+ * own page, so a page that cannot frame YouTube (a file opened from a folder sends YouTube no
+ * address of its own, which its player refuses) can open the video there instead.
+ */
+function videoHtml(p, urlFor) {
+  const poster = p.poster ? urlFor(p.poster) : null;
+  const button = Math.max(28, Math.min(132, p.w * 0.13));
+  const style = `left:${n(p.x)}px;top:${n(p.y)}px;width:${n(p.w)}px;height:${n(p.h)}px;border-radius:${n(p.radius ?? 0)}px`;
+  return `<div class="dk-v" data-role="video"${stepOf(p)}${slotOf(p)} data-embed="${esc(p.video.embed)}" data-watch="${esc(p.video.watch)}" aria-label="${esc(`Video: ${p.alt ?? ''}`)}" title="Play the video" style="${style}">`
+    + `${poster ? `<img src="${esc(poster)}" alt="" draggable="false">` : ''}<span class="dk-vb" style="width:${n(button)}px;height:${n(button * 0.7)}px;font-size:${n(button)}px"></span></div>`;
+}
+
+/**
+ * Plays a video in its box: YouTube's player, started by the click that asked for it. `canFrame`
+ * false opens the video's page instead. The HTML file's player carries its own copy, since the
+ * file imports nothing.
+ */
+export function playVideo(box, { canFrame = true } = {}) {
+  if (!box || box.classList.contains('playing')) return null;
+  if (!canFrame) { window.open(box.dataset.watch, '_blank', 'noopener'); return null; }
+  const player = document.createElement('iframe');
+  player.title = box.getAttribute('aria-label') || 'Video';
+  player.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  player.allowFullscreen = true;
+  player.referrerPolicy = 'strict-origin-when-cross-origin';
+  player.src = box.dataset.embed;
+  box.classList.add('playing');
+  box.append(player);
+  return player;
+}
+
 /** The slide as an HTML string, `W` × `H` pixels; scale it with CSS. urlFor maps a media address to a URL. */
 export function slideHtml(laid, { urlFor = src => src, className = '' } = {}) {
   const { W, H } = laid;
-  const parts = laid.items.map((p, i) => p.type === 'text' ? textHtml(p, i) : p.type === 'image' ? imageHtml(p, urlFor) : shapeHtml(p, W, H));
+  const parts = laid.items.map((p, i) => p.type === 'text' ? textHtml(p, i) : p.type === 'image' ? imageHtml(p, urlFor) : p.type === 'video' ? videoHtml(p, urlFor) : shapeHtml(p, W, H));
   return `<div class="dk-slide ${className}" data-steps="${laid.steps ?? 0}" style="width:${W}px;height:${H}px;background:${cssFill(laid.background)}">${parts.join('')}</div>`;
 }

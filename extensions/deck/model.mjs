@@ -8,7 +8,7 @@ export const F = {
     numbers: 'dk.deck.numbers', status: 'dk.deck.status', transition: 'dk.deck.transition', minutes: 'dk.deck.minutes' },
   slide: { deck: 'dk.slide.deck', order: 'dk.slide.order', layout: 'dk.slide.layout', title: 'dk.slide.title', kicker: 'dk.slide.kicker',
     body: 'dk.slide.body', body2: 'dk.slide.body2', notes: 'dk.slide.notes', image: 'dk.slide.image', imageAlt: 'dk.slide.imageAlt',
-    image2: 'dk.slide.image2', image3: 'dk.slide.image3', image4: 'dk.slide.image4',
+    image2: 'dk.slide.image2', image3: 'dk.slide.image3', image4: 'dk.slide.image4', video: 'dk.slide.video',
     chart: 'dk.slide.chart', hidden: 'dk.slide.hidden', format: 'dk.slide.format', build: 'dk.slide.build', transition: 'dk.slide.transition',
     seconds: 'dk.slide.seconds' },
   template: { name: 'dk.template.name', family: 'dk.template.family', description: 'dk.template.description', headingFont: 'dk.template.headingFont',
@@ -43,6 +43,7 @@ export const LAYOUTS = [
   { id: 'Image right', label: 'Image right', uses: ['title', 'kicker', 'body', 'image'], hint: 'Text on the left, a picture on the right half.' },
   { id: 'Full image', label: 'Full image', uses: ['title', 'kicker', 'image'], hint: 'The picture fills the slide; the title sits on it.' },
   { id: 'Picture grid', label: 'Picture grid', uses: ['title', 'kicker', 'body', 'image', 'pictures'], hint: 'Two to four pictures side by side. Body holds a caption for each, one line per picture: - Caption.' },
+  { id: 'Video', label: 'Video', uses: ['title', 'kicker', 'body', 'video', 'image'], hint: 'A YouTube video, played from YouTube: paste its link in Video. With a Body, the text stands beside it. Its Picture, if any, shows until it plays.' },
   { id: 'Quote', label: 'Quote', uses: ['body', 'kicker', 'title'], hint: 'Body is the quote, Kicker who said it. Title is not drawn.' },
   { id: 'Big numbers', label: 'Big numbers', uses: ['title', 'kicker', 'body'], hint: 'One line each: - 42% | what it counts | where from (2 to 4).' },
   { id: 'Agenda', label: 'Agenda', uses: ['title', 'kicker', 'body'], hint: 'One item per line: - Item | short note.' },
@@ -75,7 +76,7 @@ export function slideFrom(record) {
     layout: LAYOUT_IDS.includes(v[F.slide.layout]) ? v[F.slide.layout] : 'Bullets',
     title: str(v[F.slide.title]), kicker: str(v[F.slide.kicker]), body: str(v[F.slide.body]), body2: str(v[F.slide.body2]),
     notes: str(v[F.slide.notes]), image: v[F.slide.image] || null, imageAlt: str(v[F.slide.imageAlt]),
-    image2: v[F.slide.image2] || null, image3: v[F.slide.image3] || null, image4: v[F.slide.image4] || null,
+    image2: v[F.slide.image2] || null, image3: v[F.slide.image3] || null, image4: v[F.slide.image4] || null, video: str(v[F.slide.video]).trim(),
     chart: CHARTS.includes(v[F.slide.chart]) ? v[F.slide.chart] : 'Column', hidden: v[F.slide.hidden] === true, format: str(v[F.slide.format]),
     build: BUILDS.includes(v[F.slide.build]) ? v[F.slide.build] : 'None', transition: SLIDE_TRANSITIONS.includes(v[F.slide.transition]) ? v[F.slide.transition] : 'Deck',
     seconds: Number.isInteger(v[F.slide.seconds]) && v[F.slide.seconds] > 0 ? v[F.slide.seconds] : null,
@@ -83,6 +84,41 @@ export function slideFrom(record) {
   };
 }
 const str = value => value === null || value === undefined ? '' : String(value);
+
+/**
+ * A YouTube link as the video a slide plays, {id, start, watch, embed, link, poster}, or null for
+ * anything else. Nothing is downloaded: Deck plays the video from YouTube, in its own player.
+ * `start` is the second it starts at, from the link's t= or start=.
+ */
+export function videoOf(link) {
+  const text = String(link ?? '').trim();
+  if (!text) return null;
+  let url;
+  try { url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`); } catch { return null; }
+  if (!/^https?:$/.test(url.protocol)) return null;
+  const host = url.hostname.toLowerCase().replace(/^(?:www|m|music)\./, '');
+  const [, kind = '', rest = ''] = url.pathname.split('/');
+  const id = host === 'youtu.be' ? kind
+    : host === 'youtube.com' || host === 'youtube-nocookie.com' ? (kind === 'watch' ? url.searchParams.get('v') : ['embed', 'shorts', 'live', 'v'].includes(kind) ? rest : null) : null;
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id ?? '')) return null;
+  const start = startOf(url.searchParams.get('t') ?? url.searchParams.get('start') ?? /(?:^|[#&])t=([^&]+)/.exec(url.hash)?.[1]);
+  const at = start ? `&start=${start}` : '';
+  return {
+    id, start,
+    watch: `https://www.youtube.com/watch?v=${id}${start ? `&t=${start}s` : ''}`,
+    // Played in a page: the privacy-enhanced player, started by the click that asked for it.
+    embed: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1${at}`,
+    // PowerPoint's own online video names the player this way.
+    link: `https://www.youtube.com/embed/${id}?feature=oembed${at}`,
+    poster: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+  };
+}
+/** 90, 90s, 1m30s or 1h2m3s as seconds; 0 for anything else. */
+function startOf(value) {
+  const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/i.exec(String(value ?? '').trim());
+  if (!m || !value) return 0;
+  return (Number(m[1] ?? 0) * 3600) + (Number(m[2] ?? 0) * 60) + Number(m[3] ?? 0);
+}
 
 /** Slides of one deck, in order; ties keep their record ID order so the order never flickers. */
 export function sortSlides(slides) {

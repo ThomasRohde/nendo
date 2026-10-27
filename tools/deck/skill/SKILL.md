@@ -1,6 +1,6 @@
 ---
 name: deck
-description: How an agent writes slide decks in this Deck file - its record types, the twenty-one layouts and the text each one reads, and the Asks the Deck view sends, answered with slides or with Variants of a slide. Read it before reading or writing anything in this file; "work the Deck asks" finishes Asks left Waiting or Working.
+description: How an agent writes slide decks in this Deck file - its record types, the twenty-two layouts and the text each one reads, and the Asks the Deck view sends, answered with slides or with Variants of a slide. Read it before reading or writing anything in this file; "work the Deck asks" finishes Asks left Waiting or Working.
 ---
 
 # Writing slides in Deck
@@ -42,7 +42,7 @@ array of `{fieldId, op, value}`; put `cursor` before `limit`. A deck's slides:
 | Record type (entityId) | What it is | Fields (fieldId) |
 | --- | --- | --- |
 | Deck (`dk.deck`) | One talk | `dk.deck.title`, `.subtitle`, `.author`, `.date`, `.audience`, `.goal`, `.aspect` (16:9, 4:3), `.template`, `.brand`, `.footer`, `.numbers`, `.status` (Draft, Ready, Presented), `.transition` (None, Fade, Push, Zoom), `.minutes` (the talk's target length) |
-| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.image2`, `.image3`, `.image4` (a Picture grid's others), `.chart` (Column, Bar, Line, Doughnut, Pie, Area, Stacked), `.hidden`, `.build` (None, One by one), `.transition` (Deck, None, Fade, Push, Zoom), `.format` and `.seconds` (the person's; never write them) |
+| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.image2`, `.image3`, `.image4` (a Picture grid's others), `.video` (a YouTube link), `.chart` (Column, Bar, Line, Doughnut, Pie, Area, Stacked), `.hidden`, `.build` (None, One by one), `.transition` (Deck, None, Fade, Push, Zoom), `.format` and `.seconds` (the person's; never write them) |
 | Template (`dk.template`) | A look: family, fonts, seven colours; a Design's also its style and backgrounds | Read `dk.template.name`, `.description`, `.family`, `.mode`, `.brand`; do not write |
 | Brand kit (`dk.brand`) | Colours, fonts, logo and voice from Brandkits | Read `dk.brand.name`, `.voice` and `.tagline`; do not write |
 | Ask (`dk.ask`) | A request from the view | `dk.ask.deck`, `.scope` (Whole deck, Selection, Mission), `.request`, `.selection`, `.status`, `.progress`, `.reply`, `.made` |
@@ -91,6 +91,7 @@ into parts. A backslash keeps a mark character as itself (`\*`). The person's ow
 | Image left, Image right | title, kicker, body, image | Bullets beside a picture |
 | Full image | title, kicker, image | The picture fills the slide; a short title sits on it |
 | Picture grid | title, kicker, body, image | Two to four pictures side by side; body is one caption per picture, in order: `- The harbour at dawn` |
+| Video | title, kicker, body, video, image | A YouTube video that plays from YouTube. Body is optional: with it, 2 to 4 short bullets stand beside the video; without it, the video takes the whole space. Image is the person's poster |
 | Quote | body, kicker | Body is the quote without quote marks; kicker is who said it |
 | Big numbers | title, kicker, body | 2 to 4 lines: `- 42% \| what it counts \| where from` |
 | Agenda | title, kicker, body | `- Item \| short note`, 3 to 6 lines |
@@ -106,7 +107,11 @@ The view shrinks text to fit and warns when even the smallest size runs over, so
 than more. A title is at most about 60 characters and says the point, not the topic ("Streaming cuts
 settlement from a day to a minute", not "Settlement"). A kicker is two to four words. Pictures are
 the person's: on an image layout, write `dk.slide.imageAlt` as what the picture should show, and the
-view shows a place for it. On a Picture grid, the captions in the body say what each picture shows. Put what the speaker says in `dk.slide.notes`, in full sentences.
+view shows a place for it. On a Picture grid, the captions in the body say what each picture shows. A video is a link the
+person gives: write `dk.slide.video` only with a YouTube address from the Ask, as it was given
+(`https://www.youtube.com/watch?v=…` or `https://youtu.be/…`, a `t=` start kept), and never find,
+guess or invent one. Deck never downloads it: the video plays from YouTube when the slide shows.
+Put what the speaker says in `dk.slide.notes`, in full sentences.
 
 ## Presenting
 

@@ -70,9 +70,37 @@ function shape(p, id, ctx) {
       return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(p.cx - p.r, p.cy - p.r, 2 * p.r, 2 * p.r)}${geom}${fill(p.fill)}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>`;
     }
     case 'image': return picture(p, id, name, ctx);
+    case 'video': return onlineVideo(p, id, ctx);
     case 'text': return textBox(p, id, name, ctx);
     default: return '';
   }
+}
+
+/** The crop that fills a box of ratio `box` with a picture of ratio `ratio`, from its middle. */
+function coverCrop(ratio, box) {
+  if (!Number.isFinite(ratio) || Math.abs(ratio - box) <= 0.001) return '';
+  if (ratio > box) { const cut = Math.round((1 - box / ratio) / 2 * 100000); return `<a:srcRect l="${cut}" r="${cut}"/>`; }
+  const cut = Math.round((1 - ratio / box) / 2 * 100000);
+  return `<a:srcRect t="${cut}" b="${cut}"/>`;
+}
+
+/**
+ * A video is PowerPoint's own online video: its poster as the picture, and a link to YouTube's
+ * player, which PowerPoint plays from YouTube when the slide shows. Nothing is downloaded into the
+ * file. Without a poster to show it is a dark box that opens the video's page.
+ */
+function onlineVideo(p, id, ctx) {
+  const name = `Online Media ${id}`;
+  const poster = p.poster ? ctx.image(p.poster) : null;
+  if (!poster) {
+    const link = ctx.link?.(p.video.watch);
+    return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(name)}" descr="${esc(p.alt ?? '')}">${link ? `<a:hlinkClick r:id="${link}"/>` : ''}</p:cNvPr><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(p.x, p.y, p.w, p.h)}${geometry('rect')}${fill('#0F0F10')}<a:ln><a:noFill/></a:ln></p:spPr>`
+      + `<p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="en-US" sz="${pt100(Math.max(14, p.h * 0.06))}" dirty="0">${fill('#FFFFFF')}</a:rPr><a:t>▶ Watch on YouTube</a:t></a:r></a:p></p:txBody></p:sp>`;
+  }
+  const rel = ctx.video(p.video.link);
+  return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${esc(name)}" descr="${esc(p.alt ?? '')}"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noRot="1" noChangeAspect="1"/></p:cNvPicPr>`
+    + `<p:nvPr><a:videoFile r:link="${rel}"/></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="${poster.rel}"/>${coverCrop(poster.width / poster.height, p.w / p.h)}<a:stretch><a:fillRect/></a:stretch></p:blipFill>`
+    + `<p:spPr>${xfrm(p.x, p.y, p.w, p.h)}${geometry('rect')}</p:spPr></p:pic>`;
 }
 
 function picture(p, id, name, ctx) {
@@ -84,9 +112,7 @@ function picture(p, id, name, ctx) {
     if (ratio > box) { const nh = w / ratio; y += (h - nh) / 2; h = nh; } else {
       const nw = h * ratio; x += p.align === 'right' ? w - nw : p.align === 'center' ? (w - nw) / 2 : 0; w = nw;
     }
-  } else if (Number.isFinite(ratio) && Math.abs(ratio - box) > 0.001) {
-    if (ratio > box) { const cut = (1 - box / ratio) / 2 * 100000; crop = `<a:srcRect l="${Math.round(cut)}" r="${Math.round(cut)}"/>`; } else { const cut = (1 - ratio / box) / 2 * 100000; crop = `<a:srcRect t="${Math.round(cut)}" b="${Math.round(cut)}"/>`; }
-  }
+  } else crop = coverCrop(ratio, box);
   const geom = p.radius ? geometry('roundRect', `<a:gd name="adj" fmla="val ${Math.min(50000, Math.round(p.radius / Math.min(w, h) * 100000))}"/>`) : geometry('rect');
   return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${esc(name)}" descr="${esc(p.alt ?? '')}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${image.rel}"/>${crop}<a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(x, y, w, h)}${geom}</p:spPr></p:pic>`;
 }
@@ -233,7 +259,7 @@ const rels = list => `${XML}<Relationships xmlns="http://schemas.openxmlformats.
 /**
  * Builds the .pptx bytes.
  * deck: {title, author}; theme: the resolved theme; slides: [{laid, hidden, transition}] in order;
- * images: Map of a primitive's src to {bytes, ext: png|jpeg|gif, width, height}.
+ * images: Map of a primitive's src (or a video's poster) to {bytes, ext: png|jpeg|gif, width, height}.
  */
 export function buildPptx({ deck = {}, theme, slides, images = new Map(), now = new Date() }) {
   const W = slides[0]?.laid.W ?? 1280, H = slides[0]?.laid.H ?? 720;
@@ -248,10 +274,13 @@ export function buildPptx({ deck = {}, theme, slides, images = new Map(), now = 
   slides.forEach((slide, i) => {
     const n = i + 1;
     const slideRels = [['rId1', 'slideLayout', '../slideLayouts/slideLayout1.xml'], ['rId2', 'notesSlide', `../notesSlides/notesSlide${n}.xml`]];
-    const byPath = new Map(), byLink = new Map();
+    const byPath = new Map(), byLink = new Map(), byVideo = new Map();
     const ctx = { link: url => {
       if (!byLink.has(url)) { const rel = `rId${slideRels.length + 1}`; slideRels.push([rel, 'hyperlink', url, 'External']); byLink.set(url, rel); }
       return byLink.get(url);
+    }, video: url => {
+      if (!byVideo.has(url)) { const rel = `rId${slideRels.length + 1}`; slideRels.push([rel, 'video', url, 'External']); byVideo.set(url, rel); }
+      return byVideo.get(url);
     }, image: src => {
       const m = used(src);
       if (!m) return null;

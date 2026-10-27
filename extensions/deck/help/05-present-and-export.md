@@ -6,7 +6,7 @@
 
 | Key | What it does |
 | --- | --- |
-| `→`, `Space`, `Page Down`, a click | The next point, then the next slide |
+| `→`, `Space`, `Page Down`, a click | The next point, then the next slide. A click on a video plays it instead, and the next slide stops it |
 | `←`, `Page Up` | Back a point, then the slide before |
 | `Home`, `End` | First and last slide |
 | A number, then `Enter` | That slide |
@@ -44,8 +44,8 @@ The laser and the pen work on the presenter view's slide too. Inside Nendo the p
 
 | File | What it is |
 | --- | --- |
-| **PowerPoint (.pptx)** | Editable slides: text boxes, shapes and charts you can change in PowerPoint, the speaker notes, the template's colours and fonts as the file's theme, and your pictures. Points that come one by one are PowerPoint fade animations on click, and each slide keeps its transition. Hidden slides stay in it, hidden. |
-| **HTML (one file)** | The deck as one web page with every picture inside it. It plays in any browser with the keys above: points one by one, transitions, the presenter view, the audience window, the laser and the pen. Print it, or save it as PDF, and you get one slide per page. |
+| **PowerPoint (.pptx)** | Editable slides: text boxes, shapes and charts you can change in PowerPoint, the speaker notes, the template's colours and fonts as the file's theme, and your pictures. Points that come one by one are PowerPoint fade animations on click, and each slide keeps its transition. A video is PowerPoint's own online video, which plays from YouTube. Hidden slides stay in it, hidden. |
+| **HTML (one file)** | The deck as one web page with every picture inside it. It plays in any browser with the keys above: points one by one, transitions, the presenter view, the audience window, the laser and the pen. Print it, or save it as PDF, and you get one slide per page. A video plays in the page when the file is opened from a web address. Opened from a folder, a click on the video opens it on YouTube, because YouTube's player does not play in a page that has no web address. |
 | **Speaker notes (.md)** | The notes of every shown slide, in order, as a text file. |
 
 The files go to your Downloads folder. A picture that is only linked, not kept in the file, is left out of the PowerPoint file, and Deck says so. The HTML file keeps a web picture as a link, which shows when the file is opened online, and leaves out a picture linked from a folder on your computer, and Deck says so too.

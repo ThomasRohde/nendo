@@ -9,11 +9,11 @@ import { EXAMPLE_SLIDES } from './example.mjs';
 const slideOf = s => ({ layout: s.layout, title: s.title ?? '', kicker: s.kicker ?? '', body: s.body ?? '', body2: s.body2 ?? '', image: null, imageAlt: s.imageAlt ?? '', chart: s.chart ?? 'Column' });
 const brand = { name: 'Kit', colors: { primary: '#0B6E4F' }, logo: 'media:logo', logoDark: null };
 
-test('the example deck covers twenty of the twenty-one layouts, each once', () => {
+test('the example deck covers twenty of the twenty-two layouts, each once', () => {
   const used = new Set(EXAMPLE_SLIDES.map(s => s.layout));
   assert.equal(used.size, 20);
   assert.equal(EXAMPLE_SLIDES.length, 20);
-  assert.deepEqual(LAYOUTS.map(l => l.id).filter(id => !used.has(id)), ['Image left']);
+  assert.deepEqual(LAYOUTS.map(l => l.id).filter(id => !used.has(id)), ['Image left', 'Video']);
 });
 
 test('every example slide fits, in every template, in both shapes, with and without a logo', () => {

@@ -240,12 +240,24 @@ function player(W, H) {
     for (const el of marked) el.classList.toggle('dk-later', Number(el.dataset.step) > count);
     if (still) { void slide.offsetWidth; marked.forEach(el => { el.style.transition = ''; }); }
   }
-  /** A copy of slide i in box, `count` points showing (all when null), fitted to the box's width. */
+  /**
+   * A copy of slide i in box, `count` points showing (all when null), fitted to the box's width.
+   * A copy whose video is playing stays as it is, so a redraw of the console does not stop it.
+   * A new copy shows the poster, whatever the slide itself is playing: it never starts a player.
+   */
   function thumb(i, box, count) {
+    const kept = box.querySelector('.thumb');
+    if (kept && kept.dataset.i === String(i) && kept.querySelector('.dk-v.playing')) {
+      showSteps(kept, count === null ? Infinity : count);
+      kept.style.transform = 'scale(' + (box.clientWidth / W) + ')';
+      return kept;
+    }
     box.querySelectorAll('.thumb').forEach(t => t.remove());
     if (i < 0 || i >= n) return null;
     const clone = slides[i].cloneNode(true);
+    clone.dataset.i = String(i);
     clone.classList.remove('off'); clone.classList.add('thumb'); clone.removeAttribute('aria-label'); clone.removeAttribute('role'); clone.setAttribute('aria-hidden', 'true');
+    stopVideos(clone);
     showSteps(clone, count === null ? Infinity : count);
     clone.querySelectorAll('[data-step]').forEach(el => { el.style.transition = 'none'; });
     clone.style.transform = 'scale(' + (box.clientWidth / W) + ')';
@@ -256,6 +268,31 @@ function player(W, H) {
     const t = data.transitions[i] || 'None';
     return reduced && t !== 'None' ? 'Fade' : t;
   };
+  // ---- Videos: YouTube's player in the poster's place, on a click, and gone when the slide is.
+  // A page opened from a folder sends YouTube no address of its own, and YouTube's player refuses
+  // to play there, so such a page opens the video on YouTube instead.
+  const canFrame = data.embedded || /^https?:$/.test(location.protocol);
+  function play(box) {
+    if (!box || box.classList.contains('playing')) return;
+    if (!canFrame) { window.open(box.dataset.watch, '_blank', 'noopener'); return; }
+    const player = document.createElement('iframe');
+    player.title = box.getAttribute('aria-label') || 'Video';
+    player.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    player.allowFullscreen = true;
+    player.referrerPolicy = 'strict-origin-when-cross-origin';
+    player.src = box.dataset.embed;
+    box.classList.add('playing');
+    box.append(player);
+  }
+  function stopVideos(root) {
+    root.querySelectorAll('.dk-v.playing').forEach(box => { box.querySelector('iframe')?.remove(); box.classList.remove('playing'); });
+  }
+  // A click in the player gives it the keys; they come back, so the next key still turns the slide.
+  addEventListener('blur', () => setTimeout(() => {
+    const el = document.activeElement;
+    if (el && el.tagName === 'IFRAME' && el.closest('.dk-v')) el.blur();
+  }, 150));
+
   // The end of the transition still running: a turn settles it before it starts its own, so the
   // last one's late callback cannot hide the slide a quick turn back has brought in again.
   let settle = null;
@@ -266,6 +303,7 @@ function player(W, H) {
     const from = slides[at], to = slides[i];
     frame.getAnimations({ subtree: true }).forEach(a => a.finish());
     if (to !== from) {
+      stopVideos(from);
       showSteps(to, count, true);
       to.classList.remove('off');
       const kind = kindOf(dir < 0 ? at : i);
@@ -434,6 +472,7 @@ function player(W, H) {
     if (audience && e.source === window.opener && m.deck === 'state') {
       if (m.at !== at) go(m.at, m.shown, m.at > at ? 1 : -1);
       else if (m.shown !== shown) { shown = m.shown; showSteps(slides[at], shown); }
+      if (m.video === at) play(slides[at].querySelector('.dk-v'));
       ended = !!m.ended; cover = m.cover || '';
       laser = m.laser; ink.set(at, m.ink || []);
       draw(false);
@@ -507,8 +546,21 @@ function player(W, H) {
   }
   const turn = dir => { if (relay(dir > 0 ? 'ArrowRight' : 'ArrowLeft')) return; if (dir > 0) forward(); else back(); };
 
-  frame.addEventListener('click', e => { if (tool === 'pen' || e.target.closest('a')) return; turn(e.clientX < innerWidth / 4 ? -1 : 1); });
-  $('now').addEventListener('click', () => { if (tool !== 'pen') forward(); });
+  frame.addEventListener('click', e => {
+    if (tool === 'pen' || e.target.closest('a')) return;
+    // A video plays where it was clicked, in the audience window too: it does not turn the slide.
+    const box = e.target.closest('.dk-v');
+    if (box) { play(box); return; }
+    turn(e.clientX < innerWidth / 4 ? -1 : 1);
+  });
+  $('now').addEventListener('click', e => {
+    if (tool === 'pen') return;
+    const box = e.target.closest('.dk-v');
+    if (!box) { forward(); return; }
+    // With an audience window, the video plays on the audience's screen; the console keeps its poster.
+    if (peer && !audience && !peer.closed) { try { peer.postMessage({ deck: 'state', at, shown, ended, cover, laser, ink: ink.get(at) || [], video: at }, '*'); } catch { /* gone */ } }
+    else play(box);
+  });
   pointing(frame); pointing($('now'));
   let touch = null;
   addEventListener('touchstart', e => { touch = e.touches[0].clientX; }, { passive: true });

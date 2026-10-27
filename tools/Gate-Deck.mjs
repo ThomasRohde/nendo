@@ -93,7 +93,7 @@ async page => {
     const box = t.getBoundingClientRect(), slide = t.firstElementChild.getBoundingClientRect();
     return { where: t.closest('#slides') ? 'list' : t.closest('#layouts') ? 'layouts' : t.closest('#templates') ? 'templates' : 'other', dx: Math.abs(box.left - slide.left), dy: Math.abs(box.top - slide.top), dw: Math.abs(box.width - slide.width) };
   }).filter(m => m.dx > 1 || m.dy > 1 || m.dw > 1));
-  assert(await frame.locator('#layouts .thumb').count() === 21, 'The layout gallery must draw all twenty-one layouts.');
+  assert(await frame.locator('#layouts .thumb').count() === 22, 'The layout gallery must draw all twenty-two layouts.');
   assert(misplaced.length === 0, `Thumbnails must draw their slide inside their own box: ${JSON.stringify(misplaced.slice(0, 4))}.`);
   // An idle ask bar shows no working mark: a toggle given undefined flips the class instead.
   assert(!await frame.evaluate(() => document.getElementById('ask-status').classList.contains('working')), 'The ask bar must not show the agent working before anything was asked.');
@@ -151,7 +151,8 @@ async page => {
   checks.push('typing saves');
 
   // 5. Add, move and delete, each one revision that Nendo offers to undo.
-  await command('add.12');
+  // The Add menu's commands are the layouts by their place in the gallery: add.13 is Big numbers.
+  await command('add.13');
   await until(n => window.deck.slides.length === n, exampleSlides + 1);
   let s = await state();
   const added = s.slides.findIndex(x => x.id === s.slideId);
@@ -1445,6 +1446,130 @@ async page => {
   assert(hiddenAfter === false, `Ctrl Z after a slide came back under a new ID must take back the hide made before its delete: hidden is ${hiddenAfter}.`);
   checks.push('steps keep their deck');
   }
+
+  // 21. A slide's YouTube video plays from YouTube and is never copied. A link on a Video slide
+  // shows a poster and a play button and loads nothing from YouTube until a click; the click puts
+  // YouTube's player in its place, and the player's request carries the view's address, without
+  // which YouTube's player refuses to play. Typing elsewhere on the slide redraws it and keeps the
+  // player. Present plays the video where it is clicked rather than turning the slide, gives the
+  // keys back after a click in the player, and stops it on the next slide. The HTML file carries
+  // the video, and a copy opened as a file opens it on YouTube. PowerPoint gets an online video.
+  const VIDEO = 'https://youtu.be/dQw4w9WgXcQ?t=42';
+  const EMBED = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1&start=42';
+  const players = [];
+  await page.route(/^https:\/\/(?:www\.youtube-nocookie\.com|i\.ytimg\.com)\//, route => {
+    const request = route.request();
+    if (request.url().startsWith('https://i.ytimg.com/')) return route.fulfill({ status: 404, body: '' });
+    players.push({ url: request.url(), referer: request.headers().referer ?? null });
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>YouTube player</title><body style="margin:0;height:100vh">The player</body>' });
+  });
+  const videoSlide = (await state()).slideId;
+  await frame.click('#tab-slide');
+  await frame.click('#layouts [data-layout="Video"]');
+  await until(id => window.deck.slides.find(s => s.id === id)?.layout === 'Video', videoSlide, 4000);
+  await frame.fill('#f-video', VIDEO);
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.video'] === 'https://youtu.be/dQw4w9WgXcQ?t=42', videoSlide, { timeout: 5000 })
+    .catch(() => { throw Error('A link typed in Video must be written to dk.slide.video.'); });
+  await until(() => !!document.querySelector('#stage .dk-v'), null, 3000).catch(() => { throw Error('A Video slide with a YouTube link must draw its video on the stage.'); });
+  const waiting = await frame.evaluate(() => { const box = document.querySelector('#stage .dk-v'); return { embed: box.dataset.embed, button: !!box.querySelector('.dk-vb'), players: document.querySelectorAll('#stage iframe').length }; });
+  assert(waiting.embed === EMBED && waiting.button && waiting.players === 0 && players.length === 0,
+    `Before a click the stage must show the video's poster and play button and load nothing from YouTube: ${JSON.stringify({ ...waiting, requests: players.length })}.`);
+  await frame.click('#stage .dk-v');
+  await until(() => !!document.querySelector('#stage .dk-v.playing iframe'), null, 3000).catch(() => { throw Error('A click on the video must put YouTube\'s player on the stage.'); });
+  for (let i = 0; i < 40 && !players.length; i++) await page.waitForTimeout(50);
+  const onStage = await frame.evaluate(() => { const f = document.querySelector('#stage .dk-v iframe'); window.stagePlayer = f; return { src: f.src, allow: f.allow, referrerPolicy: f.referrerPolicy }; });
+  assert(onStage.src === EMBED && /autoplay/.test(onStage.allow) && /fullscreen/.test(onStage.allow) && players.length === 1 && players[0].referer?.startsWith(origin),
+    `The stage's player must be YouTube's, allowed to play and go full screen, and told the view's address: ${JSON.stringify({ onStage, players })}.`);
+  await frame.fill('#notes', 'Notes typed while the video plays.');
+  await settle(500);
+  const keptPlaying = await frame.evaluate(() => ({ same: document.querySelector('#stage .dk-v iframe') === window.stagePlayer, playing: document.querySelectorAll('#stage .dk-v.playing').length }));
+  assert(keptPlaying.same && keptPlaying.playing === 1 && players.length === 1, `Typing that redraws the slide must keep its video playing, not start it again: ${JSON.stringify({ ...keptPlaying, requests: players.length })}.`);
+  await frame.evaluate(() => { delete window.stagePlayer; });
+
+  await command('present.here');
+  await frame.waitForFunction(() => window.deck.presenting === true);
+  const presentFrame = await frame.evaluate(() => { const f = document.getElementById('present-frame'); return { srcdoc: f.hasAttribute('srcdoc'), allow: f.allow }; });
+  assert(presentFrame.srcdoc && /autoplay/.test(presentFrame.allow) && /encrypted-media/.test(presentFrame.allow),
+    `Present must show the deck from its text, which sends the view's address, and let a video in it play: ${JSON.stringify(presentFrame)}.`);
+  const behind = await frame.evaluate(() => document.querySelectorAll('#stage .dk-v.playing, #stage .dk-v iframe').length);
+  assert(behind === 0, `Present must stop the video playing on the stage behind it: ${behind} still playing.`);
+  const talk = frame.childFrames()[0];
+  await talk.waitForFunction(() => !!window.deckPlayer, null, { timeout: 5000 });
+  const atVideo = await talk.evaluate(() => window.deckPlayer.state().at);
+  const requested = players.length;
+  await talk.locator('#frame > .dk-slide:not(.off) .dk-v').click();
+  await talk.waitForFunction(() => !!document.querySelector('#frame .dk-v.playing iframe'), null, { timeout: 3000 }).catch(() => { throw Error('A click on the video in Present must play it.'); });
+  for (let i = 0; i < 40 && players.length === requested; i++) await page.waitForTimeout(50);
+  const inTalk = await talk.evaluate(() => ({ at: window.deckPlayer.state().at, shown: window.deckPlayer.state().shown }));
+  assert(inTalk.at === atVideo && inTalk.shown === 0 && players.length === requested + 1 && players.at(-1).referer?.startsWith(origin),
+    `In Present a click on the video must play it, told the view's address, and not turn the slide: ${JSON.stringify({ inTalk, atVideo, players: players.slice(requested) })}.`);
+  // The presenter view and the slide grid copy the slide while its video plays; a copy shows the poster.
+  for (const key of ['p', 'g']) {
+    await talk.evaluate(k => window.deckPlayer.press(k), key);
+    await settle(300);
+    const copies = await talk.evaluate(() => ({ playing: document.querySelectorAll('.thumb .dk-v.playing, .thumb iframe').length, copies: document.querySelectorAll('.thumb .dk-v').length }));
+    await talk.evaluate(k => window.deckPlayer.press(k), key);
+    await settle(300);
+    assert(copies.copies > 0 && copies.playing === 0 && players.length === requested + 1,
+      `A copy of a slide whose video plays must show its poster, not start another player (key ${key}): ${JSON.stringify({ ...copies, requests: players.length - requested })}.`);
+  }
+  // A click in YouTube's player takes the keys; they come back, so the next key turns the slide and stops the video.
+  await talk.childFrames()[0].locator('body').click();
+  await settle(400);
+  await page.keyboard.press('ArrowRight');
+  await talk.waitForFunction(at => window.deckPlayer.state().at === at + 1, atVideo, { timeout: 3000 })
+    .catch(async () => { throw Error(`After a click in the video's player the next key must still turn the slide: at ${await talk.evaluate(() => window.deckPlayer.state().at)}, focus in ${await talk.evaluate(() => document.activeElement?.tagName)}.`); });
+  const stopped = await talk.evaluate(() => document.querySelectorAll('.dk-v.playing, .dk-v iframe').length);
+  assert(stopped === 0, `Turning to the next slide must stop the video: ${stopped} still playing.`);
+  await talk.locator('body').press('Escape');
+  await frame.waitForFunction(() => window.deck.presenting === false);
+  await frame.evaluate(id => window.deck.slideId !== id && document.querySelector(`#slides li[data-id="${id}"]`)?.click(), videoSlide);
+  await until(id => window.deck.slideId === id, videoSlide, 3000);
+
+  const videoHtml = await exported('export.html', 'html');
+  assert(videoHtml.text.includes(`data-embed="${EMBED.replaceAll('&', '&amp;')}"`) && !/<iframe/i.test(videoHtml.text.replace(/<script[\s\S]*?<\/script>/g, '')),
+    'The HTML file must carry the video as its link, with no player until a click.');
+  await page.evaluate(text => {
+    const copy = Object.assign(document.createElement('iframe'), { name: 'videocheck', srcdoc: text });
+    copy.style.cssText = 'position:fixed;left:0;top:0;width:960px;height:540px';
+    document.body.append(copy);
+  }, videoHtml.text);
+  await page.waitForFunction(() => !!document.querySelector('iframe[name="videocheck"]')?.contentWindow?.deckPlayer, null, { timeout: 5000 });
+  const fromFile = await page.evaluate(() => {
+    const win = document.querySelector('iframe[name="videocheck"]').contentWindow, doc = win.document;
+    const opened = [];
+    win.open = (...args) => { opened.push(args[0]); return null; };
+    const i = [...doc.querySelectorAll('#frame > .dk-slide')].findIndex(s => s.querySelector('.dk-v'));
+    for (const key of [...String(i + 1), 'Enter']) win.deckPlayer.press(key);
+    doc.querySelectorAll('#frame > .dk-slide')[i].querySelector('.dk-v').click();
+    return { opened, players: doc.querySelectorAll('.dk-v iframe').length, protocol: win.location.protocol };
+  });
+  await page.evaluate(() => document.querySelector('iframe[name="videocheck"]').remove());
+  assert(JSON.stringify(fromFile.opened) === JSON.stringify(['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s']) && fromFile.players === 0,
+    `A copy of the file opened from where YouTube's player will not play must open the video on YouTube: ${JSON.stringify(fromFile)}.`);
+
+  await command('export.pptx');
+  const online = await frame.evaluate(async () => {
+    await new Promise(r => setTimeout(r, 50));
+    const { unzip } = await import('./zip.mjs');
+    const entries = unzip(new Uint8Array(await window.deck.lastExport.arrayBuffer()));
+    const read = async name => new TextDecoder().decode(await entries.find(e => e.name === name).bytes());
+    for (const e of entries.filter(e => /^ppt\/slides\/slide\d+\.xml$/.test(e.name))) {
+      const xml = await read(e.name);
+      const link = /<a:videoFile r:link="(rId\d+)"\/>/.exec(xml);
+      if (!link) continue;
+      const rels = await read(e.name.replace('slides/', 'slides/_rels/') + '.rels');
+      const blip = /<p:pic>(?:(?!<\/p:pic>).)*?videoFile(?:(?!<\/p:pic>).)*?<a:blip r:embed="(rId\d+)"/.exec(xml)?.[1];
+      const target = id => new RegExp(`Id="${id}" Type="([^"]+)" Target="([^"]+)"( TargetMode="External")?`).exec(rels)?.slice(1);
+      return { video: target(link[1]), poster: target(blip), media: entries.filter(x => x.name.startsWith('ppt/media/')).map(x => x.name) };
+    }
+    return null;
+  });
+  assert(online && online.video[0].endsWith('/relationships/video') && online.video[1] === 'https://www.youtube.com/embed/dQw4w9WgXcQ?feature=oembed&amp;start=42' && online.video[2]
+    && online.poster?.[0].endsWith('/relationships/image') && online.media.includes(`ppt/${online.poster[1].replace('../', '')}`),
+    `PowerPoint must get an online video linked to YouTube's player, with a poster in the file, even when YouTube's own cannot be read: ${JSON.stringify(online)}.`);
+  await page.unroute(/^https:\/\/(?:www\.youtube-nocookie\.com|i\.ytimg\.com)\//);
+  checks.push('youtube video');
 
   // 16. A file with no deck opens on the start screen; its six templates fit the width.
   await page.evaluate(empty => { window.broker.setFixture(empty); window.broker.remount(); }, empty);

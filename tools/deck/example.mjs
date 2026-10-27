@@ -1,4 +1,4 @@
-// The example deck a new Deck file carries: a tour of Deck that uses twenty of its twenty-one layouts. Every
+// The example deck a new Deck file carries: a tour of Deck that uses twenty of its twenty-two layouts. Every
 // number in it is a fact about Deck itself, so nothing here needs a source. A slide's `n` names its record
 // (dk.slide.example-NN) and never changes; its place in the list is its order, so a slide added later
 // takes the next number wherever it stands.
