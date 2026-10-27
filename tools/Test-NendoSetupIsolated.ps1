@@ -37,6 +37,17 @@ $noticeText = [IO.File]::ReadAllText($notices)
 foreach ($required in @('ag-grid-community', 'ISC License')) {
     if (-not $noticeText.Contains($required)) { throw "The payload's Workbench\THIRD-PARTY-NOTICES.txt does not carry $required." }
 }
+# The payload carries the .NET runtimes, the Windows App SDK and the NuGet packages the host runs
+# on; Publish-NendoPayload.ps1 writes their licences beside the host (scripts/desktop-notices.mjs).
+$hostNotices = Join-Path $payload 'THIRD-PARTY-NOTICES.txt'
+if (-not (Test-Path -LiteralPath $hostNotices -PathType Leaf) -or
+    @($manifest.files | Where-Object { $_.path -eq 'THIRD-PARTY-NOTICES.txt' }).Count -ne 1) {
+    throw 'The payload carries no THIRD-PARTY-NOTICES.txt, so the installer would ship the .NET runtime and its packages without their licence notices.'
+}
+$hostNoticeText = [IO.File]::ReadAllText($hostNotices)
+foreach ($required in @("`nMicrosoft.NETCore.App.Runtime.win-x64 ", "`nMicrosoft.AspNetCore.App.Runtime.win-x64 ", "`nMicrosoft.WindowsAppSDK.Runtime ", "`nNCalc ", "`nParlot ", "`nSQLitePCLRaw.lib.e_sqlite3 ", 'sqlite.org/copyright')) {
+    if (-not $hostNoticeText.Contains($required)) { throw "The payload's THIRD-PARTY-NOTICES.txt does not carry the licence notice for $($required.Trim())." }
+}
 
 $ownerRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/Nendo'
 # The space is deliberate: every run then passes setup paths that must survive being
@@ -314,6 +325,10 @@ try {
     $noticesText = [regex]::Match($pageText, '<template id="nendo-notices"><pre>([\s\S]*?)</pre></template>').Groups[1].Value
     foreach ($required in @('ag-grid-community ', 'Lucide icons (ISC)', '.NET runtime (MIT)', '.NET runtime: third-party notices', 'NCalc.Core ', 'Parlot ', 'SQLitePCLRaw.lib.e_sqlite3 ', 'sqlite.org/copyright')) {
         if (-not $noticesText.Contains($required)) { throw "The installed WebPage\Nendo.html does not carry the licence notice for $($required.Trim())." }
+    }
+    $installedNotices = Join-Path $installRoot 'THIRD-PARTY-NOTICES.txt'
+    if (-not (Test-Path -LiteralPath $installedNotices -PathType Leaf) -or (Get-FileHash -LiteralPath $installedNotices).Hash -ne (Get-FileHash -LiteralPath $hostNotices).Hash) {
+        throw 'The installed Nendo carries no THIRD-PARTY-NOTICES.txt beside Nendo.Desktop.exe, or not the payload''s.'
     }
     $expectedCommand = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" "%1"'
     $expectedIcon = '"' + (Join-Path $installRoot 'Assets\DocumentIcon.ico') + '",0'

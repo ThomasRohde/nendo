@@ -30,13 +30,18 @@ export function runtimePackages(assetsPath) {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/** One package's licence: the file it ships, or its SPDX expression's text with its copyright. */
+/** One package's licence: the file it ships, its SPDX expression's text with its copyright, or the terms it links to. */
 function packageLicence(pkg, licences) {
   const nuspecFile = readdirSync(pkg.path).find((name) => name.endsWith('.nuspec'));
   if (nuspecFile === undefined) throw new Error(`${pkg.path} has no .nuspec.`);
   const nuspec = readFileSync(join(pkg.path, nuspecFile), 'utf8');
   const licence = tag(nuspec, 'license');
-  if (licence === null) throw new Error(`${pkg.id} ${pkg.version} declares no licence.`);
+  if (licence === null) {
+    // The Windows SDK projection declares only a licence URL, the Windows SDK's terms.
+    const url = tag(nuspec, 'licenseUrl')?.[2];
+    if (url === undefined) throw new Error(`${pkg.id} ${pkg.version} declares no licence.`);
+    return { name: 'licence terms', text: `Licensed under the terms at ${unescape(url).trim()}` };
+  }
   const [, kind, value] = licence;
   if (kind === 'file') return { name: 'see below', text: read(join(pkg.path, unescape(value))) };
   const template = join(licences, `${value}.txt`);
@@ -53,13 +58,16 @@ export function browserHostNotices(workbenchRoot, noticesFolder, licences) {
     section('.NET runtime (MIT)', read(join(noticesFolder, 'dotnet-LICENSE.TXT'))),
     section('.NET runtime: third-party notices', read(join(noticesFolder, 'dotnet-THIRD-PARTY-NOTICES.TXT'))),
   ];
-  for (const pkg of runtimePackages(join(noticesFolder, 'project.assets.json'))) {
-    const licence = packageLicence(pkg, licences);
-    let text = licence.text;
-    const notices = readdirSync(pkg.path).find((name) => /^third-party-notices(\.(txt|md))?$/i.test(name));
-    if (notices !== undefined) text += `\n\n${read(join(pkg.path, notices))}`;
-    if (pkg.id === 'SQLitePCLRaw.lib.e_sqlite3') text += '\n\nThis package\'s library is SQLite, which is in the public domain: https://sqlite.org/copyright.html';
-    parts.push(section(`${pkg.id} ${pkg.version} (${licence.name})`, text));
-  }
+  for (const pkg of runtimePackages(join(noticesFolder, 'project.assets.json'))) parts.push(packageSection(pkg, licences));
   return parts.join('\n');
+}
+
+/** One package's section: its licence, then any notices file it ships beside it. */
+export function packageSection(pkg, licences) {
+  const licence = packageLicence(pkg, licences);
+  let text = licence.text;
+  for (const notices of readdirSync(pkg.path).filter((name) => /^(third-?party-?notices|notice)(\.(txt|md))?$/i.test(name)).sort())
+    text += `\n\n${read(join(pkg.path, notices))}`;
+  if (pkg.id === 'SQLitePCLRaw.lib.e_sqlite3') text += '\n\nThis package\'s library is SQLite, which is in the public domain: https://sqlite.org/copyright.html';
+  return section(`${pkg.id} ${pkg.version} (${licence.name})`, text);
 }

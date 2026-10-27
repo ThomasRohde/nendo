@@ -12,7 +12,7 @@ $payload = Join-Path $outputRoot 'payload'
 if (Test-Path -LiteralPath (Join-Path $outputRoot 'manifest.json')) {
     & (Join-Path $PSScriptRoot 'Remove-NendoBuildPayload.ps1') -BuildRoot $outputRoot -Apply | Out-Null
     if (Test-Path -LiteralPath $payload) { throw 'Unrecognized payload files were retained; inspect before republishing.' }
-    foreach ($name in @('manifest.json','installer.json','installer-smoke.json','nendo-install.json','nendo.nsi','payload-pruned.json','workbench-restore.log','workbench-check.log','workbench-test.log','workbench-build.log','web-page-build.log','publish.log','installer-build.log','installed-runtime.log','installed-performance.log')) {
+    foreach ($name in @('manifest.json','installer.json','installer-smoke.json','nendo-install.json','nendo.nsi','payload-pruned.json','workbench-restore.log','workbench-check.log','workbench-test.log','workbench-build.log','web-page-build.log','publish.log','notices.log','installer-build.log','installed-runtime.log','installed-performance.log')) {
         $file = Join-Path $outputRoot $name
         if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
     }
@@ -44,12 +44,16 @@ try {
     # Export → Web page writes this page with a copy of the file in it (ADR-0035), so it ships with Nendo.
     Invoke-PilotCommand 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Build-BrowserHost.ps1'), '-SkipWorkbenchBuild') 'web-page-build.log'
     Invoke-PilotCommand 'dotnet' @('publish', 'src/Nendo.Desktop/Nendo.Desktop.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishTrimmed=false', '-p:PublishReadyToRun=true', '-o', $payload, '--nologo') 'publish.log'
+    # The payload carries the runtimes and packages, so it carries their licences: the publish
+    # lists what it wrote in notices/, and the script refuses a file whose licence it cannot name.
+    Invoke-PilotCommand 'node' @((Join-Path $repoRoot 'src/Nendo.Workbench/scripts/desktop-notices.mjs'), $payload) 'notices.log'
+    Remove-Item -LiteralPath (Join-Path $payload 'notices') -Recurse
     [void][IO.Directory]::CreateDirectory((Join-Path $payload 'WebPage'))
     Copy-Item -LiteralPath (Join-Path $repoRoot 'artifacts/browser-host/Nendo.html') -Destination (Join-Path $payload 'WebPage/Nendo.html')
     # Export → Web app puts this service worker beside the page (ADR-0037).
     Copy-Item -LiteralPath (Join-Path $repoRoot 'src/Nendo.Workbench/web-app/sw.js') -Destination (Join-Path $payload 'WebPage/sw.js')
     # Custom views run inside the Workbench's own browser; the API script they load is part of it.
-    foreach ($required in @('Nendo.Desktop.exe', 'Nendo.Desktop.dll', 'Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'coreclr.dll', 'Microsoft.UI.Xaml.dll', 'e_sqlite3.dll', 'Workbench/index.html', 'Workbench/_nendo/api.js', 'WebPage/Nendo.html', 'WebPage/sw.js', 'App.xbf', 'MainPage.xbf', 'MainWindow.xbf', 'Nendo.Desktop.pri')) {
+    foreach ($required in @('Nendo.Desktop.exe', 'Nendo.Desktop.dll', 'Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'coreclr.dll', 'Microsoft.UI.Xaml.dll', 'e_sqlite3.dll', 'Workbench/index.html', 'Workbench/_nendo/api.js', 'WebPage/Nendo.html', 'WebPage/sw.js', 'App.xbf', 'MainPage.xbf', 'MainWindow.xbf', 'Nendo.Desktop.pri', 'THIRD-PARTY-NOTICES.txt')) {
         if (-not (Test-Path -LiteralPath (Join-Path $payload $required))) { throw "Missing payload dependency: $required" }
     }
     foreach ($source in $sourceHashes) {

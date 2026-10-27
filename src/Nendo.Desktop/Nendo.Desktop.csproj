@@ -94,4 +94,23 @@
       </ResolvedFileToPublish>
     </ItemGroup>
   </Target>
+  <!-- The payload carries the .NET runtimes and NuGet packages, so it carries their licences too.
+       The publish lists in notices/ every file it wrote, with the package it came from and the
+       path it was read from: many name no package, and the Windows App SDK's are unpacked from
+       its runtime package's MSIX into MsixContent first. tools/Publish-NendoPayload.ps1 turns
+       the list into THIRD-PARTY-NOTICES.txt beside the host. -->
+  <!-- ReadyToRun compiles a managed file into obj/ and keeps its metadata, so its source is
+       stamped first: the WebView2 projection names no package, only the folder it came from. -->
+  <Target Name="StampPublishedSource" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish NendoSource="%(FullPath)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="PublishLicenceNotices" AfterTargets="Publish">
+    <ItemGroup>
+      <_NendoPublishedFile Include="@(ResolvedFileToPublish->'%(RelativePath)|%(NuGetPackageId)|%(NuGetPackageVersion)|%(FullPath)|%(NendoSource)')" />
+    </ItemGroup>
+    <Error Condition="'$(MicrosoftWindowsAppSDKMsixContent)' == '' or '$(MicrosoftWindowsAppSDKPackageDir)' == ''" Text="The Windows App SDK's unpacked runtime and its package were not found, so its files cannot be given their licence." />
+    <WriteLinesToFile File="$(PublishDir)notices\published-files.txt" Lines="$(NuGetPackageRoot);$(MicrosoftWindowsAppSDKMsixContent)|$(MicrosoftWindowsAppSDKPackageDir);@(_NendoPublishedFile)" Overwrite="true" />
+  </Target>
 </Project>

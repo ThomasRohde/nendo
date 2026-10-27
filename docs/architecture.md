@@ -937,6 +937,13 @@ NSIS must be installed. `Test-NendoInstaller.ps1` seeds its journey file through
 tests first* until they are built. Prune old payloads only through
 `Remove-NendoBuildPayload.ps1`, which verifies hashes first.
 
+The payload carries the licences of what it holds. `THIRD-PARTY-NOTICES.txt` beside
+`Nendo.Desktop.exe` covers Nendo, the .NET and ASP.NET Core runtimes, the Windows App SDK and
+every NuGet package the publish wrote a file from: Nendo.Desktop's publish lists each file with
+its package and source in `notices/`, and the Workbench's `scripts/desktop-notices.mjs` writes the
+file and refuses a payload file it cannot give a licence. The Workbench folder carries its own
+`Workbench/THIRD-PARTY-NOTICES.txt`, and the web page its `nendo-notices` template.
+
 NSIS only extracts the payload to a temporary folder. `Invoke-NendoSetup.ps1` then checks
 every file by hash, keeps the installed version in `Nendo.previous` as one hard link per
 file, and moves the extracted files into place (`-MovePayload`), so no byte is written

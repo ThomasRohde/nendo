@@ -13,6 +13,10 @@ if ($installer.buildId -notmatch '^[0-9a-f]{16}$') { throw 'Invalid build identi
 if (@($manifest.files | Where-Object { $_.path -replace '/', '\' -eq 'Workbench\THIRD-PARTY-NOTICES.txt' }).Count -ne 1) {
     throw 'The payload carries no Workbench\THIRD-PARTY-NOTICES.txt, so the installer would ship AG Grid and Lucide without their licence notices.'
 }
+# The runtimes and packages the host runs on carry their licences beside it (scripts/desktop-notices.mjs).
+if (@($manifest.files | Where-Object { $_.path -eq 'THIRD-PARTY-NOTICES.txt' }).Count -ne 1) {
+    throw 'The payload carries no THIRD-PARTY-NOTICES.txt, so the installer would ship the .NET runtime and its packages without their licence notices.'
+}
 $installRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/Nendo'
 $registration = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Nendo'
 $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Nendo.lnk'
