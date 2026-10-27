@@ -11,10 +11,24 @@ const [folder, infoPath] = process.argv.slice(2);
 if (!folder || !infoPath) throw new Error('Name the folder to serve and the file to write the address to.');
 const root = path.resolve(folder);
 
-const types = { '.html': 'text/html; charset=utf-8', '.nendo': 'application/octet-stream' };
+const types = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webmanifest': 'application/manifest+json',
+  '.png': 'image/png', '.nendo': 'application/octet-stream',
+};
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+  // A lane republishes a newer export in place, as its owner would: POST /__publish?from=a&to=b
+  // replaces the files of folder b with those of folder a.
+  if (request.method === 'POST' && url.pathname === '/__publish') {
+    const from = path.resolve(root, url.searchParams.get('from') ?? '');
+    const to = path.resolve(root, url.searchParams.get('to') ?? '');
+    if (!from.startsWith(root + path.sep) || !to.startsWith(root + path.sep)) { response.writeHead(403).end(); return; }
+    await fs.rm(to, { recursive: true, force: true });
+    await fs.cp(from, to, { recursive: true });
+    response.writeHead(204).end();
+    return;
+  }
   const name = decodeURIComponent(url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname);
   const file = path.resolve(root, '.' + name);
   if (!file.startsWith(root + path.sep)) { response.writeHead(403).end(); return; }

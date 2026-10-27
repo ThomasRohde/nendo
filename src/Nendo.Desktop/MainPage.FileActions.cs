@@ -286,11 +286,17 @@ public sealed partial class MainPage
     /// </summary>
     private async Task WebPageNativeAsync()
     {
-        var content = new TextBlock
+        var form = new RadioButtons { Header = "Export as" };
+        form.Items.Add(new RadioButton { Content = "One page: a single .html file to send or open from disk" });
+        form.Items.Add(new RadioButton { Content = "Web app: a folder to publish, which browsers install and open offline" });
+        form.SelectedIndex = 0;
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(new TextBlock
         {
-            Text = "Export this file as one web page that opens in any browser with nothing installed, or apply the changes made in such a page from the file it downloaded.",
+            Text = "Export this file as a web page that opens in any browser with nothing installed, or apply the changes made in such a page from the file it downloaded.",
             TextWrapping = TextWrapping.Wrap,
-        };
+        });
+        content.Children.Add(form);
         var dialog = NativeDialog("Web page", content);
         dialog.PrimaryButtonText = "Export…";
         dialog.SecondaryButtonText = "Apply changes…";
@@ -298,9 +304,42 @@ public sealed partial class MainPage
         dialog.IsSecondaryButtonEnabled = (await _session.GetDefinitionViewAsync()).Capabilities.Mutate;
         switch (await dialog.ShowAsync())
         {
+            case ContentDialogResult.Primary when form.SelectedIndex == 1: await ExportWebAppNativeAsync(); break;
             case ContentDialogResult.Primary: await ExportWebPageNativeAsync(); break;
             case ContentDialogResult.Secondary: await ApplyWebPageNativeAsync(); break;
         }
+    }
+
+    /// <summary>
+    /// Export → Web app (ADR-0037): the page in an empty folder the person picks, with a manifest,
+    /// the service worker and the file's look drawn as its icons, to publish on a web server.
+    /// </summary>
+    private async Task ExportWebAppNativeAsync()
+    {
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var picker = new FolderPicker(window.AppWindow.Id) { SuggestedStartLocation = PickerLocationId.DocumentsLibrary, CommitButtonText = "Export here" };
+        var folder = (await picker.PickSingleFolderAsync())?.Path;
+        if (folder is null) return;
+        if (!await ConfirmNativeAsync("Export this file as a web app?",
+            "The web app holds a copy of every record in this file. Anyone who opens it can read them, and can change their own copy. " +
+            "Their changes reach this file only when you apply them with Apply changes from a web page. " +
+            "Publish the folder on a web server with https, and browsers install it as an app.", "Export")) return;
+        var look = _session.CurrentLook ?? throw new InvalidOperationException("The open file has no look to draw.");
+        var mark = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        // A file's own picture that cannot be read or drawn falls back to its tone and letter, as its window icon does.
+        IReadOnlyDictionary<int, byte[]> icons;
+        try
+        {
+            var picture = look.Icon is { } icon ? await _session.ReadIconPictureAsync(icon) : null;
+            icons = await DesktopFileIcon.DrawPngsAsync(picture is null ? look with { Icon = null } : look, mark, picture, NendoWebAppExport.IconSizes);
+        }
+        catch (Exception) when (look.Icon is not null)
+        {
+            icons = await DesktopFileIcon.DrawPngsAsync(look with { Icon = null }, mark, null, NendoWebAppExport.IconSizes);
+        }
+        var runtime = Path.Combine(AppContext.BaseDirectory, "WebPage");
+        await _session.ExportWebAppAsync(Path.Combine(runtime, "Nendo.html"), Path.Combine(runtime, NendoWebAppExport.ServiceWorkerName), icons, folder);
+        NativeNotice($"Web app written to {Path.GetFileName(Path.TrimEndingDirectorySeparator(folder))}. Publish the folder on a web server with https, and browsers install it as an app.");
     }
 
     /// <summary>

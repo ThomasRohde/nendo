@@ -198,6 +198,29 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Approves the open file's automatic actions when they are exactly those this device approved in
+    /// the copy named, which a web app's newer export carries a visitor's changes over from
+    /// (ADR-0037). Answers whether the open file's actions are approved now.
+    /// </summary>
+    internal async Task<bool> CarryApprovalAsync(string fromInstanceId, CancellationToken cancellationToken = default)
+    {
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_coordinator?.BehaviourTrust is not { Required: { } required }) return false;
+            if (BehaviourGrants.IsGranted(required)) return true;
+            if (!BehaviourGrants.IsGrantedIn(required, fromInstanceId)) return false;
+            BehaviourGrants.Approve(required);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>Withdraws every approval for the open file.</summary>
     internal async Task<DesktopSessionView> RevokeBehaviourAsync(CancellationToken cancellationToken = default)
     {

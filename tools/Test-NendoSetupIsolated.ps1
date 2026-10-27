@@ -301,6 +301,14 @@ try {
     if (-not $pageText.Contains('id="nendo-runtime"') -or -not $pageText.Contains('<script type="module">')) {
         throw 'The installed WebPage\Nendo.html carries no runtime, or no module script to carry a file beside.'
     }
+    # Export -> Web app puts the service worker beside the page (ADR-0037), stamped with its version.
+    $serviceWorker = Join-Path $installRoot 'WebPage/sw.js'
+    $shippedWorker = @($manifest.files | Where-Object { ($_.path -replace '/', '\') -eq 'WebPage\sw.js' })
+    if ($shippedWorker.Count -ne 1 -or -not (Test-Path -LiteralPath $serviceWorker -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $serviceWorker).Hash -ne $shippedWorker[0].sha256 -or
+        -not ([IO.File]::ReadAllText($serviceWorker)).Contains("'__NENDO_WEB_APP_VERSION__'")) {
+        throw 'The installed Nendo carries no whole WebPage\sw.js, so Export -> Web app has no service worker to write.'
+    }
     # Every exported page is a copy of this one and is sent on, so the licences of what it carries
     # travel in it: the Workbench's packages, the .NET runtime and the packages the Engine runs on.
     $noticesText = [regex]::Match($pageText, '<template id="nendo-notices"><pre>([\s\S]*?)</pre></template>').Groups[1].Value

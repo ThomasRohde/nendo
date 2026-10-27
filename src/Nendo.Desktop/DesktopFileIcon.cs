@@ -164,6 +164,26 @@ internal static class DesktopFileIcon
     }
 
     /// <summary>
+    /// The look drawn as one PNG for each size given, as the icon file draws it: a web app's icons
+    /// (ADR-0037). Sizes above the mark's largest frame are drawn from that frame.
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<int, byte[]>> DrawPngsAsync(
+        NendoResolvedLook look, string markIconPath, byte[]? picture, IEnumerable<int> sizes, CancellationToken cancellationToken = default)
+    {
+        if (look.Icon is not null && picture is null)
+            throw new ArgumentException("A look with a picture is drawn from that picture.", nameof(picture));
+        var mark = look.Icon is null ? ReadIconFrames(await File.ReadAllBytesAsync(markIconPath, cancellationToken)) : null;
+        var drawn = new Dictionary<int, byte[]>();
+        foreach (var size in sizes)
+        {
+            drawn[size] = await EncodePngAsync(mark is null
+                ? await RenderPictureAsync(picture!, size, cancellationToken)
+                : await RenderAsync(mark, look, size, cancellationToken), size);
+        }
+        return drawn;
+    }
+
+    /// <summary>
     /// One size of a file's own picture, as straight-alpha BGRA rows from the top: the picture
     /// scaled to the frame, and nothing drawn over it.
     /// </summary>

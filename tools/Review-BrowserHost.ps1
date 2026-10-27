@@ -83,6 +83,21 @@ if ($Served) {
         New-Item -ItemType Directory -Force $folder | Out-Null
         Copy-Item -LiteralPath $published[0] -Destination (Join-Path $folder 'index.html')
     }
+    # The web app (ADR-0037): Station exported as Export -> Web app exports it, twice, so the lane can
+    # publish the second export over the first.
+    $worker = Join-Path (Split-Path -Parent $page) 'sw.js'
+    if (-not (Test-Path -LiteralPath $worker)) { $worker = Join-Path $repoRoot 'src/Nendo.Workbench/web-app/sw.js' }
+    $appSource = Join-Path $sources 'Web app.nendo'
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'workspace/Nendo Station.nendo') -Destination $appSource
+    foreach ($app in @('app', 'app-v2')) {
+        $made = & dotnet run $roundTrip -- export-app $appSource $page $worker (Join-Path $site $app) 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { throw "Export -> Web app failed: $made" }
+        # Between the two exports the owner changes a record the visitor will change too.
+        if ($app -eq 'app') {
+            $made = & dotnet run $roundTrip -- set $appSource incident incident.002 incidentTitle 'Changed by the owner' 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "Changing the web app's source failed: $made" }
+        }
+    }
     $siteInfo = Join-Path $lane "site-$runId.json"
     $server = Start-Process node -ArgumentList @((Join-Path $PSScriptRoot 'Serve-StaticSite.mjs'), "`"$site`"", "`"$siteInfo`"") -WindowStyle Hidden -PassThru
     for ($i = 0; $i -lt 100 -and -not (Test-Path -LiteralPath $siteInfo); $i++) { Start-Sleep -Milliseconds 100 }
@@ -132,6 +147,45 @@ try {
         throw "The page's edits did not arrive in the file it was exported from: $($file.values -join ', ')."
     }
     Write-Host "The exported page's download applies back: integrity $($file.integrity), $($file.replayed) changes replayed, both edits arrived."
+
+    if ($Served) {
+        $appProbe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-WebApp.mjs'))
+        $appProbe = $appProbe.Replace('__APP_URL__', "${siteUrl}app/").Replace('__PUBLISH_URL__', "${siteUrl}__publish?from=app-v2&to=app")
+        $appDownload = Join-Path $lane "web-app-download-$runId.nendo"
+        $appPrevious = Join-Path $lane "web-app-previous-$runId.nendo"
+        $appProbe = $appProbe.Replace('__DOWNLOAD_PATH__', ($appDownload -replace '\\', '/')).Replace('__PREVIOUS_PATH__', ($appPrevious -replace '\\', '/'))
+        $appProbePath = Join-Path $lane "web-app-probe-$runId.mjs"
+        [IO.File]::WriteAllText($appProbePath, $appProbe, [Text.UTF8Encoding]::new($false))
+        try {
+            $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $appProbePath 2>&1 | Out-String
+            $exitCode = $LASTEXITCODE
+        }
+        finally { Remove-Item -LiteralPath $appProbePath -ErrorAction SilentlyContinue }
+        [IO.File]::WriteAllText((Join-Path $lane 'web-app-results.txt'), $ran, [Text.UTF8Encoding]::new($false))
+        $resultLine = [regex]::Match($ran, '### Result\r?\n(\{[^\r\n]+\})')
+        if ($exitCode -ne 0 -or -not $resultLine.Success) {
+            $errorLine = [regex]::Match($ran, '### Error\r?\n([^\r\n]+)')
+            if ($errorLine.Success) { Write-Host $errorLine.Groups[1].Value } else { Write-Host ($ran.Substring(0, [Math]::Min(2400, $ran.Length))) }
+            throw 'The web app lane did not complete.'
+        }
+        $result = $resultLine.Groups[1].Value | ConvertFrom-Json
+        if ($result.complete -ne $true) { throw 'The web app lane returned an incomplete result.' }
+        Write-Host ("Web app lane passed in $Browser`: " + ($result.checks -join ', ') + '. Browser exceptions: ' + $result.errors.Count)
+        try {
+            # The copy carried across the republish applies back to the source it was exported from.
+            $checked = & dotnet run $roundTrip -- apply $appSource $appDownload incident incident.001 incidentSeverity incident incident.002 incidentTitle 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "Apply changes failed on the web app's carried copy: $checked" }
+            $file = ([regex]::Match($checked, '\{"integrity"[^\r\n]+\}').Value) | ConvertFrom-Json
+            if ($file.integrity -ne 'ok' -or -not $file.applied -or $file.values[0] -ne 'Elevated' -or $file.values[1] -ne 'Changed by the owner') {
+                throw "The web app's carried copy did not apply back: integrity $($file.integrity), applied $($file.applied), values $($file.values -join ', ')."
+            }
+            if (-not (Test-Path -LiteralPath $appPrevious) -or (Get-Item -LiteralPath $appPrevious).Length -eq 0) { throw 'Download previous copy saved nothing.' }
+            Write-Host "The web app's carried copy applies back: integrity $($file.integrity), $($file.replayed) changes replayed, the visitor's edit arrived."
+        }
+        finally {
+            foreach ($scratch in @($appDownload, $appPrevious)) { if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch } }
+        }
+    }
 }
 finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close | Out-Null

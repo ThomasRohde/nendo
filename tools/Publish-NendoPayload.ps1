@@ -46,8 +46,10 @@ try {
     Invoke-PilotCommand 'dotnet' @('publish', 'src/Nendo.Desktop/Nendo.Desktop.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishTrimmed=false', '-p:PublishReadyToRun=true', '-o', $payload, '--nologo') 'publish.log'
     [void][IO.Directory]::CreateDirectory((Join-Path $payload 'WebPage'))
     Copy-Item -LiteralPath (Join-Path $repoRoot 'artifacts/browser-host/Nendo.html') -Destination (Join-Path $payload 'WebPage/Nendo.html')
+    # Export → Web app puts this service worker beside the page (ADR-0037).
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'src/Nendo.Workbench/web-app/sw.js') -Destination (Join-Path $payload 'WebPage/sw.js')
     # Custom views run inside the Workbench's own browser; the API script they load is part of it.
-    foreach ($required in @('Nendo.Desktop.exe', 'Nendo.Desktop.dll', 'Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'coreclr.dll', 'Microsoft.UI.Xaml.dll', 'e_sqlite3.dll', 'Workbench/index.html', 'Workbench/_nendo/api.js', 'WebPage/Nendo.html', 'App.xbf', 'MainPage.xbf', 'MainWindow.xbf', 'Nendo.Desktop.pri')) {
+    foreach ($required in @('Nendo.Desktop.exe', 'Nendo.Desktop.dll', 'Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'coreclr.dll', 'Microsoft.UI.Xaml.dll', 'e_sqlite3.dll', 'Workbench/index.html', 'Workbench/_nendo/api.js', 'WebPage/Nendo.html', 'WebPage/sw.js', 'App.xbf', 'MainPage.xbf', 'MainWindow.xbf', 'Nendo.Desktop.pri')) {
         if (-not (Test-Path -LiteralPath (Join-Path $payload $required))) { throw "Missing payload dependency: $required" }
     }
     foreach ($source in $sourceHashes) {

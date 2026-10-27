@@ -154,6 +154,64 @@ public sealed class WebPageChangesTests
         CollectionAssert.AreEqual(picture, await source.ReadMediaContentAsync(address["media:".Length..]));
     }
 
+    [TestMethod]
+    public async Task AVisitorsChangesCarryToANewerExportOfTheSameSourceAndAreAppliedOnce()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var source = await GardenWithTwoIdeasAsync(workspace);
+        var older = await ExportAsync(workspace, source, "older.nendo");
+        await using (var coordinator = await NendoWriteCoordinator.OpenAsync(older, "visitor"))
+        {
+            var edits = new NendoApplicationService(coordinator);
+            await edits.SetIdeaTitleAsync("idea-1", 1, "The visitor's title", "visitor-title");
+            await edits.SetIdeaFieldAsync("idea-2", 1, IdeaGarden.IdeaNotesFieldId, "The visitor's notes", "visitor-notes");
+        }
+        // The owner changes idea-2 and publishes a newer export (ADR-0037).
+        var service = new NendoApplicationService(source);
+        await service.SetIdeaTitleAsync("idea-2", 1, "The owner's title", "owner-title");
+        var newer = await ExportAsync(workspace, source, "newer.nendo");
+
+        await using (var coordinator = await NendoWriteCoordinator.OpenAsync(newer, "carry"))
+        {
+            var carry = new NendoApplicationService(coordinator);
+            var carried = await carry.PrepareWebPageChangesAsync(older);
+            Assert.AreEqual(1, carried.Replayed);
+            Assert.HasCount(1, carried.LeftOut);
+            Assert.AreEqual("Its records changed in newer.nendo since the export.", carried.LeftOut[0].Reason);
+            Assert.IsTrue((await carry.PromoteProposalAsync(carried.Proposal!.ProposalId)).Applied);
+            var snapshot = await carry.GetSnapshotAsync();
+            Assert.AreEqual("The visitor's title", Title(snapshot, "idea-1"));
+            Assert.AreEqual("The owner's title", Title(snapshot, "idea-2"));
+        }
+
+        // The carried working copy applies to the source, and the older one finds its change already there.
+        var changes = await service.PrepareWebPageChangesAsync(newer);
+        Assert.AreEqual(1, changes.Replayed);
+        Assert.IsTrue((await service.PromoteProposalAsync(changes.Proposal!.ProposalId)).Applied);
+        Assert.AreEqual("The visitor's title", Title(await service.GetSnapshotAsync(), "idea-1"));
+        var again = await service.PrepareWebPageChangesAsync(older);
+        Assert.AreEqual(1, again.AlreadyApplied);
+        Assert.AreEqual(0, again.Replayed);
+        Assert.HasCount(1, again.LeftOut);
+    }
+
+    [TestMethod]
+    public async Task AnOlderExportIsNotCarriedOverANewerOne()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var source = await GardenWithTwoIdeasAsync(workspace);
+        var older = await ExportAsync(workspace, source, "older.nendo");
+        await new NendoApplicationService(source).SetIdeaTitleAsync("idea-2", 1, "The owner's title", "owner-title");
+        var newer = await ExportAsync(workspace, source, "newer.nendo");
+        await using (var coordinator = await NendoWriteCoordinator.OpenAsync(newer, "visitor"))
+            await new NendoApplicationService(coordinator).SetIdeaTitleAsync("idea-1", 1, "The visitor's title", "visitor-title");
+
+        await using var stale = await NendoWriteCoordinator.OpenAsync(older, "carry");
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => new NendoApplicationService(stale).PrepareWebPageChangesAsync(newer));
+        Assert.AreEqual("web-page-older-export", refused.Code);
+        Assert.AreEqual("older.nendo is an older export than newer.nendo, so its changes are not carried to it.", refused.Message);
+    }
+
     private static async Task<NendoWriteCoordinator> GardenWithTwoIdeasAsync(EngineTestWorkspace workspace)
     {
         var source = await workspace.CreateAsync();

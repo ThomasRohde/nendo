@@ -36,7 +36,11 @@ interface BrowserHostExports {
   ExportDeviceState(): string;
   ImportDeviceState(state: string): void;
   OpenCarriedAsync(bytes: Uint8Array, name: string): Promise<string>;
+  CarryOverAsync(previous: Uint8Array, carried: Uint8Array, name: string): Promise<string>;
 }
+
+/** A web app's working copy (ADR-0037): the file, and the digest of the export it came from. */
+interface WebAppCopy { carried: string; bytes: Uint8Array }
 
 interface DotnetRuntime {
   getAssemblyExports(name: string): Promise<{ Nendo: { Browser: { BrowserHost: BrowserHostExports } } }>;
@@ -68,11 +72,13 @@ export function carriesBrowserRuntime(): boolean {
  * copy of the file the page carries (in IndexedDB under `carried`), or in the page only. `picked`
  * waits for the open it was picked for; `baseline` marks a file just opened, whose bytes are as it
  * came in and need no write back; `stored` is false once the browser would not keep the working copy.
+ * A web app keeps its copy with the digest of the export it came from (`export`), and the copy a
+ * newer export could not carry whole under `previous`.
  */
 const kept: {
   handle: WritableFileHandle | null; picked: WritableFileHandle | null; name: string | null; baseline: boolean;
-  carried: string | null; stored: boolean; notice: string | null;
-} = { handle: null, picked: null, name: null, baseline: false, carried: null, stored: true, notice: null };
+  carried: string | null; export: string | null; previous: string | null; stored: boolean; notice: string | null;
+} = { handle: null, picked: null, name: null, baseline: false, carried: null, export: null, previous: null, stored: true, notice: null };
 
 const visitOnly = 'This browser does not keep this file, so your changes last only this visit. Download the file to keep them.';
 
@@ -83,6 +89,12 @@ export class BrowserWorkbenchClient extends DesktopWorkbenchClient {
     const runtime = new RuntimeBridge();
     super(runtime, 'browser');
     this.runtime = runtime;
+    void registerWebApp(() => runtime.settled());
+  }
+
+  whenUpdateReady(listener: (reload: () => Promise<void>) => void): void {
+    webApp.listener = listener;
+    if (webApp.reload !== null) listener(webApp.reload);
   }
 
   async readViewPackage(packageId: string): Promise<Record<string, { mediaType: string; base64: string }>> {
@@ -97,18 +109,16 @@ export class BrowserWorkbenchClient extends DesktopWorkbenchClient {
 
   async downloadOpenFile(): Promise<void> {
     const bytes = (await this.runtime.host).ReadOpenFile();
-    if (bytes.length === 0) return;
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }));
-    link.download = kept.name ?? 'file.nendo';
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+    if (bytes.length !== 0) download(bytes, kept.name ?? 'file.nendo');
   }
 
-  keptAs(): { held: KeptAs; name: string | null } {
-    return { held: kept.handle !== null ? 'inPlace' : kept.carried === null ? 'page' : kept.stored ? 'browser' : 'visit', name: kept.name };
+  keptAs(): { held: KeptAs; name: string | null; previous: boolean } {
+    return { held: kept.handle !== null ? 'inPlace' : kept.carried === null ? 'page' : kept.stored ? 'browser' : 'visit', name: kept.name, previous: kept.previous !== null };
+  }
+
+  async downloadPreviousCopy(): Promise<void> {
+    const bytes = kept.previous === null ? null : await readStored('files', kept.previous);
+    if (bytes instanceof Uint8Array) download(bytes, kept.name ?? 'file.nendo');
   }
 
   async startNotice(): Promise<string | null> {
@@ -147,6 +157,11 @@ class RuntimeBridge implements WebViewBridge {
     this.listeners.add(listener);
   }
 
+  /** Once every save so far has landed. */
+  settled(): Promise<void> {
+    return this.saving;
+  }
+
   private async answer(message: unknown, invoke: (host: BrowserHostExports) => Promise<string>): Promise<void> {
     let host: BrowserHostExports;
     let answer: string;
@@ -183,6 +198,7 @@ class RuntimeBridge implements WebViewBridge {
     kept.baseline = true;
     // Another file is not the page's own: its working copy is no longer what the page keeps.
     kept.carried = null;
+    kept.export = null;
   }
 
   private save(host: BrowserHostExports): void {
@@ -190,6 +206,7 @@ class RuntimeBridge implements WebViewBridge {
     if (kept.baseline) { host.ReadOpenFileIfChanged(); kept.baseline = false; return; }
     const handle = kept.handle;
     const carried = kept.carried;
+    const exported = kept.export;
     if (handle === null && carried === null) return;
     const bytes = host.ReadOpenFileIfChanged();
     if (bytes.length === 0) return;
@@ -204,7 +221,7 @@ class RuntimeBridge implements WebViewBridge {
       });
     } else if (carried !== null) {
       // The page's own file: its working copy, kept by this browser for the next visit.
-      this.saving = this.saving.then(async () => { kept.stored = await writeStored('files', carried, bytes); });
+      this.saving = this.saving.then(async () => { kept.stored = await writeStored('files', carried, exported === null ? bytes : { carried: exported, bytes }); });
     }
   }
 
@@ -220,6 +237,57 @@ class RuntimeBridge implements WebViewBridge {
       try { listener({ data } as MessageEvent<unknown>); } catch { /* Another listener must still hear it. */ }
     }
   }
+}
+
+/**
+ * An exported web app (ADR-0037): a page served with its manifest beside it. Its service worker
+ * keeps the folder's files so the installed app opens offline. A newer version published in the
+ * folder waits until the person chooses Reload, so nothing is swapped under an open file.
+ */
+const webApp: { listener: ((reload: () => Promise<void>) => void) | null; reload: (() => Promise<void>) | null } = { listener: null, reload: null };
+
+/** Whether this page is a web app served from a web server: from disk it registers nothing. */
+export function servedAsWebApp(): boolean {
+  return typeof document !== 'undefined' && document.querySelector('link[rel="manifest"]') !== null
+    && window.isSecureContext && window.location.protocol !== 'file:' && 'serviceWorker' in navigator;
+}
+
+async function registerWebApp(saved: () => Promise<void>): Promise<void> {
+  if (!servedAsWebApp()) return;
+  let registration: ServiceWorkerRegistration;
+  try {
+    registration = await navigator.serviceWorker.register('sw.js');
+  } catch {
+    // An app the browser would not install still works as a page.
+    return;
+  }
+  const offer = (worker: ServiceWorker): void => {
+    // The first version installed has nothing to take over from.
+    if (navigator.serviceWorker.controller === null) return;
+    webApp.reload = async () => {
+      await saved();
+      // Another tab of the app chose Reload first: the version is already in charge.
+      if (worker.state !== 'installed') { window.location.reload(); return; }
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+      worker.postMessage('nendo-web-app-take-over');
+    };
+    webApp.listener?.(webApp.reload);
+  };
+  if (registration.waiting !== null) offer(registration.waiting);
+  registration.addEventListener('updatefound', () => {
+    const worker = registration.installing;
+    worker?.addEventListener('statechange', () => { if (worker.state === 'installed') offer(worker); });
+  });
+}
+
+function download(bytes: Uint8Array, name: string): void {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }));
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
 }
 
 function refusal(message: unknown, code: string, text: string): string {
@@ -371,28 +439,52 @@ async function writeDeviceState(state: string): Promise<void> {
 
 /**
  * An exported page opens the file it carries as it starts, or the working copy this browser kept of
- * it on an earlier visit. The copy is keyed by the carried file's digest, so each exported page has
- * its own, and a new export starts from what it carries.
+ * it on an earlier visit. A page's copy is keyed by the carried file's digest, so each exported page
+ * has its own, and a new export starts from what it carries. A web app's copy is kept for the
+ * app's address instead (ADR-0037): a newer export published there carries the visitor's changes
+ * over, and the copy as it was is kept under `previous:` when not all of them could be.
  */
 async function openCarriedFile(host: BrowserHostExports): Promise<void> {
   const element = document.getElementById(carriedFileId);
   if (element === null) return;
   const carried = (element.textContent ?? '').trim();
   const name = element.dataset.name ?? 'file.nendo';
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(carried)));
-  const key = 'page-file:' + [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(carried)));
+  const digest = [...hash].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  const exported = async (): Promise<Uint8Array> => new Uint8Array(await new Response(new Blob([Uint8Array.from(atob(carried), (c) => c.charCodeAt(0))]).stream()
+    .pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  const webApp = document.querySelector('link[rel="manifest"]') !== null;
+  const key = webApp ? `web-app:${new URL('./', window.location.href).href}` : `page-file:${digest}`;
   const stored = await readStored('files', key);
-  const bytes = stored instanceof Uint8Array ? stored
-    : new Uint8Array(await new Response(new Blob([Uint8Array.from(atob(carried), (c) => c.charCodeAt(0))]).stream()
-      .pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-  const opened = await host.OpenCarriedAsync(bytes, name);
   kept.handle = null;
   kept.name = name;
-  kept.carried = key;
   kept.baseline = true;
-  // A browser that keeps nothing holds the working copy for this visit only.
-  kept.stored = stored instanceof Uint8Array || await writeStored('files', key, bytes);
-  kept.notice = [opened, kept.stored ? '' : visitOnly].filter((text) => text !== '').join(' ') || null;
+  kept.previous = await readStored('files', `previous:${key}`) instanceof Uint8Array ? `previous:${key}` : null;
+  if (!webApp) {
+    const bytes = stored instanceof Uint8Array ? stored : await exported();
+    const opened = await host.OpenCarriedAsync(bytes, name);
+    kept.carried = key;
+    // A browser that keeps nothing holds the working copy for this visit only.
+    kept.stored = stored instanceof Uint8Array || await writeStored('files', key, bytes);
+    kept.notice = [opened, kept.stored ? '' : visitOnly].filter((text) => text !== '').join(' ') || null;
+    return;
+  }
+  const copy = stored !== null && typeof stored === 'object' && (stored as WebAppCopy).bytes instanceof Uint8Array ? stored as WebAppCopy : null;
+  let opened: string | null;
+  let outcome = 'opened';
+  if (copy === null || copy.carried === digest) {
+    opened = await host.OpenCarriedAsync(copy?.bytes ?? await exported(), name) || null;
+  } else {
+    ({ outcome, notice: opened } = JSON.parse(await host.CarryOverAsync(copy.bytes, await exported(), name)) as { outcome: string; notice: string | null });
+    // What could not come over stays in this browser, as the visitor left it.
+    if ((outcome === 'carriedPartly' || outcome === 'started') && await writeStored('files', `previous:${key}`, copy.bytes)) kept.previous = `previous:${key}`;
+  }
+  // Another tab is editing this app: this one keeps nothing, so it overwrites nothing.
+  kept.carried = outcome === 'readOnly' ? null : key;
+  kept.export = outcome === 'kept' ? copy!.carried : digest;
+  kept.stored = outcome === 'readOnly' || outcome === 'kept' || (copy !== null && copy.carried === digest)
+    || await writeStored('files', key, { carried: digest, bytes: host.ReadOpenFile() });
+  kept.notice = [opened ?? '', kept.stored ? '' : visitOnly].filter((text) => text !== '').join(' ') || null;
 }
 
 async function readPicture(host: BrowserHostExports, address: string): Promise<{ mediaType: string; base64: string } | null> {

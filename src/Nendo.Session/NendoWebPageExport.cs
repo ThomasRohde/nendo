@@ -19,13 +19,36 @@ public static class NendoWebPageExport
     private const string ModuleScript = "<script type=\"module\">";
 
     /// <summary>
-    /// Writes the page to <paramref name="destination"/>: a Duplicate of the service's file, made in a
-    /// folder of its own under the temporary folder and removed after, carried in the page at
-    /// <paramref name="templatePath"/>. A file larger than a page opens is refused with its size.
+    /// Writes the page to <paramref name="destination"/>: the page at <paramref name="templatePath"/>
+    /// carrying a Duplicate of the service's file (<see cref="BuildAsync"/>).
     /// </summary>
     public static async Task ExportAsync(
         NendoApplicationService service, string fileName, string templatePath, string destination,
         CancellationToken cancellationToken = default, long maximumFileBytes = MaximumFileBytes)
+    {
+        var page = await BuildAsync(service, fileName, templatePath, cancellationToken, maximumFileBytes);
+        // Written beside the destination and moved into place, so a failure leaves no half page,
+        // and an existing file is never replaced.
+        var staged = destination + $".{Guid.NewGuid():N}.partial";
+        try
+        {
+            await File.WriteAllTextAsync(staged, page, new UTF8Encoding(false), cancellationToken);
+            File.Move(staged, destination, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(staged)) File.Delete(staged);
+        }
+    }
+
+    /// <summary>
+    /// The page with a Duplicate of the service's file carried in it, made in a folder of its own
+    /// under the temporary folder and removed after. A file larger than a page opens is refused with
+    /// its size.
+    /// </summary>
+    internal static async Task<string> BuildAsync(
+        NendoApplicationService service, string fileName, string templatePath,
+        CancellationToken cancellationToken, long maximumFileBytes = MaximumFileBytes)
     {
         ArgumentNullException.ThrowIfNull(service);
         if (!File.Exists(templatePath))
@@ -42,19 +65,7 @@ public static class NendoWebPageExport
             if (length > maximumFileBytes)
                 throw new NendoPreconditionException("file-too-large",
                     $"{fileName} is {Mebibytes(length)} MiB; a web page opens files of up to {Mebibytes(maximumFileBytes)} MiB.");
-            var page = Carry(await File.ReadAllTextAsync(templatePath, cancellationToken), await File.ReadAllBytesAsync(copy, cancellationToken), fileName);
-            // Written beside the destination and moved into place, so a failure leaves no half page,
-            // and an existing file is never replaced.
-            var staged = destination + $".{Guid.NewGuid():N}.partial";
-            try
-            {
-                await File.WriteAllTextAsync(staged, page, new UTF8Encoding(false), cancellationToken);
-                File.Move(staged, destination, overwrite: false);
-            }
-            finally
-            {
-                if (File.Exists(staged)) File.Delete(staged);
-            }
+            return Carry(await File.ReadAllTextAsync(templatePath, cancellationToken), await File.ReadAllBytesAsync(copy, cancellationToken), fileName);
         }
         finally
         {

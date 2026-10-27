@@ -971,9 +971,13 @@ export interface WorkbenchClient {
    * Where the browser host keeps the open file: written back in place under this name, as an
    * exported page's working copy in this browser or for this visit only, or in the page only.
    */
-  keptAs?(): { held: KeptAs; name: string | null };
+  keptAs?(): { held: KeptAs; name: string | null; previous?: boolean };
+  /** A web app's working copy as it was before a newer export carried it over (ADR-0037). */
+  downloadPreviousCopy?(): Promise<void>;
   /** What the host has to say once it has started: an exported page held for this visit only (ADR-0035). */
   startNotice?(): Promise<string | null>;
+  /** An installed web app (ADR-0037): called with the step that moves to a newer published version. */
+  whenUpdateReady?(listener: (reload: () => Promise<void>) => void): void;
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
   /** Listen for custom-view frames whose renderer ended. */

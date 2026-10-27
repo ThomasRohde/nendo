@@ -81,6 +81,57 @@ public static partial class BrowserHost
         return await OpenWithOneWriterAsync(path) ?? string.Empty;
     }
 
+    /// <summary>
+    /// A web app's newer export (ADR-0037): opens the export the page carries and carries over the
+    /// changes the visitor made in the working copy this browser kept of an earlier export, by the
+    /// rules of Apply changes. Answers <c>{outcome, notice}</c>: <c>carried</c> when every change came
+    /// over, <c>carriedPartly</c> when some were left out, <c>started</c> when none could be and the
+    /// export opened as it is, <c>kept</c> when the page carries an older export than the working copy,
+    /// which is open instead, and <c>readOnly</c> when another tab is editing the export.
+    /// </summary>
+    [JSExport]
+    public static async Task<string> CarryOverAsync(byte[] previous, byte[] carried, string name)
+    {
+        Handler();
+        var session = _session!;
+        var previousPath = await WriteIntoPageAsync(name, previous);
+        string previousInstance;
+        await using (var copy = await NendoWriteCoordinator.OpenReadOnlyAsync(previousPath))
+            previousInstance = (await copy.GetDefinitionSnapshotAsync()).Manifest.InstanceId;
+        if (await OpenWithOneWriterAsync(await WriteIntoPageAsync(name, carried)) is { } readOnly) return Answer("readOnly", readOnly);
+
+        const string keptPrevious = "Download previous copy keeps your copy as it was.";
+        // Exactly the actions the visitor approved in their copy are approved here too, so the replay runs them.
+        await session.CarryApprovalAsync(previousInstance);
+        NendoWebPageChanges changes;
+        try
+        {
+            changes = await session.PrepareWebPageChangesAsync(previousPath);
+        }
+        catch (NendoPreconditionException refusal) when (refusal.Code == "web-page-no-changes")
+        {
+            return Answer("carried", null);
+        }
+        catch (NendoPreconditionException refusal) when (refusal.Code == "web-page-older-export")
+        {
+            var notice = await OpenWithOneWriterAsync(previousPath);
+            return Answer("kept", $"This page carries an older version of this app than the copy this browser keeps, so your copy is kept. {notice}".TrimEnd());
+        }
+        catch (NendoPreconditionException refusal)
+        {
+            return Answer("started", $"This app starts again from its newer version, because your changes cannot be carried to it: {refusal.Message} {keptPrevious}");
+        }
+        if (changes.Proposal is { } proposal && (await session.PromoteProposalAsync(proposal.ProposalId)).Promotion is { Applied: false } refused)
+            return Answer("started", $"This app starts again from its newer version, because your changes cannot be carried to it: {refused.Message} {keptPrevious}");
+        if (changes.LeftOut.Count == 0)
+            return Answer("carried", changes.Replayed == 0 ? null : "Your changes were carried to the newer version of this app.");
+        var leftOut = string.Join(" ", changes.LeftOut.Select(revision => $"{revision.Description}: {revision.Reason}"));
+        return Answer("carriedPartly",
+            $"Your changes were carried to the newer version of this app, except {(changes.LeftOut.Count == 1 ? "one" : $"{changes.LeftOut.Count}")}. {leftOut} {keptPrevious}");
+
+        static string Answer(string outcome, string? notice) => JsonSerializer.Serialize(new { outcome, notice });
+    }
+
     /// <summary>The open file's bytes as they stand, for the page to download; empty when nothing is open.</summary>
     [JSExport]
     public static byte[] ReadOpenFile() =>

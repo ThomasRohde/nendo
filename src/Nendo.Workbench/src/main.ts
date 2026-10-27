@@ -22,7 +22,7 @@ import { activePlan, overviewPlan, selectedSurfaceNode, sessionEntity } from './
 import { showsOverview } from './view-overview';
 import { overviewTitle } from './overview-model';
 import { client } from './client';
-import { announce, applyRail, applyTheme, content, historyBack, historyForward, interactionInProgress, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, showOutcome, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
+import { announce, applyRail, applyTheme, content, historyBack, historyForward, interactionInProgress, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, showOffer, showOutcome, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
@@ -469,6 +469,7 @@ async function initialise(): Promise<void> {
     // An exported page says when this browser will not keep its changes (ADR-0035).
     const startNotice = await client.startNotice?.();
     if (startNotice) showOutcome(startNotice);
+    client.whenUpdateReady?.((reload) => showOffer('A newer version of this app is published.', { label: 'Reload', run: reload }));
     // A window opened for a tab moved out of another shows that tab's place.
     if (client.mode === 'desktop') {
       const start = await client.request<TabWindowStart>('window.takeTab');

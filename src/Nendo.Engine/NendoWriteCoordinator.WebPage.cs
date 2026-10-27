@@ -29,8 +29,9 @@ public sealed partial class NendoWriteCoordinator
     /// Prepares the changes made in a web page exported from this file as one proposal (ADR-0035).
     /// <para>
     /// The working file must be of this application and descend from this file: a Duplicate of it,
-    /// whose identity transition names this file's instance. Its revisions after that transition are
-    /// the page's. Each becomes one mutation of the author's own operations, at the record versions
+    /// whose identity transition names this file's instance. When this file is itself an export, a
+    /// working file exported from the same source at or before it is its sibling, and its changes are
+    /// carried over the same way (ADR-0037). Its revisions after that transition are the page's. Each becomes one mutation of the author's own operations, at the record versions
     /// it was written at; the page's automatic effects are left for this file's own actions to make
     /// again, as they would for any proposal. A revision whose records this file changed since the
     /// export, or that follows one left out, is left out and named, and so is one this file's own
@@ -50,15 +51,19 @@ public sealed partial class NendoWriteCoordinator
         var pageHistory = await page.GetHistoryAsync(cancellationToken);
 
         // The page's own copy names the file it was exported from, and where that file stood then.
-        var export = pageHistory
-            .Where(revision => revision.Operations is [{ OperationType: "identity.transition" }])
-            .Select(revision => (Revision: revision, Transition: IdentityTransitionOperation.ParseCanonical(revision.Operations[0].CanonicalJson)))
-            .LastOrDefault(pair => pair.Transition.Kind == NendoIdentityCopyKind.Duplicate &&
-                pair.Transition.Source.InstanceId == active.InstanceId &&
-                pair.Transition.ResultInstanceId == pageManifest.InstanceId);
+        // This file, when it is itself an export, names its source the same way: a page exported from
+        // that source is its sibling (ADR-0037).
+        var ownExport = Exports(activeHistory).LastOrDefault(pair => pair.Transition.ResultInstanceId == active.InstanceId);
+        var export = Exports(pageHistory).LastOrDefault(pair => pair.Transition.ResultInstanceId == pageManifest.InstanceId &&
+            (pair.Transition.Source.InstanceId == active.InstanceId ||
+             ownExport.Revision is not null && pair.Transition.Source.InstanceId == ownExport.Transition.Source.InstanceId));
         if (export.Revision is null)
             throw new NendoPreconditionException("web-page-not-exported-here", $"{name} was not exported from {FileName}.");
         var exportedAt = export.Transition.Source.ChangeSequence;
+        var sibling = export.Transition.Source.InstanceId != active.InstanceId;
+        if (sibling && ownExport.Transition.Source.ChangeSequence < exportedAt)
+            throw new NendoPreconditionException("web-page-older-export",
+                $"{FileName} is an older export than {name}, so its changes are not carried to it.");
         var activeAtExport = activeHistory.SingleOrDefault(revision => revision.ChangeSequence == exportedAt);
         var pageAtExport = pageHistory.SingleOrDefault(revision => revision.ChangeSequence == exportedAt);
         if (active.ChangeSequence < exportedAt ||
@@ -72,16 +77,26 @@ public sealed partial class NendoWriteCoordinator
             throw new NendoPreconditionException("web-page-no-changes", $"{name} holds no changes made since it was exported.");
 
         // What this file did since the export, apart from what an earlier Apply brought from this page.
+        // A revision keeps the identity it was first made with in a page, so one carried from an
+        // earlier export and applied before is recognised whichever export brings it.
         var scope = $"{WebPageOrigin}/{pageManifest.InstanceId}";
-        var sinceExport = activeHistory.Where(revision => revision.ChangeSequence > exportedAt).ToArray();
-        var applied = sinceExport.Where(revision => revision.IdempotencyScope == scope)
-            .Select(revision => revision.IdempotencyKey).ToHashSet(StringComparer.Ordinal);
-        var ownChanges = sinceExport.Where(revision => revision.IdempotencyScope != scope).ToArray();
+        (string Scope, string Key) IdentityOf(NendoRevisionSnapshot revision) =>
+            revision.IdempotencyScope is { } carriedScope && carriedScope.StartsWith(WebPageOrigin + "/", StringComparison.Ordinal) &&
+            revision.IdempotencyKey is { } carriedKey ? (carriedScope, carriedKey) : (scope, revision.RevisionId);
+        var sinceExport = activeHistory.Where(revision => revision.ChangeSequence > exportedAt &&
+            revision.Operations is not [{ OperationType: "identity.transition" }]).ToArray();
+        var applied = sinceExport.Where(revision => revision.IdempotencyScope?.StartsWith(WebPageOrigin + "/", StringComparison.Ordinal) == true && revision.IdempotencyKey is not null)
+            .Select(revision => (revision.IdempotencyScope!, revision.IdempotencyKey!)).ToHashSet();
+        var pageIdentities = pageRevisions.Select(IdentityOf).ToHashSet();
+        var ownChanges = sinceExport.Where(revision => !(revision.IdempotencyScope is { } ownScope && revision.IdempotencyKey is { } ownKey &&
+            pageIdentities.Contains((ownScope, ownKey)))).ToArray();
         var movedHere = new TouchedKeys(ownChanges.SelectMany(revision => revision.Operations));
         var designChangedHere = ownChanges.Any(revision => revision.Lane == NendoRevisionLane.Definition);
         // The identity transition advanced the page's definition revision, so an operation that
-        // names the revision it expects names one more than this file had.
-        var definitionOffset = export.Revision.DefinitionRevisionAfter - export.Transition.Source.DefinitionRevision;
+        // names the revision it expects names one more than its source had; a sibling's own
+        // transition advanced this file's by as many.
+        var definitionOffset = export.Revision.DefinitionRevisionAfter - export.Transition.Source.DefinitionRevision -
+            (sibling ? ownExport.Revision.DefinitionRevisionAfter - ownExport.Transition.Source.DefinitionRevision : 0);
 
         var leftOut = new List<NendoWebPageLeftOut>();
         var poisoned = new TouchedKeys([]);
@@ -96,7 +111,7 @@ public sealed partial class NendoWriteCoordinator
         }
         foreach (var revision in pageRevisions)
         {
-            if (applied.Contains(revision.RevisionId)) { alreadyApplied++; continue; }
+            if (applied.Contains(IdentityOf(revision))) { alreadyApplied++; continue; }
             var touched = new TouchedKeys(revision.Operations);
             var reason = revision.Lane == NendoRevisionLane.Definition && designLeftOut
                 ? designChangedHere
@@ -109,7 +124,7 @@ public sealed partial class NendoWriteCoordinator
             {
                 try
                 {
-                    candidates.Add((revision, await ReplayMutationAsync(revision, scope, definitionOffset, page, cancellationToken), touched));
+                    candidates.Add((revision, await ReplayMutationAsync(revision, IdentityOf(revision), definitionOffset, page, cancellationToken), touched));
                     continue;
                 }
                 catch (NendoException refusal) { reason = refusal.Message; }
@@ -152,6 +167,12 @@ public sealed partial class NendoWriteCoordinator
             $"{FileName} refused too many of the changes from {name} to prepare them. Apply them in Nendo by hand.");
     }
 
+    /// <summary>Every Duplicate transition in a history, with the revision that holds it.</summary>
+    private static IEnumerable<(NendoRevisionSnapshot Revision, IdentityTransitionOperation Transition)> Exports(IEnumerable<NendoRevisionSnapshot> history) =>
+        history.Where(revision => revision.Operations is [{ OperationType: "identity.transition" }])
+            .Select(revision => (Revision: revision, Transition: IdentityTransitionOperation.ParseCanonical(revision.Operations[0].CanonicalJson)))
+            .Where(pair => pair.Transition.Kind == NendoIdentityCopyKind.Duplicate);
+
     /// <summary>The left-out revisions travel with the proposal, so its review names them.</summary>
     private async Task<NendoProposalPreview> NoteLeftOutAsync(string proposalId, IReadOnlyList<NendoWebPageLeftOut> leftOut, CancellationToken cancellationToken)
     {
@@ -180,14 +201,14 @@ public sealed partial class NendoWriteCoordinator
     /// the page stored and checked to be the same operation.
     /// </summary>
     private static async Task<NendoMutation> ReplayMutationAsync(
-        NendoRevisionSnapshot revision, string scope, long definitionOffset, NendoWriteCoordinator page, CancellationToken cancellationToken)
+        NendoRevisionSnapshot revision, (string Scope, string Key) identity, long definitionOffset, NendoWriteCoordinator page, CancellationToken cancellationToken)
     {
         var operations = new List<NendoOperation>();
         foreach (var stored in revision.Operations.Where(operation => operation.Attribution is null))
             operations.Add(await ReplayOperationAsync(stored, definitionOffset, page, cancellationToken));
         if (operations.Count == 0)
             throw new NendoPreconditionException("web-page-unreplayable", "It holds only changes the page's automatic actions made.");
-        return new NendoMutation(scope, revision.RevisionId, WebPageOrigin, revision.Description, operations).Validate();
+        return new NendoMutation(identity.Scope, identity.Key, WebPageOrigin, revision.Description, operations).Validate();
     }
 
     private static async Task<NendoOperation> ReplayOperationAsync(

@@ -7,16 +7,18 @@ import { defineConfig, type Plugin } from 'vite';
 const publicDir = new URL('./public/', import.meta.url);
 
 // The runtime's modules and the views' files are blob URLs made in the page; WebAssembly is
-// compiled from bytes the page carries; a view keeps the network it has in Nendo.
+// compiled from bytes the page carries; a view keeps the network it has in Nendo. Served as a web
+// app (ADR-0037), the page's own folder holds its manifest, service worker and icons ('self').
 const contentSecurityPolicy = [
   "default-src 'none'",
-  "img-src data: blob: https:",
+  "img-src 'self' data: blob: https:",
   "media-src data: blob: https:",
   "font-src data: blob:",
   "style-src 'unsafe-inline' blob:",
   "script-src 'unsafe-inline' blob: 'wasm-unsafe-eval'",
   "connect-src blob: data: https:",
-  "worker-src blob:",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
   "frame-src blob: data:",
   "form-action 'none'",
 ].join('; ');

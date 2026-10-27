@@ -298,6 +298,7 @@ export function renderFileMenu(): void {
       : item('session.createFile', 'New file', 'Start with an empty workspace', 'file', client.mode !== 'unavailable')}
     ${item('session.openFile', 'Open file…', 'Choose a Nendo file', 'open', client.mode !== 'unavailable')}
     ${client.mode === 'browser' ? item('download', 'Download file', downloadDetail(), 'export', state.session.fileName !== null) : ''}
+    ${client.keptAs?.().previous === true ? item('downloadPrevious', 'Download previous copy', 'Your copy as it was before this version of the app', 'history', true) : ''}
     <div class="file-menu-divider"></div><p class="file-menu-label">Copies</p>
     ${item('file.backup', 'Create backup…', 'Save a recovery copy', 'backup', local && state.session.capabilities.backup)}
     ${item('file.duplicate', 'Duplicate…', 'Another copy of this application', 'duplicate', local && state.session.capabilities.backup)}
@@ -350,6 +351,7 @@ export function wireFileActions(element: Element): void {
       if (method === 'about') openAboutFile();
       else if (method === 'customViews') void openCustomViews();
       else if (method === 'download') void client.downloadOpenFile?.();
+      else if (method === 'downloadPrevious') void client.downloadPreviousCopy?.();
       else if (method === 'session.createFile' || method === 'session.openFile') void chooseFile(method, null);
       else void runFileAction(method, button.dataset.recentId);
     });

@@ -4,7 +4,7 @@
 - **Date:** 2026-10-27
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** Pending. The exported page already runs from a static web server in Edge and Chrome (the browser host lane's served run)
+- **Evidence:** The browser host lane's served run (`Review-BrowserHost.ps1 -Served`, `Gate-WebApp.mjs`) in Edge and Chrome: installable by the browser's own check, offline, a republished version offered and moved to with Reload, a visitor's changes carried over with one left out, and the carried copy applied back to the source
 - **Amends:** ADR-0035 (a second export form; the working copy across a republish)
 - **Depends on:** ADR-0007, ADR-0010, ADR-0035, ADR-0036
 

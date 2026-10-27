@@ -121,6 +121,21 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         }
     }
 
+    /// <summary>
+    /// Whether this device approved exactly this behaviour in another instance of the application:
+    /// the copy a web app's newer export carries a visitor's changes over from (ADR-0037).
+    /// </summary>
+    internal bool IsGrantedIn(NendoBehaviourGrant required, string instanceId)
+    {
+        ArgumentNullException.ThrowIfNull(required);
+        lock (_sync)
+        {
+            Read();
+            return _grants.Any(stored => stored.InstanceId == instanceId &&
+                stored.Matches(required with { InstanceId = instanceId, DefinitionRevision = stored.DefinitionRevision }));
+        }
+    }
+
     /// <summary>Records consent for exactly this behaviour, in this file, at this revision.</summary>
     internal void Approve(NendoBehaviourGrant grant)
     {

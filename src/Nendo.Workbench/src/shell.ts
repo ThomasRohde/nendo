@@ -742,6 +742,14 @@ export function showUndoOffer(message: string, undo: () => Promise<void>, undone
   announce(message);
 }
 
+/** A success that offers a step and stays wherever the person goes, until it is taken or another notice replaces it. */
+export function showOffer(message: string, action: NonNullable<OutcomeNotice['action']>): void {
+  state.lastOutcome = { view: state.view, message, tone: 'done', everywhere: true, action };
+  const slot = messageSlot();
+  drawOutcome(slot, state.lastOutcome);
+  announce(message);
+}
+
 export function showKeptAlert(message: string, action?: OutcomeNotice['action']): void {
   state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'alert', kept: true, ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();
