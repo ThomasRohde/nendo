@@ -164,7 +164,9 @@ part. Nendo claims no universal undo.
   runs when opened and on **Validate**, over the file, or over what the editor shows with its
   waiting edits while a view is being edited, and says when the model has changed since.
   Choosing an issue opens what it names: the object on its view, outlined, or the concept,
-  view or folder in the tree. **Rules…** turns checks off, on this device.
+  view or folder in the tree. Each check is a setting the package declares (`check.` and the
+  rule's ID, ADR-0038): the file can turn one on or off for everyone who opens the model, and
+  **Rules…** or Nendo's Settings page keeps this computer's choice over it.
 - **Visualiser**, in Nendo's row, opens under the workbench archi-online's graph of the
   concept selected and those related to it, laid out by ELK from left to right. It follows the
   selection unless **Pin**ned. A click on a box selects its concept; a double-click makes it

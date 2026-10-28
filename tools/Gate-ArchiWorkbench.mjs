@@ -11,7 +11,9 @@ async (page) => {
   await page.goto('__BROKER_URL__');
   const assert = (value, message) => { if (!value) throw new Error(message); };
   const origin = await page.evaluate(() => window.broker.viewOrigin);
-  await page.evaluate(() => { window.broker.offerWrites(true); window.broker.offerChrome(true); window.broker.offerPlaces(true); });
+  // Archi's eight checks are settings its package declares (ADR-0038), all on by default.
+  const checksOn = Object.fromEntries(['invalid-relationship', 'unused-element', 'unused-relationship', 'empty-view', 'viewpoint', 'nested-elements', 'duplicate-name', 'junction'].map(id => [`check.${id}`, true]));
+  await page.evaluate(on => { window.broker.offerWrites(true); window.broker.offerChrome(true); window.broker.offerPlaces(true); window.broker.offerSettings(on); }, checksOn);
   await page.evaluate(value => window.broker.setFixture(value), fixture);
 
   let view = null;
@@ -174,6 +176,14 @@ async (page) => {
   await until(() => document.querySelectorAll('#validator-list [data-issue]').length === 8, null, 'Turning Nested elements off did not leave the eight duplicate names.');
   await setRule('nested-elements', true);
   await until(() => document.querySelectorAll('#validator-list [data-issue]').length === 72, null, 'Turning Nested elements on did not bring its 64 issues back.');
+  // Each choice is kept as this computer's value of the check's setting, and a change made on Nendo's
+  // Settings page reaches the validator.
+  const keptRules = await page.evaluate(() => window.broker.settingsKept.map(entry => `${entry.id}=${entry.value}`));
+  assert(keptRules.join(',') === 'check.nested-elements=false,check.nested-elements=true', `The rules dialog kept ${JSON.stringify(keptRules)}, not each choice as a setting.`);
+  await page.evaluate(on => window.broker.pushSettings({ ...on, 'check.nested-elements': false }), checksOn);
+  await until(() => document.querySelectorAll('#validator-list [data-issue]').length === 8, null, 'Turning Nested elements off in Settings did not reach the validator.');
+  await page.evaluate(on => window.broker.pushSettings(on), checksOn);
+  await until(() => document.querySelectorAll('#validator-list [data-issue]').length === 72, null, 'Turning Nested elements on in Settings did not bring its issues back.');
   // A change to the file says the list is of an earlier model, until Validate is pressed again.
   await page.evaluate(() => { window.broker.touch('ar.model', 'ar.model.r.model'); window.broker.pushChanges(); });
   await until(() => document.querySelector('#validator-list .stale')?.hidden === false, null, 'A change to the file did not mark the issues as of an earlier model.');

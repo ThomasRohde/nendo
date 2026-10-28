@@ -1313,16 +1313,16 @@ $('arm-settings').addEventListener('close', () => {
  * view is being edited it validates what the editor shows, waiting edits included. It runs when
  * opened and when asked, as Archi's does, and says when the model has changed since.
  */
-const RULES_KEY = 'archi-validator-rules';
+// Each check is a setting the package declares (ADR-0038), `check.` and the rule's ID: the file can
+// keep a model's checks for everyone, and this computer's choice wins. Nendo's Settings page shows
+// them under Archi; Configure here keeps this computer's.
+let ruleSettings = {};
 const SEVERITIES = [['error', 'Errors'], ['warning', 'Warnings'], ['advice', 'Advice']];
 const SOURCES = [['hammer', "Archi's checks"], ['integrity', 'Model integrity']];
 
 function validatorConfig() {
   const config = structuredClone(canvasModule.DEFAULT_VALIDATION_CONFIG);
-  try {
-    const off = JSON.parse(localStorage.getItem(RULES_KEY) ?? '[]');
-    if (Array.isArray(off)) for (const id of off) if (id in config.enabled) config.enabled[id] = false;
-  } catch { /* every rule on */ }
+  for (const id of Object.keys(config.enabled)) if (typeof ruleSettings[`check.${id}`] === 'boolean') config.enabled[id] = ruleSettings[`check.${id}`];
   return config;
 }
 
@@ -1446,8 +1446,13 @@ function configureRules() {
 }
 
 $('validator-config').addEventListener('close', () => {
-  const off = [...$('validator-config-list').querySelectorAll('input[data-rule]')].filter(box => !box.checked).map(box => box.dataset.rule);
-  try { localStorage.setItem(RULES_KEY, JSON.stringify(off)); } catch { /* kept for this visit only */ }
+  const was = validatorConfig();
+  const changed = [...$('validator-config-list').querySelectorAll('input[data-rule]')].filter(box => was.enabled[box.dataset.rule] !== box.checked);
+  for (const box of changed) ruleSettings = { ...ruleSettings, [`check.${box.dataset.rule}`]: box.checked };
+  if (nendo.has('settings.set')) {
+    Promise.all(changed.map(box => nendo.settings.set(`check.${box.dataset.rule}`, box.checked)))
+      .catch(error => setStatus(describe(error), true));
+  }
   validate();
 });
 
@@ -2819,6 +2824,10 @@ if (nendo === undefined) {
       nendo.on('command', command => { try { runCommand(command); } catch (error) { setStatus(describe(error), true); } });
     } else showOwnToolbar();
     nendo.on('changes', schedule);
+    if (nendo.has('settings.all')) {
+      nendo.settings.all().then(values => { ruleSettings = values ?? {}; if (state.validator.open) validate(); }).catch(() => undefined);
+      nendo.on('settingsChanged', values => { ruleSettings = values ?? {}; if (state.validator.open) validate(); });
+    }
     // A change of the file's definition, such as accepting the agent's record types, says so here.
     nendo.on('context', next => { state.readOnly = next.readOnly === true; checkAgentTypes().finally(schedule); });
     if (nendo.has('assistant.status')) {
