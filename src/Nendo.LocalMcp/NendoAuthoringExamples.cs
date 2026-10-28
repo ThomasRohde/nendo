@@ -57,6 +57,8 @@ internal static class NendoAuthoringExamples
             ACustomGraphFromTheFile(),
             PutACustomViewInTheFile(),
             AskTheAgentFromAView(),
+            GiveAnAppSettings(),
+            ChooseIcons(),
             TeachAnAgentThisFile(),
         ]));
 
@@ -196,6 +198,80 @@ internal static class NendoAuthoringExamples
                     packageId = "org.example.ask", path = "view.js",
                     text = "nendo.ready.then((view) => {\n  const button = document.getElementById('ask');\n  const answer = document.getElementById('answer');\n  if (!nendo.has('assistant.ask') || view.entityId === null) return;\n  button.hidden = false;\n  button.onclick = async () => {\n    button.disabled = true;\n    answer.textContent = 'Asking the agent…';\n    try {\n      const { reply } = await nendo.assistant.ask(\n        `Suggest three new records for ${view.title}. Create each as a record of ${view.entityId}, then say in one line what you added.`,\n        { context: [{ uri: `nendo://application/entity/${view.entityId}`, title: view.title }] });\n      answer.textContent = reply;\n    } catch (error) {\n      answer.textContent = error.message;\n    } finally {\n      button.disabled = false;\n    }\n  };\n  // The agent's records arrive as changes: draw the view's records again here.\n  nendo.changes.subscribe(() => {});\n});\n",
                 }),
+            ]),
+        ]);
+
+    /// <summary>
+    /// Settings an app declares (ADR-0038): Nendo draws them on its Settings page, the view reads
+    /// them through nendo.settings, and a shared value reaches the file as package.setSetting.
+    /// </summary>
+    private static NendoAuthoringExample GiveAnAppSettings() => new(
+        "give-an-app-settings",
+        "Give a view package settings the person changes on Nendo's Settings page, and keep one in the file for everyone who opens it.",
+        [
+            "settings on extension.setPackage declares them, as the settings key of nendo-package.json does: id, title, help, type (toggle, choice, number or text), default, layers, and options, min, max, unit or maxLength by type. It states the whole list each time, so leaving it out declares none.",
+            "layers says where a value may be kept: personal on each computer, shared in the file, or both, where this computer's value wins over the file's. Nendo draws every setting on its Settings page under the app, so they can be changed while views are off.",
+            "package.setSetting keeps a shared value in the file, in a later mutation than the package that declares it; value null clears it back to the default. A personal value is never in the file or over MCP: the view keeps it with nendo.settings.set.",
+            "The view reads its settings with nendo.settings.all(), each resolved as the person sees it, and hears a change with nendo.on('settingsChanged', ...). Check nendo.has('settings.all') first. Keep a choice the person makes in a settings dialog of the view's own as a setting, not in nendo.state or localStorage.",
+            "The first declared settings raise the file's minimum host to 1.57.0. nendo://application/extensions lists each package's settings with the values the file keeps.",
+        ],
+        [
+            new("Put the greeting view in the file with two settings",
+            [
+                Operation("extension.setPackage", new
+                {
+                    packageId = "org.example.greeting", title = "Greeting", entryPoint = "index.html", version = "1.0.0",
+                    settings = new object[]
+                    {
+                        new { id = "greeting", title = "Greeting", help = "The word the view opens with.", type = "text", @default = "Hello", layers = "both", maxLength = 40 },
+                        new { id = "showCount", title = "Show the count", help = "Whether the view says how many records it shows.", type = "toggle", @default = true, layers = "personal" },
+                    },
+                }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.greeting", path = "index.html",
+                    text = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Greeting</title>\n<p id=\"greeting\"></p>\n<script src=\"/_nendo/api.js\"></script>\n<script src=\"view.js\"></script>\n",
+                }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.greeting", path = "view.js",
+                    text = "nendo.ready.then(async (view) => {\n  const records = await nendo.view.loadRecords();\n  let settings = { greeting: 'Hello', showCount: true };\n  const draw = () => {\n    const count = settings.showCount ? `: ${records.length} records` : '';\n    document.getElementById('greeting').textContent = `${settings.greeting} from ${view.title}${count}.`;\n  };\n  if (nendo.has('settings.all')) {\n    settings = await nendo.settings.all();\n    nendo.on('settingsChanged', (values) => { settings = values; draw(); });\n  }\n  draw();\n});\n",
+                }),
+            ]),
+            new("Keep a greeting in the file for everyone",
+            [
+                Operation("package.setSetting", new { packageId = "org.example.greeting", settingId = "greeting", value = "Welcome" }),
+            ]),
+        ]);
+
+    /// <summary>
+    /// Chosen icons (ADR-0038): a record type's through schema.setEntityIcon, a screen's as its
+    /// root node's icon property, both names from Nendo's set.
+    /// </summary>
+    private static NendoAuthoringExample ChooseIcons() => new(
+        "choose-icons",
+        "Give a record type and a screen icons of their own from Nendo's set.",
+        [
+            "schema.setEntityIcon gives a record type an icon, drawn in the navigation, the tabs, the breadcrumb pickers, the command box and the front page. Send icon as null to go back to the icon Nendo guesses from the name.",
+            "A screen or a custom view takes an icon as its root node's icon property, in its ui.addNode properties or later with ui.setProperty. An unknown name there is the warning NUI461, and the screen keeps the guessed icon.",
+            "Every name is one nendo://application/icons lists, with the words it is found by; schema.setEntityIcon refuses any other. The first icon raises the file's minimum host to 1.56.0. The person can change either in Nendo, under Settings, Icons, or by right-clicking it in the navigation.",
+        ],
+        [
+            new("Create the Task record type",
+            [
+                Operation("schema.createEntity", new { entityId = "task", displayName = "Task" }),
+                Field("task", "taskTitle", "Title", "Text", true, "singleLine", []),
+                Field("task", "taskDue", "Due", "Date", false, "date", []),
+            ]),
+            new("Give the Task its icon, and a list with its own",
+            [
+                Operation("schema.setEntityIcon", new { entityId = "task", icon = "list-checks" }),
+                InlineNode("taskByDue", null, "recordList", 0, new()
+                {
+                    ["definitionVersion"] = 3, ["entityId"] = "task", ["title"] = "Tasks by due date", ["icon"] = "calendar-days",
+                }),
+                InlineNode("taskByDueTitle", "taskByDue", "fieldBinding", 0, new() { ["fieldId"] = "taskTitle" }),
+                InlineNode("taskByDueDue", "taskByDue", "fieldBinding", 1, new() { ["fieldId"] = "taskDue" }),
             ]),
         ]);
 

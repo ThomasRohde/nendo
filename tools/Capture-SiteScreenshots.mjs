@@ -350,6 +350,13 @@ try {
       });
     }
 
+    // Settings, as it opens: every setting of Nendo and of the file, each saying where it is kept.
+    await shot('settings', theme, async () => {
+      await clickFound('#nav-settings');
+      await ready();
+      await waitFor(() => evaluate(`!!document.querySelector('.settings-page .settings-rows')`), 'the Settings page', 12000);
+    });
+
     // The Agent page at Inspect, on its Launch card: the levels, the three cards and the agents
     // this computer has. The copy has its own device state, so the level is the run's alone.
     await shot('agent', theme, async () => {

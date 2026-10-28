@@ -64,6 +64,11 @@ public sealed class HostSkillTests
         StringAssert.Contains(markdown, "`validate`", StringComparison.Ordinal);
         StringAssert.Contains(markdown, "`schema.createEntity` takes entityId, displayName", StringComparison.Ordinal);
         StringAssert.Contains(markdown, "`create-entity-with-required-fields`", StringComparison.Ordinal);
+        // An agent building an app finds where the icon names and a package's settings are read, and an example of each.
+        StringAssert.Contains(markdown, "| `nendo://application/icons` |", StringComparison.Ordinal);
+        StringAssert.Contains(markdown, "| `nendo://application/extensions` |", StringComparison.Ordinal);
+        StringAssert.Contains(markdown, "`give-an-app-settings`", StringComparison.Ordinal);
+        StringAssert.Contains(markdown, "`choose-icons`", StringComparison.Ordinal);
         var vocabulary = ((TextResourceContents)(await client.ReadResourceAsync("skill://nendo-authoring/references/vocabulary.json")).Contents.Single()).Text;
         Assert.AreEqual(await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/vocabulary"), vocabulary, "The supporting file is the vocabulary read, byte for byte.");
 

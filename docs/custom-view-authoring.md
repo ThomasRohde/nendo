@@ -198,6 +198,7 @@ manifest as a file: the package row holds what it says, and export writes it aga
 | `version` | Optional. A semantic version such as `1.0.0`, at most 40 characters |
 | `entryPoint` | Default: `index.html`. It must be one of the package's files |
 | `description` | Optional. At most 1,000 characters |
+| `settings` | Optional. The settings the person changes on Nendo's Settings page ([Settings](#settings)) |
 
 ### Files
 
@@ -720,10 +721,51 @@ const later = await nendo.proposals.get(asked.proposalId);   // 'active' once ac
 - `opened` is false when Nendo could not open the review then; call `proposals.open`
   later.
 
+### Settings
+
+A choice the person makes about how your app behaves, such as a typeface, a text size or
+which checks run, is a setting. Declare it under `settings` in `nendo-package.json`, and
+Nendo draws it on its **Settings** page under your app, so it can be changed while your
+views are off. A setting says where its value may be kept with `layers`: `personal` on
+each computer, `shared` in the file for everyone who opens it, or `both`, where this
+computer's value wins over the file's.
+
+```json
+"settings": [
+  { "id": "size", "title": "Text size", "help": "How large the page draws its text.",
+    "type": "choice", "default": "medium", "layers": "both",
+    "options": [{ "value": "small", "label": "Small" }, { "value": "medium", "label": "Medium" },
+                { "value": "large", "label": "Large" }] },
+  { "id": "showCount", "title": "Show the count", "type": "toggle", "default": true, "layers": "personal" }
+]
+```
+
+`type` is `toggle`, `choice`, `number` or `text`. A choice lists its `options`; a number
+may have `min`, `max` and a `unit`; text may have a `maxLength`. The rules are under
+[Settings a package declares](contracts/custom-views.md#settings-a-package-declares).
+
+```js
+let settings = await nendo.settings.all();      // { size: 'medium', showCount: true }
+nendo.on('settingsChanged', values => { settings = values; draw(); });
+await nendo.settings.set('size', 'large');      // this computer's value; null takes it away
+```
+
+- Each value is the one the person sees: the default, then the file's value, then this
+  computer's. `nendo.settings.get(id)` reads one.
+- `nendo.settings.set` keeps this computer's value at once, for a setting whose layers
+  are `personal` or `both`, and every view of the package hears `settingsChanged`.
+- A value in the file is a change to the app: prepare `package.setSetting` with
+  `nendo.proposals.prepare`, and the person reviews it. An agent sends the same operation
+  in a change set (example `give-an-app-settings`).
+- Check `nendo.has('settings.all')` first, and draw with your defaults where it is missing.
+- Keep a setting here, not in `nendo.state` or `localStorage`: those are for what the
+  view remembers, such as a fold, a width or a draft.
+
 ### Keeping state
 
-A view keeps small JSON values with the file: a layout, a choice, a zoom level. They
-travel with the file, unlike `localStorage`, which stays on one computer.
+A view keeps small JSON values with the file: a layout, the open panel, a zoom level.
+They travel with the file, unlike `localStorage`, which stays on one computer. A choice
+the person would look for in Settings is a [setting](#settings) instead.
 
 ```js
 const saved = await nendo.state.get('layout');          // { key, value, version } or null
@@ -965,8 +1007,9 @@ kept and read by nothing when present.
 
 ### Configuration
 
-`configuration` is for a view's settings: which field is the start date, a default
-zoom, a colour scale. The view reads it parsed:
+`configuration` is how one view is set up: which field is the start date, a default
+zoom, a colour scale. A choice the person changes is a [setting](#settings) of the
+package instead. The view reads its configuration parsed:
 
 ```json
 "configuration": "{\"startField\":\"taskStarts\",\"zoom\":2}"

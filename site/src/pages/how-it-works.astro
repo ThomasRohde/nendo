@@ -220,12 +220,25 @@ const screens = [
   </section>
 
   <section class="page section">
+    <p class="eyebrow">Settings</p>
+    <h2>Every setting in one place.</h2>
+    <p class="lede">
+      Settings holds every setting of Nendo, of the open file and of the apps it carries,
+      and each says where it is kept: on this computer, for this file on this computer, or
+      in the file, which travels with it. An app declares its own settings, and Nendo draws
+      them here, so they can be changed while the app's views are off. Icons for each
+      record type and screen are chosen here too, from a searchable set.
+    </p>
+    <Shot name="settings" alt="The Settings page: a search box and the sections General, Agents, Custom views and This file on the left, and the general settings in groups, each labelled This computer" caption="Settings: each one says where it is kept." />
+  </section>
+
+  <section class="page section">
     <p class="eyebrow">Agents</p>
     <h2>Five access levels, one lease, no password.</h2>
     <p class="lede">
       Agents talk to a stateless MCP server that listens only on this computer, at
       <code>http://127.0.0.1:41763/mcp</code>; each further open file keeps a port of its
-      own. Twenty-seven resources are read-only and need no lease. There are
+      own. Twenty-eight resources are read-only and need no lease. There are
       twenty-eight tools. Two of them, <code>nendo.read.resource</code> and
       <code>nendo.read.list</code>, read the same resources and need no lease either;
       the ones that write need the lease.
