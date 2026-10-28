@@ -273,13 +273,19 @@ try {
   const pairAgain = await waitFor(async () => { const all = await workbenches(); return all.length === 2 ? all : null; }, 'a second tab window');
   const third = await attach(pairAgain.find(t => t.targetId !== first.targetId).targetId);
   await waitFor(async () => (await describe(third)).role === 'tab', 'the tab window');
-  const exiting = await bridge(third, 'diagnostics.exit');
-  assert(exiting.ok, `Exit was refused: ${JSON.stringify(exiting.error)}.`);
+  // The process can end before the page's answer comes back over the debugging port, and then the
+  // answer never comes: under the whole Desktop suite it did not, and waiting on it failed a Nendo
+  // that had exited. What T7 measures is the process ending; only a refusal that arrives fails it.
+  let exitRefused = null;
+  void bridge(third, 'diagnostics.exit').then(answer => { if (answer?.ok !== true) exitRefused = answer?.error ?? answer ?? 'no answer'; }, () => undefined);
   const alive = () => { try { process.kill(Number(processId), 0); return true; } catch { return false; } };
-  try { await waitFor(() => !alive(), 'the process to end on Exit', 20000); }
+  try { await waitFor(() => !alive() || exitRefused !== null ? true : null, 'the process to end on Exit', 20000); }
   catch { throw new Error(`T7 Exit left the process running with ${(await workbenches()).length} Workbench window(s) open.`); }
+  assert(exitRefused === null, `Exit was refused: ${JSON.stringify(exitRefused)}.`);
   check('T7 Exit ended the process with a tab window open');
   console.log('tab windows ok');
 } finally {
+  // An Exit whose answer never came leaves its command waiting: let the probe end now, not at its timeout.
+  for (const item of pending.values()) clearTimeout(item.timer);
   socket.close();
 }
