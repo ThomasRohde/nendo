@@ -128,7 +128,7 @@ public sealed class CsvReferenceCodeTests
         var coordinator = await workspace.CreateAsync();
         var service = new NendoApplicationService(coordinator);
         await SchemaAsync(coordinator, service);
-        var csv = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "tools", "bcm-atlas", "northstar-capabilities.csv"));
+        var csv = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "tests", "Nendo.Engine.Tests", "Fixtures", "Csv", "northstar-capabilities.csv"));
 
         Assert.AreEqual(635, await ImportAsync(service, csv));
         var records = (await service.GetSnapshotAsync()).Records.Where(record => record.EntityId == Entity).ToArray();

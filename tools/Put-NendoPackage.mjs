@@ -42,7 +42,7 @@ const option = name => { const index = args.indexOf(name); return index >= 0 ? a
 const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--endpoint', '--title', '--operations'].includes(args[index - 1]));
 const dryRun = args.includes('--dry-run');
 const accept = args.includes('--accept');
-if (!folder) fail('Name the package folder: node tools/Put-NendoPackage.mjs extensions/gantt');
+if (!folder) fail('Name the package folder: node tools/Put-NendoPackage.mjs extensions/systems-lens');
 
 async function readPackage() {
   const manifest = JSON.parse(await fs.readFile(path.join(folder, 'nendo-package.json'), 'utf8').catch(() =>

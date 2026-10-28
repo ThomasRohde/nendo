@@ -1,7 +1,0 @@
-{
-  "packageId": "org.nendo.deck",
-  "title": "Deck",
-  "version": "1.6.0",
-  "entryPoint": "index.html",
-  "description": "Slide decks: twenty-one layouts, six templates, whole designs and brand kits imported from Brandkits, slides arranged as in PowerPoint (drag, multi-select, cut, copy and paste, a slide sorter, undo), points that come one click at a time, transitions, a presenter console with a timer, the pace against the talk's length, a laser and a pen, rehearsal times kept on the slides, a deck check, and exports to one HTML file and to PowerPoint with editable slides, speaker notes, builds and transitions. The person's own agent writes a deck, reworks a slide as variants, or runs a mission."
-}

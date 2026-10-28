@@ -11,10 +11,10 @@ import { writeInfoFile } from './info-file.mjs';
 //    Workbench's own rules for a view's toolbar and menu (view-toolbar-model.ts), built here,
 //    so the broker refuses a declaration exactly as Nendo would.
 // argv[2] is where to write {pid, viewOrigin, brokerUrl}; argv[3] names the package folder,
-// relative to this file, defaulting to the offline dependency graph.
+// relative to this file or absolute, as nendo-apps names its own (ADR-0040), defaulting to Systems Lens.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repository = path.resolve(here, '..');
-const packageRoot = path.resolve(here, process.argv[3] ?? '../extensions/dependency-graph');
+const packageRoot = path.resolve(here, process.argv[3] ?? '../extensions/systems-lens');
 const apiPath = path.join(repository, 'src', 'Nendo.Workbench', 'dist', '_nendo', 'api.js');
 const protocol = await fs.readFile(path.join(repository, 'src', 'Nendo.Workbench', 'src', 'extension-api', 'protocol.ts'), 'utf8');
 const apiVersion = Number(/export const apiVersion = (\d+);/.exec(protocol)?.[1]);

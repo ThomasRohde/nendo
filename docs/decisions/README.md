@@ -50,3 +50,4 @@ itself, by topic, and the affected [contract](../contracts/) and
 | [0037](0037-an-exported-app-as-an-installable-web-app.md) | Accepted | An exported app as an installable web app: a folder with a manifest and a service worker; edits carried across a republish |
 | [0038](0038-settings-in-one-place.md) | Accepted | One Settings page; each setting kept on this computer, for this file here, or in the file; apps declare settings; chosen icons |
 | [0039](0039-nendo-runs-in-vs-code.md) | Proposed | Nendo runs in VS Code: an extension only, the Engine on WebAssembly inside it, VS Code's own UI wherever it has the element |
+| [0040](0040-apps-live-in-their-own-repository.md) | Accepted | The apps live in `nendo-apps` beside the host, use the host checkout next to them, and run in the host gate only with `-WithApps` |

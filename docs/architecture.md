@@ -887,9 +887,13 @@ runs `site/scripts/*.test.mjs`.
 
 ### App lanes
 
-Each view package under `extensions/` has its own lane, `tools/Review-<App>.ps1`, driving
-`tools/Gate-<App>.mjs`. An app-only change needs that lane plus `Test-Repository.ps1`.
-`Test-Production.ps1` runs every app lane except Garden's, which is run by hand.
+This repository keeps two reference apps under `extensions/`, Systems Lens (carried by Nendo
+Station) and Swarm. Every other app lives in `nendo-apps`, a repository beside this one
+([ADR-0040](decisions/0040-apps-live-in-their-own-repository.md)). Each app has its own lane,
+`tools/Review-<App>.ps1`, driving `tools/Gate-<App>.mjs`; an app's lane runs its view against
+this checkout's built `api.js` and fixture broker. `Test-Production.ps1` runs the two reference
+apps' lanes; `-WithApps` also runs `nendo-apps`'s `tools/Test-Apps.ps1` against the host it
+built.
 `Review-WorkbenchShell.ps1` is the Workbench shell's lane, run against the Vite dev
 server.
 

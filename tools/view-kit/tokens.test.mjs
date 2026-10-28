@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // A view stylesheet that says the value after each --nendo-* token is "that token as
 // 02-tokens.css declares it" must hold exactly that value, in both themes. The fallbacks are
 // what a page paints before api.js connects and when it runs outside Nendo, and three of them
 // still carried the palette Nendo had before Mica while their comments said otherwise.
-const repository = new URL('../../', import.meta.url);
-const tokens = readFileSync(new URL('src/Nendo.Workbench/src/styles/02-tokens.css', repository), 'utf8');
+// NENDO_PACKAGES_ROOT names another repository whose stylesheets to check, such as nendo-apps
+// (ADR-0040), and NENDO_PACKAGES_KNOWN the sheets it must find; the tokens are always this host's.
+const host = new URL('../../', import.meta.url);
+const repository = process.env.NENDO_PACKAGES_ROOT ? pathToFileURL(path.resolve(process.env.NENDO_PACKAGES_ROOT) + path.sep) : host;
+const tokens = readFileSync(new URL('src/Nendo.Workbench/src/styles/02-tokens.css', host), 'utf8');
+const known = (process.env.NENDO_PACKAGES_ROOT ? process.env.NENDO_PACKAGES_KNOWN ?? '' : process.env.NENDO_PACKAGES_KNOWN)?.split(',').filter(name => name.endsWith('.css')) ?? ['extensions/systems-lens/lens.css'];
 
 function block(css, opening) {
   const match = opening.exec(css);
@@ -34,8 +40,9 @@ const sheets = readdirSync(extensions, { withFileTypes: true }).filter(entry => 
   .sort();
 
 test('the view stylesheets that claim the Workbench tokens are found', () => {
-  for (const known of ['extensions/gantt/gantt.css', 'extensions/dependency-graph/graph.css', 'extensions/systems-lens/lens.css'])
-    assert.ok(sheets.includes(known), `${known} no longer says its fallbacks are the tokens, or was not found: ` + JSON.stringify(sheets));
+  assert.ok(known.length > 0, 'no stylesheet is named as known');
+  for (const sheet of known)
+    assert.ok(sheets.includes(sheet), `${sheet} no longer says its fallbacks are the tokens, or was not found: ` + JSON.stringify(sheets));
 });
 
 for (const sheet of sheets) {

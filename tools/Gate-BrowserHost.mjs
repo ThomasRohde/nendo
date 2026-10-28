@@ -6,7 +6,7 @@ async page => {
   const errors = [];
   const requests = [];
   // Served as a static site, the pages themselves are the only addresses the browser asks for.
-  const pageAddresses = ['__PAGE_URL__', '__STATION_PAGE_URL__', '__DECK_PAGE_URL__'];
+  const pageAddresses = ['__PAGE_URL__', '__STATION_PAGE_URL__', '__SWARM_PAGE_URL__'];
   try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const watch = (target) => {
@@ -79,49 +79,58 @@ async page => {
   assert(!(await page.evaluate(() => document.body.innerText.includes('Approval needed'))), 'The approval did not outlast the visit.');
   checks.push('the approval is kept across visits');
 
-  // Deck, opened through the File System Access picker so the page can write it back in place. The
+  // Swarm, opened through the File System Access picker so the page can write it back in place. The
   // picker is the browser's own dialog, which no lane can drive; a handle stands in for it here and
   // records what the page writes.
   await page.addInitScript((base64) => {
     const saved = { writes: 0, bytes: 0 };
     window.__nendoSaved = saved;
     window.showOpenFilePicker = async () => [{
-      kind: 'file', name: 'Deck.nendo',
+      kind: 'file', name: 'Swarm.nendo',
       requestPermission: async () => 'granted',
-      getFile: async () => new File([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], 'Deck.nendo'),
+      getFile: async () => new File([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], 'Swarm.nendo'),
       createWritable: async () => ({
         write: async (data) => { saved.bytes = data.byteLength ?? data.size ?? 0; },
         close: async () => { saved.writes += 1; },
       }),
     }];
-  }, '__DECK_BASE64__');
+  }, '__SWARM_BASE64__');
   await ready(page);
   await page.click('#file-menu summary');
   await page.click('#file-actions [data-file-action="session.openFile"]');
   await page.waitForSelector('[data-rail-place]', { timeout: 60000 });
-  const deckPlace = await page.$$eval('[data-rail-place]', list => list.find(b => b.textContent.trim() === 'Deck')?.dataset.railPlace);
-  await page.click(`[data-rail-place="${deckPlace}"]`);
-  await page.waitForSelector('iframe.view-frame', { timeout: 15000 });
-  const frameName = await page.$eval('iframe.view-frame', e => e.name);
-  let frame = null;
-  for (let i = 0; i < 120 && frame === null; i++) { frame = page.frame({ name: frameName }); if (frame === null) await page.waitForTimeout(250); }
-  assert(frame !== null, 'Deck\'s frame never started.');
-  await frame.waitForFunction(() => /^\d+ slides?$/.test(document.getElementById('deck-count')?.textContent ?? ''), null, { timeout: 30000 });
-  const before = await frame.evaluate(() => ({ origin: self.origin, slides: document.querySelectorAll('#slides > *').length }));
-  assert(before.origin === 'null', `Deck's frame has an origin of its own, not an opaque one: ${before.origin}.`);
-  assert(before.slides > 0, 'Deck drew no slides.');
-  checks.push('Deck\'s view draws in an opaque-origin frame');
+  const swarmFrame = async (target, label) => {
+    const place = await target.$$eval('[data-rail-place]', list => list.find(b => b.textContent.trim() === 'Swarm')?.dataset.railPlace);
+    assert(place !== undefined, `${label} has no Swarm place in the rail.`);
+    await target.click(`[data-rail-place="${place}"]`);
+    await target.waitForSelector('iframe.view-frame', { timeout: 15000 });
+    const name = await target.$eval('iframe.view-frame', e => e.name);
+    let found = null;
+    for (let i = 0; i < 120 && found === null; i++) { found = target.frame({ name }); if (found === null) await target.waitForTimeout(250); }
+    assert(found !== null, `${label}'s Swarm frame never started.`);
+    await found.waitForFunction(() => window.swarm?.model?.species, null, { timeout: 30000 });
+    return found;
+  };
+  // An experiment saved from the view's own toolbar command, which the host draws, and its dialog.
+  const saveExperiment = async (target, inFrame, name) => {
+    await target.click('[data-view-command="save-experiment"]:not([disabled])', { timeout: 15000 });
+    await inFrame.getByLabel('Name', { exact: true }).fill(name);
+    await inFrame.getByRole('button', { name: 'Save experiment', exact: true }).click();
+  };
+  const experiments = (inFrame) => inFrame.evaluate(() => document.querySelectorAll('.experiment-row').length);
+  const frame = await swarmFrame(page, 'The page');
+  const before = await frame.evaluate(() => ({ origin: self.origin, experiments: document.querySelectorAll('.experiment-row').length }));
+  assert(before.origin === 'null', `Swarm's frame has an origin of its own, not an opaque one: ${before.origin}.`);
+  checks.push('Swarm\'s view draws in an opaque-origin frame');
   const writesBefore = await page.evaluate(() => window.__nendoSaved.writes);
-  await frame.click('#add-slide');
-  await page.waitForSelector('[role="menuitem"]', { timeout: 10000 });
-  await page.click('[role="menuitem"] >> nth=0');
-  await frame.waitForFunction((n) => document.querySelectorAll('#slides > *').length === n + 1, before.slides, { timeout: 15000 })
-    .catch(() => { throw Error('Adding a slide in Deck changed nothing.'); });
+  await saveExperiment(page, frame, 'Browser host run');
+  await frame.waitForFunction((n) => document.querySelectorAll('.experiment-row').length === n + 1, before.experiments, { timeout: 15000 })
+    .catch(() => { throw Error('Saving an experiment in Swarm changed nothing.'); });
   await page.waitForFunction((n) => window.__nendoSaved.writes > n && window.__nendoSaved.bytes > 0, writesBefore, { timeout: 15000 })
-    .catch(() => { throw Error('The new slide was not written back to the file the person opened.'); });
-  checks.push('Deck\'s view writes, and the page saves it in place');
+    .catch(() => { throw Error('The new experiment was not written back to the file the person opened.'); });
+  checks.push('Swarm\'s view writes, and the page saves it in place');
   await page.click('#nav-history');
-  await page.waitForFunction(() => document.body.innerText.includes('by the custom view Deck'), null, { timeout: 15000 })
+  await page.waitForFunction(() => document.body.innerText.includes('by the custom view Swarm'), null, { timeout: 15000 })
     .catch(() => { throw Error('History does not show the view\'s write as the view\'s.'); });
   checks.push('History names the view');
 
@@ -129,7 +138,7 @@ async page => {
   const other = await page.context().newPage();
   watch(other);
   await ready(other);
-  await drop(other, '__DECK_BASE64__', 'Deck.nendo');
+  await drop(other, '__SWARM_BASE64__', 'Swarm.nendo');
   await other.waitForFunction(() => document.body.innerText.includes('open read-only here') || document.body.innerText.includes('Read-only'), null, { timeout: 15000 })
     .catch(() => { throw Error('A second tab opened the same file for editing.'); });
   await other.close();
@@ -152,12 +161,12 @@ async page => {
     page.waitForEvent('download', { timeout: 15000 }),
     page.click('#file-actions [data-file-action="download"]'),
   ]);
-  assert(download.suggestedFilename() === 'Deck.nendo', `Download named the file ${download.suggestedFilename()}.`);
+  assert(download.suggestedFilename() === 'Swarm.nendo', `Download named the file ${download.suggestedFilename()}.`);
   assert(await download.failure() === null, `Download failed: ${await download.failure()}.`);
   checks.push('Download keeps a copy');
 
   // An exported page (ADR-0035) carries its file and keeps the working copy in this browser's
-  // IndexedDB. Leaving the page releases its writer lock on Deck, which an exported Deck takes.
+  // IndexedDB. Leaving the page releases its writer lock on Swarm, which an exported Swarm takes.
   await page.goto('about:blank');
   const openExported = async (target, url) => {
     await target.goto(url);
@@ -245,36 +254,23 @@ async page => {
   checks.push('the exported page downloads its working file');
   await exported.close();
 
-  const deckExport = await page.context().newPage();
-  watch(deckExport);
-  await deckExport.setViewportSize({ width: 1440, height: 900 });
-  const deckFrame = async () => {
-    const place = await deckExport.$$eval('[data-rail-place]', list => list.find(b => b.textContent.trim() === 'Deck')?.dataset.railPlace);
-    await deckExport.click(`[data-rail-place="${place}"]`);
-    await deckExport.waitForSelector('iframe.view-frame', { timeout: 15000 });
-    const name = await deckExport.$eval('iframe.view-frame', e => e.name);
-    let found = null;
-    for (let i = 0; i < 120 && found === null; i++) { found = deckExport.frame({ name }); if (found === null) await deckExport.waitForTimeout(250); }
-    assert(found !== null, 'The exported Deck\'s frame never started.');
-    await found.waitForFunction(() => /^\d+ slides?$/.test(document.getElementById('deck-count')?.textContent ?? ''), null, { timeout: 30000 });
-    return found;
-  };
-  await openExported(deckExport, '__DECK_PAGE_URL__');
-  let slidesFrame = await deckFrame();
-  const slidesBefore = await slidesFrame.evaluate(() => document.querySelectorAll('#slides > *').length);
-  const deckKept = await keptCopies(deckExport);
-  await slidesFrame.click('#add-slide');
-  await deckExport.waitForSelector('[role="menuitem"]', { timeout: 10000 });
-  await deckExport.click('[role="menuitem"] >> nth=0');
-  await slidesFrame.waitForFunction((n) => document.querySelectorAll('#slides > *').length === n + 1, slidesBefore, { timeout: 15000 })
-    .catch(() => { throw Error('Adding a slide in the exported Deck changed nothing.'); });
-  await keptSettles(deckExport, deckKept, 'Deck\'s new slide');
-  await openExported(deckExport, '__DECK_PAGE_URL__');
-  slidesFrame = await deckFrame();
-  const slidesAfter = await slidesFrame.evaluate(() => document.querySelectorAll('#slides > *').length);
-  assert(slidesAfter === slidesBefore + 1, `Deck's new slide did not survive a reload: ${slidesBefore} slides before, ${slidesAfter} after.`);
-  checks.push('Deck\'s view write survives a reload');
-  await deckExport.close();
+  const swarmExport = await page.context().newPage();
+  watch(swarmExport);
+  await swarmExport.setViewportSize({ width: 1440, height: 900 });
+  await openExported(swarmExport, '__SWARM_PAGE_URL__');
+  let exportedFrame = await swarmFrame(swarmExport, 'The exported Swarm');
+  const experimentsBefore = await experiments(exportedFrame);
+  const swarmKept = await keptCopies(swarmExport);
+  await saveExperiment(swarmExport, exportedFrame, 'Exported page run');
+  await exportedFrame.waitForFunction((n) => document.querySelectorAll('.experiment-row').length === n + 1, experimentsBefore, { timeout: 15000 })
+    .catch(() => { throw Error('Saving an experiment in the exported Swarm changed nothing.'); });
+  await keptSettles(swarmExport, swarmKept, 'Swarm\'s new experiment');
+  await openExported(swarmExport, '__SWARM_PAGE_URL__');
+  exportedFrame = await swarmFrame(swarmExport, 'The reloaded Swarm');
+  const experimentsAfter = await experiments(exportedFrame);
+  assert(experimentsAfter === experimentsBefore + 1, `Swarm's new experiment did not survive a reload: ${experimentsBefore} experiments before, ${experimentsAfter} after.`);
+  checks.push('Swarm\'s view write survives a reload');
+  await swarmExport.close();
 
   // A browser that refuses storage holds the page's changes for the visit only, and says so.
   const refused = await page.context().newPage();

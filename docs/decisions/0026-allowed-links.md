@@ -7,7 +7,7 @@
 - **Evidence:** `LinkRuleTests`, `LinkRuleProtocolTests` and `link-rule-markup.test.mjs`
 - **Depends on:** ADR-0003, ADR-0005, ADR-0006, ADR-0007, ADR-0012, ADR-0020, ADR-0022
 - **Contract:** [relationships](../contracts/relationships.md#allowed-links)
-- **Related design:** [Archi in Nendo](../design/archi-in-nendo.md)
+- **Related design:** [Archi in Nendo](https://github.com/ThomasRohde/nendo-apps/blob/main/docs/design/archi-in-nendo.md), in `nendo-apps`
 
 ## Context
 

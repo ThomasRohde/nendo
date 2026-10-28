@@ -4,7 +4,7 @@
 - **Date:** 2026-10-01
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** `NewFileTests`, `NewFileSurfaceTests`, `BatchWriteToolTests` and `NewFileArchiMeasurementTests`
+- **Evidence:** `NewFileTests`, `NewFileSurfaceTests` and `BatchWriteToolTests`
 - **Amends:** ADR-0010 (a third copy kind, New), ADR-0020 (a new file's sequences restart past what it keeps) and ADR-0021 (New folds every revision, with no kept window)
 - **Depends on:** ADR-0003, ADR-0005, ADR-0006, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0021
 - **Contract:** [relationships](../contracts/relationships.md#what-a-new-file-keeps), [Studio](../contracts/studio.md#what-a-new-file-keeps)
@@ -104,7 +104,7 @@ one set of kept records), and not an import or merge.
 
 Concept type keeps its records by default; Specialization leaves them out. The nine top-level
 folders are marked kept; Model is left out, and the workbench creates an empty Model in a file
-that has none. `tools/Build-Archi.mjs` sets the default, the marks and the label *Archi model*.
+that has none. Archi's builder (`tools/Build-Archi.mjs` in `nendo-apps`) sets the default, the marks and the label *Archi model*.
 **New Archi model…** makes a file with 81 records.
 
 ## Consequences

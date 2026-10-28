@@ -1,14 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { version, fitBox, toneFor } from './nendo-view-kit.js';
 
 // The view kit is one versioned file that packages copy. A copy that drifts from the
 // source is a package carrying an older kit than its name says, so every copy is checked: every
 // extensions/<package>/kit/nendo-view-kit.js there is, found rather than listed, so a
-// package that copies the kit is checked from the day it does.
+// package that copies the kit is checked from the day it does. NENDO_PACKAGES_ROOT names another
+// repository whose packages to check, such as nendo-apps (ADR-0040), and NENDO_PACKAGES_KNOWN the
+// copies it must find.
 const source = readFileSync(new URL('./nendo-view-kit.js', import.meta.url));
-const extensions = new URL('../../extensions/', import.meta.url);
+const repository = process.env.NENDO_PACKAGES_ROOT ? pathToFileURL(path.resolve(process.env.NENDO_PACKAGES_ROOT) + path.sep) : new URL('../../', import.meta.url);
+const extensions = new URL('extensions/', repository);
+const known = (process.env.NENDO_PACKAGES_ROOT ? process.env.NENDO_PACKAGES_KNOWN ?? '' : process.env.NENDO_PACKAGES_KNOWN)?.split(',').filter(name => name.endsWith('nendo-view-kit.js')) ?? ['extensions/systems-lens/kit/nendo-view-kit.js'];
 const copies = readdirSync(extensions, { withFileTypes: true })
   .filter(entry => entry.isDirectory() && existsSync(new URL(`${entry.name}/kit/nendo-view-kit.js`, extensions)))
   .map(entry => `extensions/${entry.name}/kit/nendo-view-kit.js`).sort();
@@ -16,10 +22,10 @@ const copies = readdirSync(extensions, { withFileTypes: true })
 test('the kit says its version, and every copy a package carries is the kit byte for byte', () => {
   assert.match(version, /^\d+\.\d+\.\d+$/);
   assert.ok(source.toString('utf8').includes(`Nendo view kit ${version}`), 'the header does not name the version the file exports');
-  assert.ok(copies.includes('extensions/gantt/kit/nendo-view-kit.js') && copies.length >= 3,
-    'the search for kit copies found fewer than the packages known to carry one: ' + JSON.stringify(copies));
+  assert.ok(known.length > 0 && known.every(copy => copies.includes(copy)),
+    `the search for kit copies did not find every one known (${JSON.stringify(known)}; NENDO_PACKAGES_KNOWN names them for another repository): ` + JSON.stringify(copies));
   for (const copy of copies) {
-    assert.ok(readFileSync(new URL(`../../${copy}`, import.meta.url)).equals(source), `${copy} is not the kit in tools/view-kit: copy it again`);
+    assert.ok(readFileSync(new URL(copy, repository)).equals(source), `${copy} is not the kit in tools/view-kit: copy it again`);
   }
 });
 

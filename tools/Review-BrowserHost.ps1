@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
 The browser host lane (ADR-0035, ADR-0036): builds the one-page browser host and runs
-Gate-BrowserHost.mjs in Edge from file://, with copies of Nendo Station and Deck dropped onto it and
+Gate-BrowserHost.mjs in Edge from file://, with copies of Nendo Station and Swarm dropped onto it and
 exported as web pages by the code Export -> Web page runs. The exported Station's download is then
 applied back to its source by the code Apply changes from a web page runs (tools/WebPageRoundTrip.cs).
 
@@ -52,7 +52,7 @@ New-Item -ItemType Directory -Force $lane | Out-Null
 
 # The workspace files are read, never opened or written: their bytes are dropped onto the page.
 $station = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $repoRoot 'workspace/Nendo Station.nendo')))
-$deck = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $repoRoot 'workspace/Deck.nendo')))
+$swarm = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $repoRoot 'workspace/Swarm.nendo')))
 $fileUrl = { param($path) 'file:///' + ((Resolve-Path -LiteralPath $path).Path -replace '\\', '/') }
 # Exported pages, made as Export -> Web page makes them (ADR-0035), from copies of the workspace files
 # in a folder of this run's own: the copies are the sources the download is applied back to.
@@ -60,12 +60,12 @@ $roundTrip = Join-Path $PSScriptRoot 'WebPageRoundTrip.cs'
 $sources = Join-Path $lane "sources-$runId"
 New-Item -ItemType Directory -Force $sources | Out-Null
 $stationSource = Join-Path $sources 'Nendo Station.nendo'
-$deckSource = Join-Path $sources 'Deck.nendo'
+$swarmSource = Join-Path $sources 'Swarm.nendo'
 Copy-Item -LiteralPath (Join-Path $repoRoot 'workspace/Nendo Station.nendo') -Destination $stationSource
-Copy-Item -LiteralPath (Join-Path $repoRoot 'workspace/Deck.nendo') -Destination $deckSource
+Copy-Item -LiteralPath (Join-Path $repoRoot 'workspace/Swarm.nendo') -Destination $swarmSource
 $stationPage = Join-Path $lane 'Nendo Station.html'
-$deckPage = Join-Path $lane 'Deck.html'
-foreach ($export in @(@($stationSource, $stationPage), @($deckSource, $deckPage))) {
+$swarmPage = Join-Path $lane 'Swarm.html'
+foreach ($export in @(@($stationSource, $stationPage), @($swarmSource, $swarmPage))) {
     if (Test-Path -LiteralPath $export[1]) { Remove-Item -LiteralPath $export[1] }
     $made = & dotnet run $roundTrip -- export $export[0] $page $export[1] 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { throw "Export -> Web page failed for $($export[0]): $made" }
@@ -73,12 +73,12 @@ foreach ($export in @(@($stationSource, $stationPage), @($deckSource, $deckPage)
 $download = Join-Path $lane "downloaded-$runId.nendo"
 $pageUrl = & $fileUrl $page
 $stationUrl = & $fileUrl $stationPage
-$deckUrl = & $fileUrl $deckPage
+$swarmUrl = & $fileUrl $swarmPage
 $site = Join-Path $lane "site-$runId"
 $server = $null
 if ($Served) {
     # Published as a web host would: each page is the index.html of a folder of its own.
-    foreach ($published in @(@($page, ''), @($stationPage, 'station'), @($deckPage, 'deck'))) {
+    foreach ($published in @(@($page, ''), @($stationPage, 'station'), @($swarmPage, 'swarm'))) {
         $folder = Join-Path $site $published[1]
         New-Item -ItemType Directory -Force $folder | Out-Null
         Copy-Item -LiteralPath $published[0] -Destination (Join-Path $folder 'index.html')
@@ -106,11 +106,11 @@ if ($Served) {
     Remove-Item -LiteralPath $siteInfo
     $pageUrl = $siteUrl
     $stationUrl = "${siteUrl}station/"
-    $deckUrl = "${siteUrl}deck/"
+    $swarmUrl = "${siteUrl}swarm/"
 }
 $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-BrowserHost.mjs'))
-$probe = $probe.Replace('__PAGE_URL__', $pageUrl).Replace('__STATION_BASE64__', $station).Replace('__DECK_BASE64__', $deck)
-$probe = $probe.Replace('__STATION_PAGE_URL__', $stationUrl).Replace('__DECK_PAGE_URL__', $deckUrl)
+$probe = $probe.Replace('__PAGE_URL__', $pageUrl).Replace('__STATION_BASE64__', $station).Replace('__SWARM_BASE64__', $swarm)
+$probe = $probe.Replace('__STATION_PAGE_URL__', $stationUrl).Replace('__SWARM_PAGE_URL__', $swarmUrl)
 $probe = $probe.Replace('__DOWNLOAD_PATH__', ($download -replace '\\', '/'))
 $probePath = Join-Path $lane "probe-$runId.mjs"
 [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
@@ -189,7 +189,7 @@ try {
 }
 finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close | Out-Null
-    foreach ($scratch in @($probePath, $download, $stationPage, $deckPage)) {
+    foreach ($scratch in @($probePath, $download, $stationPage, $swarmPage)) {
         if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch }
     }
     if (Test-Path -LiteralPath $sources) { Remove-Item -LiteralPath $sources -Recurse }

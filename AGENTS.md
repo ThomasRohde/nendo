@@ -179,15 +179,23 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 
 - Run the narrowest applicable build and tests, plus `pwsh ./tools/Test-Repository.ps1`.
 - **Which gate a change needs:**
-  - An app-only change, one that touches nothing but a view package under
-    `extensions/`, its `tools/<app>/` folder and its own lane (`Review-<App>.ps1`,
-    `Gate-<App>.mjs`), needs that app's lane, with every new guard falsified, plus
-    `Test-Repository.ps1`. That is enough to commit and push it. No host code changed,
-    so the Engine, MCP, desktop and other apps' lanes cannot see it, and the
-    installer does not need rebuilding: the change reaches a file as a proposal.
+  - The apps live in `../nendo-apps`, beside this checkout, and use this checkout's
+    built view API, fixture broker, view kit and uploader
+    ([ADR-0040](docs/decisions/0040-apps-live-in-their-own-repository.md)). This
+    repository keeps two reference apps, Systems Lens (carried by Nendo Station) and
+    Swarm.
+  - An app change in `nendo-apps` needs that app's lane there
+    (`pwsh ./tools/Test-Apps.ps1 -Lane <App>`), with every new guard falsified. It never
+    needs this gate or a new installer: the app reaches a file as a proposal.
+  - A change to a reference app here, one that touches nothing but its package under
+    `extensions/`, its `tools/<app>/` folder and its own lane, needs that lane plus
+    `Test-Repository.ps1`.
   - A host change, anything under `src/` or `tests/`, a contract, an ADR or a
-    shared tool, needs the full gate below, and the installer is rebuilt.
-  - Run the full gate now and then across a run of app-only changes, not for each.
+    shared tool, needs the full gate below, and the installer is rebuilt. A change to
+    the view contract (`docs/contracts/custom-views.md`), the view kit or the tokens
+    runs it with `-WithApps`, which runs every app's lane in `nendo-apps` against the
+    host it built.
+  - Run the full gate with `-WithApps` now and then, not for each change.
 - For full validation use `pwsh ./tools/Test-Production.ps1`, which already
   includes the repository gate — do not run it twice. Use `-SkipRestore` only
   with unchanged dependencies. While it runs it writes where it has got to in

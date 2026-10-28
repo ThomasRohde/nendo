@@ -67,5 +67,5 @@ criteria, sources), **Evidence** (its checks and findings), **Handoff** (the log
 
 - **Screen checks.** The screens compile and the file is valid (`surfaces` reports no
   diagnostics), but no check measures how they lay out.
-- **The Work dependencies view** (`extensions/work-dependencies`) is not carried by the planner;
-  the package and its lane remain.
+- **The Work dependencies view** is not carried by the planner; the package and its lane are in
+  `nendo-apps` ([ADR-0040](../decisions/0040-apps-live-in-their-own-repository.md)).

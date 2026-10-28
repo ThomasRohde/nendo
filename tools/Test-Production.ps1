@@ -6,7 +6,10 @@ param(
     # under expiry and fills the proposal cap twice. Without them those tests report
     # Inconclusive, never a pass.
     [switch] $Inspector,
-    [switch] $Soak
+    [switch] $Soak,
+    # -WithApps also runs every app's lane in nendo-apps (ADR-0040), against this checkout: the
+    # repository NENDO_APPS names, or ../nendo-apps beside this one.
+    [switch] $WithApps
 )
 
 Set-StrictMode -Version Latest
@@ -77,17 +80,12 @@ $plannedSteps = @(
     , @('dotnet.Nendo.Desktop.Tests', 'Desktop tests')
     , @('tool-boundaries', 'Tool boundaries')
     , @('production-boundaries', 'Production boundaries')
-    , @('view.graph', 'Graph view')
-    , @('view.work-dependencies', 'Work dependencies view')
     , @('view.systems-lens', 'Systems Lens')
-    , @('view.gantt', 'Gantt')
-    , @('view.capability-atlas', 'Capability Atlas')
-    , @('view.archi', 'Archi workbench')
     , @('view.swarm', 'Swarm')
-    , @('view.manuscript', 'Manuscript')
     , @('agent-chat', 'Agent conversation')
     , @('workbench-shell', 'Workbench shell')
     , @('browser-host', 'Browser host')
+    if ($WithApps) { , @('apps', 'Apps in nendo-apps') }
     , @('repository', 'Repository')
 )
 # Earlier runs' logs and run folders go first; anything written in the last 12 hours stays.
@@ -150,7 +148,7 @@ try {
 
     Write-Host '== Tool boundaries =='
     Enter-GateStep 'tool-boundaries'
-    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs'), (Join-Path $PSScriptRoot 'info-file.test.mjs'), (Join-Path $PSScriptRoot 'gate-progress.test.mjs')) 'Package uploader, clipboard probe, fixture address file and gate progress boundaries'
+    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs'), (Join-Path $PSScriptRoot 'info-file.test.mjs'), (Join-Path $PSScriptRoot 'gate-progress.test.mjs'), (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs'), (Join-Path $PSScriptRoot 'view-kit/tokens.test.mjs')) 'Package uploader, clipboard probe, fixture address file, gate progress and view kit boundaries'
 
     Write-Host '== Production boundaries =='
     Enter-GateStep 'production-boundaries'
@@ -479,23 +477,12 @@ try {
     }
     Write-Host "OK       local MCP contracts exclude database paths, connections and credentials"
 
+    # The two reference apps (ADR-0040); every other app's lane is in nendo-apps, run by -WithApps.
     Write-Host '== Custom-view presentation =='
-    Enter-GateStep 'view.graph'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-NendoGraph.ps1')) 'Offline graph presentation'
-    Enter-GateStep 'view.work-dependencies'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-WorkDependencies.ps1')) 'Work-dependency view presentation'
     Enter-GateStep 'view.systems-lens'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-SystemsLens.ps1')) 'Systems Lens presentation'
-    Enter-GateStep 'view.gantt'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Gantt.ps1')) 'Gantt record-set presentation'
-    Enter-GateStep 'view.capability-atlas'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-BcmAtlas.ps1')) 'Capability Atlas presentation'
-    Enter-GateStep 'view.archi'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-ArchiWorkbench.ps1')) 'Archi workbench presentation'
     Enter-GateStep 'view.swarm'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Swarm.ps1')) 'Swarm behaviour, simulation and replay'
-    Enter-GateStep 'view.manuscript'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Manus.ps1')) 'Manuscript sheet, autosave and block identity'
 
     Write-Host '== Launched agent conversation =='
     Enter-GateStep 'agent-chat'
@@ -507,6 +494,16 @@ try {
     # ADR-0036. The browser host as one page from disk: the Engine on WebAssembly behind the Workbench.
     Enter-GateStep 'browser-host'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-BrowserHost.ps1'), '-SkipWorkbenchBuild') 'Browser host'
+
+    if ($WithApps) {
+        Write-Host '== Apps in nendo-apps =='
+        Enter-GateStep 'apps'
+        $appsRoot = [IO.Path]::GetFullPath($(if ($env:NENDO_APPS) { $env:NENDO_APPS } else { Join-Path $repoRoot '../nendo-apps' }))
+        $appsRunner = Join-Path $appsRoot 'tools/Test-Apps.ps1'
+        if (-not (Test-Path -LiteralPath $appsRunner)) { throw "-WithApps found no nendo-apps at $appsRoot. Clone it beside this checkout, or set NENDO_APPS." }
+        $env:NENDO_HOST = $repoRoot
+        Invoke-Checked 'pwsh' @('-NoProfile', '-File', $appsRunner) 'The apps in nendo-apps'
+    }
 
     Write-Host '== Repository =='
     Enter-GateStep 'repository'

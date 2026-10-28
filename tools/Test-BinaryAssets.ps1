@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+# Root checks another checkout's tracked binaries, such as nendo-apps (ADR-0040), without the host's
+# shipping list.
+param([string] $Root)
 
 # Every tracked binary, opened rather than counted.
 #
@@ -45,7 +47,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$repoRoot = [IO.Path]::GetFullPath($(if ($Root) { $Root } else { Join-Path $PSScriptRoot '..' }))
 $gitSafeRoot = $repoRoot.Replace('\', '/')
 
 Add-Type -Language CSharp -TypeDefinition @'
@@ -386,6 +388,7 @@ $shipping = @(
     'src/Nendo.Workbench/public/nendo-mark.png',
     'docs/assets/brand/nendo-mark.png'
 )
+if ($Root) { $shipping = @() }
 
 # quotePath off, or a non-ASCII path comes back quoted and octal-escaped and
 # names a file that does not exist.

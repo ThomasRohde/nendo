@@ -11,18 +11,16 @@ screens cannot: a graph, a Gantt chart, a map. Its code lives in the `.nendo` fi
 **package**. A view that is shown runs, inline in Nendo, in a frame of its own. There is
 nothing to install and nothing to allow.
 
-Worked examples, one folder each under `extensions/`, each with a README:
-[`dependency-graph`](../extensions/dependency-graph/README.md) (a general record graph),
-[`work-dependencies`](../extensions/work-dependencies/README.md) (the planner's
-dependency view), [`systems-lens`](../extensions/systems-lens/README.md) (the Nendo
-Station schematic), [`gantt`](../extensions/gantt/README.md) (a time line, also on a
-record page), [`bcm-atlas`](../extensions/bcm-atlas/README.md) (a capability map over
-any record type kept as a tree, configured by its view's configuration),
-[`garden`](../extensions/garden/README.md) (a notes workspace),
-[`archi`](../extensions/archi/README.md) (an ArchiMate modeller),
-[`swarm`](../extensions/swarm/README.md) (a behaviour playground),
-[`manuscript`](../extensions/manuscript/README.md) (a manuscript editor) and
-[`clay`](../extensions/clay/README.md) (a collect-anything app that grows its own
+Worked examples, one folder each under `extensions/`, each with a README. Two are here:
+[`systems-lens`](../extensions/systems-lens/README.md) (the Nendo Station schematic) and
+[`swarm`](../extensions/swarm/README.md) (a behaviour playground). The rest are in
+[`nendo-apps`](https://github.com/ThomasRohde/nendo-apps), a repository beside this one
+([ADR-0040](decisions/0040-apps-live-in-their-own-repository.md)): `dependency-graph` (a
+general record graph), `work-dependencies` (the planner's dependency view), `gantt` (a time
+line, also on a record page), `bcm-atlas` (a capability map over any record type kept as a
+tree, configured by its view's configuration), `garden` (a notes workspace), `archi` (an
+ArchiMate modeller), `deck` and `brandkits` (slide decks and the brand kits they use),
+`manuscript` (a manuscript editor) and `clay` (a collect-anything app that grows its own
 shape). Third-party code sits in a package's `vendor/` with its licence beside it. The
 Swarm's bpmn-js is under the bpmn.io licence, which requires its watermark to stay
 visible.
@@ -899,8 +897,8 @@ From a clone of this repository, with Nendo running, the file open and agent acc
 **Shape app**:
 
 ```powershell
-node tools/Put-NendoPackage.mjs extensions/gantt             # propose the folder
-node tools/Put-NendoPackage.mjs extensions/gantt --dry-run   # say what it would send
+node tools/Put-NendoPackage.mjs extensions/systems-lens             # propose the folder
+node tools/Put-NendoPackage.mjs extensions/systems-lens --dry-run   # say what it would send
 ```
 
 The script reads the folder as Import does, finds the running Nendo through the files
