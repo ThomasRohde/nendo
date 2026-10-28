@@ -4,10 +4,11 @@ import { deferWhileBusy } from './busy-queue';
 import { client } from './client';
 import { refuseWhileDirty } from './draft-guard';
 import { openAboutFile } from './file-actions';
+import { iconPictureUrl } from './file-look';
 import { escapeHtml, messageFor } from './format';
 import type { AgentAccessMode, LaunchableAgents, SettingSection, SettingView, SettingsView, ViewAgentAccess } from './host-types';
 import { loadsWebPictures, setLoadsWebPictures } from './media-model';
-import { type IconRow, type SettingRowState, iconKey, sectionOf, settingRowId, settingsPageMarkup, settingsProposal } from './settings-model';
+import { type IconRow, type SettingRowState, iconKey, purposeCount, sectionOf, settingRowId, settingsPageMarkup, settingsProposal } from './settings-model';
 import { allowsPersonal, allowsShared, type AppSettingDeclaration } from './app-settings-model';
 import { packageSettings } from './app-settings';
 import type { DesktopSessionView, SettingDescriptor } from './host-types';
@@ -37,6 +38,9 @@ let loading: Promise<void> | null = null;
 let unreadable: string | null = null;
 /** Changes to the file typed here and not yet reviewed, by setting ID. */
 const pending = fileScopedClearable(new Map<string, string>());
+/** The purpose while its text area is open, kept across a redraw; null while it is read. */
+let purposeDraft: string | null = null;
+fileScopedClearable({ clear(): void { purposeDraft = null; } });
 // The launch choices are the open file's: another file reads its own.
 fileScopedClearable({ clear(): void { launchable = null; } });
 
@@ -188,7 +192,7 @@ export function renderSettings(): void {
   const apps = appSections();
   if (state.settingsSection.startsWith('app:') && !apps.some(app => app.id === state.settingsSection)) state.settingsSection = 'file';
   content.innerHTML = settingsPageMarkup({ settings: [...described.settings, ...appSettingViews()], section: state.settingsSection, query: state.settingsQuery,
-    state: rowState, pending: pending.size, fileName: state.session.fileName, apps });
+    state: rowState, pending: pending.size, fileName: state.session.fileName, apps, fileCard: fileCard() });
   wireSettings();
   if (state.settingsRowId !== '') {
     const row = content.querySelector<HTMLElement>(`#${settingRowId(state.settingsRowId)}`);
@@ -199,6 +203,12 @@ export function renderSettings(): void {
       row.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])')?.focus();
     }
   }
+}
+
+/** The file's icon as the window draws it, and the purpose being edited. */
+function fileCard(): { look: { tone: string; letter: string; pictureUrl: string | null } | null; draft: string | null } {
+  const look = state.session.hasFile ? state.session.look ?? null : null;
+  return { look: look === null ? null : { tone: look.tone, letter: look.letter, pictureUrl: iconPictureUrl(look.icon, state.session.mediaOrigin) }, draft: purposeDraft };
 }
 
 function setting(id: string): SettingView | undefined {
@@ -239,6 +249,7 @@ function wireSettings(): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-link]')) button.addEventListener('click', () => {
     followLink(button.dataset.settingLink!);
   });
+  wirePurpose();
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-setting-reset]')) button.addEventListener('click', () => {
     void changeSetting(button.dataset.settingReset!, null);
   });
@@ -333,6 +344,38 @@ async function changeAppSetting(id: string, app: { packageId: string; declaratio
   if (state.view !== 'settings') return;
   rerender();
   content.querySelector<HTMLElement>(`#${settingRowId(id)} [aria-checked="true"][role="radio"], #${settingRowId(id)} button:not([disabled]), #${settingRowId(id)} input:not([disabled])`)?.focus();
+}
+
+/** The purpose's card: Edit purpose opens a text area, Done puts the change in the bar, Cancel or Escape leaves it. */
+function wirePurpose(): void {
+  const kept = (): string => pending.get('file.purpose') ?? state.session.manifest?.purpose ?? '';
+  const focusEdit = (): void => { content.querySelector<HTMLButtonElement>('[data-purpose-edit]')?.focus(); };
+  content.querySelector('[data-purpose-edit]')?.addEventListener('click', () => {
+    purposeDraft = kept();
+    rerender();
+    const area = content.querySelector<HTMLTextAreaElement>('[data-purpose-text]');
+    area?.focus();
+    area?.setSelectionRange(area.value.length, area.value.length);
+  });
+  const cancel = (): void => { purposeDraft = null; rerender(); focusEdit(); };
+  const done = (): void => {
+    const typed = purposeDraft ?? kept();
+    purposeDraft = null;
+    keepPending('file.purpose', typed);
+    focusEdit();
+  };
+  const area = content.querySelector<HTMLTextAreaElement>('[data-purpose-text]');
+  area?.addEventListener('input', () => {
+    purposeDraft = area.value;
+    const count = content.querySelector('#settings-purpose-count');
+    if (count) count.textContent = purposeCount(area.value.length, area.maxLength > 0 ? area.maxLength : 4000);
+  });
+  area?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); }
+    else if (event.key === 'Enter' && event.ctrlKey) { event.preventDefault(); done(); }
+  });
+  content.querySelector('[data-purpose-cancel]')?.addEventListener('click', cancel);
+  content.querySelector('[data-purpose-done]')?.addEventListener('click', done);
 }
 
 /** A change to the file waits in the bar until the person reviews it with the others. */

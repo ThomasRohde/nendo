@@ -1,5 +1,6 @@
 import { escapeAttribute, escapeHtml } from './format';
 import type { SettingHome, SettingSection, SettingView } from './host-types';
+import { lookIconMarkup } from './file-look';
 import { icon, type IconName } from './icons';
 
 /**
@@ -86,6 +87,58 @@ export interface SettingsPage {
   fileName: string | null;
   /** The apps the file carries that declare settings, each a section of its own. */
   apps?: { id: SettingSection; label: string }[];
+  /** With it, the look and the purpose are one card for the file; without it, two rows. */
+  fileCard?: FileCard;
+}
+
+/** What the file's card shows beside the purpose row's own state. */
+export interface FileCard {
+  /** The file's icon as the window draws it; null without a file. */
+  look: { tone: string; letter: string; pictureUrl: string | null } | null;
+  /** The purpose being edited, or null while it is read. */
+  draft: string | null;
+}
+
+/** A purpose as paragraphs: a blank line starts a new one. */
+export function purposeParagraphs(text: string): string[] {
+  return text.split(/\n[ \t]*\n/).map(paragraph => paragraph.trim()).filter(paragraph => paragraph !== '');
+}
+
+/** How much of the purpose's room is used, as the text area's count says it. */
+export function purposeCount(length: number, maximum: number): string {
+  return `${length.toLocaleString('en-GB')} of ${maximum.toLocaleString('en-GB')}`;
+}
+
+/**
+ * This file's card: its icon, its name and what it is for, which is prose of up to 4,000
+ * characters that agents and Help read first, so it is read as paragraphs and edited in a text
+ * area of several lines, never a one-line field. The look is changed in About this file.
+ */
+export function fileCardMarkup(purpose: SettingView, row: SettingRowState, lookRow: SettingRowState | null, card: FileCard, fileName: string | null): string {
+  const maximum = purpose.setting.maximum ?? 4000;
+  const text = String(row.value ?? '');
+  const glyph = card.look === null
+    ? `<span class="look-icon settings-file-plain" aria-hidden="true">${icon('file')}</span>`
+    : lookIconMarkup(card.look.tone, card.look.letter, card.look.pictureUrl);
+  const look = lookRow === null || lookRow.hidden ? ''
+    : `<button type="button" class="secondary-button" data-setting-link="file.look"${lookRow.disabled ? ' disabled' : ''}>${escapeHtml(lookRow.actionLabel ?? 'Change look')}</button>`;
+  const editing = card.draft !== null;
+  const edit = editing ? '' : `<button type="button" class="secondary-button" data-purpose-edit${row.disabled ? ' disabled' : ''}>${icon('edit')}<span>Edit purpose</span></button>`;
+  const paragraphs = purposeParagraphs(text);
+  const body = editing
+    ? `<label class="visually-hidden" for="settings-purpose">Purpose</label><textarea id="settings-purpose" class="settings-purpose-text" data-purpose-text rows="8" maxlength="${maximum}" spellcheck="true" aria-describedby="settings-purpose-count">${escapeHtml(card.draft ?? '')}</textarea>
+      <div class="settings-purpose-foot"><span>Plain text, read as written. A blank line starts a new paragraph.</span><span id="settings-purpose-count" class="settings-purpose-count">${purposeCount((card.draft ?? '').length, maximum)}</span><button type="button" class="secondary-button" data-purpose-cancel>Cancel</button><button type="button" class="primary-button" data-purpose-done>Done</button></div>`
+    : paragraphs.length === 0
+      ? '<p class="settings-purpose-empty">Nothing says what this file is for yet.</p>'
+      : `<div class="settings-purpose">${paragraphs.map(paragraph => `<p>${escapeHtml(paragraph)}</p>`).join('')}</div>`;
+  return `<section class="settings-file-card${row.pending ? ' is-pending' : ''}" id="${settingRowId('file.purpose')}" data-setting-row="file.purpose" aria-labelledby="${settingRowId('file.purpose')}-label">
+    <div class="settings-file-icon" id="${settingRowId('file.look')}">${glyph}</div>
+    <div class="settings-file-body">
+      <div class="settings-file-head"><strong id="${settingRowId('file.purpose')}-label">${escapeHtml(fileName ?? 'No file open')}</strong><span class="settings-home" data-home="${purpose.setting.home}">${escapeHtml(homeLabels[purpose.setting.home])}</span>${row.pending ? '<span class="settings-pending">Not reviewed</span>' : ''}<span class="settings-file-actions">${edit}${look}</span></div>
+      ${body}
+      ${purpose.setting.help ? `<p class="settings-help settings-file-note">${icon('agent')}<span>${escapeHtml(purpose.setting.help)}</span></p>` : ''}${row.disabled ? `<p class="settings-note">${escapeHtml(row.disabled)}</p>` : ''}
+    </div>
+  </section>`;
 }
 
 export function settingsQuery(query: string): string {
@@ -179,11 +232,20 @@ export function settingsPageMarkup(page: SettingsPage): string {
   const bar = page.pending > 0 ? `<div class="settings-changes" role="status"><p><strong>${page.pending === 1 ? '1 change to the file' : `${page.pending} changes to the file`}</strong> <span>${escapeHtml(`They apply to everyone who opens ${page.fileName ?? 'this file'} once you accept them.`)}</span></p><button type="button" class="secondary-button" data-settings-discard>Discard</button><button type="button" class="primary-button" data-settings-review>Review</button></div>` : '';
   const body = groups.length === 0
     ? `<p class="settings-empty">${searching ? 'No setting matches.' : 'Nothing to set here without a file.'}</p>`
-    : groups.map(group => `<section class="settings-group" aria-label="${escapeAttribute(group.title)}"><h3>${escapeHtml(group.title)}</h3><div class="settings-rows">${group.rows.map(view => settingRowMarkup(view, page.state(view))).join('')}</div></section>`).join('');
+    : groups.map(group => `<section class="settings-group" aria-label="${escapeAttribute(group.title)}"><h3>${escapeHtml(group.title)}</h3><div class="settings-rows">${groupRowsMarkup(page, group.rows)}</div></section>`).join('');
   return `<div class="settings-page">
     <aside class="settings-index" aria-label="Settings sections"><label for="settings-search">Find a setting</label><input id="settings-search" type="search" autocomplete="off" placeholder="Theme, port, views…" value="${escapeAttribute(page.query)}" /><nav aria-label="Sections">${index}</nav></aside>
     <section class="settings-list" aria-labelledby="settings-heading"><h2 id="settings-heading" class="visually-hidden" tabindex="-1">${escapeHtml(heading)}</h2>${bar}${searching ? `<p class="settings-count" role="status">${count === 1 ? '1 setting matches.' : `${count} settings match.`}</p>` : ''}${body}</section>
   </div>`;
+}
+
+/** A group's rows, the look and the purpose drawn as the file's card where the page has one. */
+function groupRowsMarkup(page: SettingsPage, rows: SettingView[]): string {
+  const purpose = page.fileCard ? rows.find(view => view.setting.id === 'file.purpose') : undefined;
+  if (page.fileCard === undefined || purpose === undefined) return rows.map(view => settingRowMarkup(view, page.state(view))).join('');
+  const look = page.settings.find(view => view.setting.id === 'file.look');
+  const card = fileCardMarkup(purpose, page.state(purpose), look ? page.state(look) : null, page.fileCard, page.fileName);
+  return rows.filter(view => view.setting.id !== 'file.look').map(view => view === purpose ? card : settingRowMarkup(view, page.state(view))).join('');
 }
 
 /** The proposal for the waiting changes: one mutation each, so each can be undone on its own. */

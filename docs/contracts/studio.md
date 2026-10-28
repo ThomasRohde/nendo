@@ -380,10 +380,15 @@ It opens as a page from **Settings** in the navigation, **Ctrl ,** and the comma
   `settings.set`. Shortcut hints and pictures from the web stay in the page storage of this device.
   A change made at the status line, the tray, the Agent page, Custom views or Health is the one
   Settings shows, and those places link to their row (*Also in Settings*).
+- **The file's card.** This file opens on a card in place of the Look and Purpose rows: the
+  file's icon as the window draws it (the mark with its badge, or its own picture), its name, and
+  its purpose as paragraphs, a blank line starting a new one; a single line break inside a
+  paragraph reads as a space, so a purpose wrapped by hand flows. **Edit purpose** turns the paragraphs
+  into a text area of several lines with a count of the 4,000 characters, **Cancel** (or Escape)
+  and **Done** (or Ctrl Enter). **Change look** opens About this file, where the look is changed.
 - **Changes to the file.** A purpose or a name for a new file typed here waits in **N changes to
   the file** with **Review** and **Discard**. Review prepares one proposal with an operation each
-  (`application.setPurpose`, `application.setNewFileLabel`) and opens Studio's review. The look is
-  changed in About this file.
+  (`application.setPurpose`, `application.setNewFileLabel`) and opens Studio's review.
 - **Icons.** This file → Icons has a row for each record type and each of the file's screens, with
   its icon and where it came from: *Chosen*, *Guessed from the name* or *Nothing guessed*. **Change**
   opens the icon picker: a search over the set's names and search words, its groups, the icons used

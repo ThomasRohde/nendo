@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-const { homeLabels, matchesSetting, sectionOf, settingGroups, settingRowMarkup, settingsPageMarkup, settingsProposal } = await bundleOf('src/settings-model.ts');
+const { fileCardMarkup, homeLabels, matchesSetting, purposeParagraphs, sectionOf, settingGroups, settingRowMarkup, settingsPageMarkup, settingsProposal } = await bundleOf('src/settings-model.ts');
 
 const setting = (id, section, group, title, home, kind, extra = {}) => ({ setting: { id, section, group, title, help: null, home, kind, store: 'x',
   options: null, minimum: null, maximum: null, unit: null, windowsOnly: false, needsFile: false, ...extra }, value: null, override: null });
@@ -55,6 +55,27 @@ test('a row that cannot change says why, and an environment variable makes it re
   const overridden = settingRowMarkup({ ...settings[1], override: 'NENDO_DESKTOP_CLOSE_ACTION' }, { value: false });
   assert.match(overridden, /data-setting-toggle="window.closeToTray" disabled/);
   assert.match(overridden, /NENDO_DESKTOP_CLOSE_ACTION sets this for the running Nendo\./);
+});
+
+test('this file opens on a card with its icon and its purpose as paragraphs, edited in a text area', () => {
+  const look = setting('file.look', 'file', 'Identity', 'Look', 'file', 'link');
+  const withLook = [look, ...settings];
+  const card = { look: { tone: 'blue', letter: 'P', pictureUrl: null }, draft: null };
+  const page = settingsPageMarkup({ settings: withLook, section: 'file', query: '', state: view => view.setting.id === 'file.look' ? { value: null, actionLabel: 'Change look' }
+    : { value: 'One.\n\nTwo, after a blank line.' }, pending: 0, fileName: 'Planner.nendo', fileCard: card });
+  assert.match(page, /class="settings-file-card" id="setting-file-purpose" data-setting-row="file\.purpose"/);
+  assert.match(page, /<span class="look-badge" data-tone="blue">P<\/span>/);
+  assert.match(page, /<strong id="setting-file-purpose-label">Planner\.nendo<\/strong>/);
+  assert.match(page, /<div class="settings-purpose"><p>One\.<\/p><p>Two, after a blank line\.<\/p><\/div>/);
+  assert.match(page, /data-setting-link="file\.look">Change look<\/button>/);
+  assert.doesNotMatch(page, /data-setting-row="file\.look"|data-setting-text="file\.purpose"/);
+  const editing = fileCardMarkup(settings[4], { value: 'One.' }, null, { ...card, draft: 'One. Two.' }, 'Planner.nendo');
+  assert.match(editing, /<textarea id="settings-purpose" class="settings-purpose-text" data-purpose-text rows="8" maxlength="4000"[^>]*>One\. Two\.<\/textarea>/);
+  assert.match(editing, /<span id="settings-purpose-count" class="settings-purpose-count">9 of 4,000<\/span>/);
+  assert.doesNotMatch(editing, /data-purpose-edit/);
+  const closed = fileCardMarkup(settings[4], { value: '', disabled: 'Open a file to choose this.' }, null, { look: null, draft: null }, null);
+  assert.match(closed, /No file open.*data-purpose-edit disabled.*Nothing says what this file is for yet\..*<p class="settings-note">Open a file to choose this\.<\/p>/s);
+  assert.deepEqual(purposeParagraphs('a\n  \n\nb\nc\n'), ['a', 'b\nc']);
 });
 
 test('changes to the file wait in one bar with Review and Discard', () => {

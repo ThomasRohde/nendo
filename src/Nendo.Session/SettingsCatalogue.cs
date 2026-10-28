@@ -106,7 +106,7 @@ internal static class SettingsCatalogue
 
         new("file.look", "file", "Identity", "Look",
             "The icon on the taskbar, in Alt+Tab and on notifications.", InTheFile, "link", "definition: application.setLook", NeedsFile: true),
-        new("file.purpose", "file", "Identity", "Purpose", "What the file is for, in a sentence agents and Help read first.",
+        new("file.purpose", "file", "Identity", "Purpose", "What the file is for. Agents read it first, and Help shows it on About this app.",
             InTheFile, "text", "definition: application.setPurpose", Maximum: 4000, NeedsFile: true),
         new("file.newFileLabel", "file", "Identity", "Name for a new file", "What File → New calls one more file of this application.",
             InTheFile, "text", "definition: application.setNewFileLabel", Maximum: 40, NeedsFile: true),

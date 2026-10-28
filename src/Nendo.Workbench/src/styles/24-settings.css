@@ -52,6 +52,30 @@
 .settings-text { width: min(320px, 40vw); }
 .settings-number:focus, .settings-text:focus { border-color: var(--cobalt); outline: 2px solid color-mix(in srgb, var(--cobalt) 22%, transparent); outline-offset: 0; }
 
+/* This file's card: the file's icon as the window draws it, its name and what it is for, read as
+   paragraphs and edited in a text area of several lines. */
+.settings-file-card { display: flex; gap: 20px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
+.settings-file-card.is-pending, .settings-file-card.is-target { border-color: var(--cobalt); }
+/* A flex box, or the look icon is an inline span whose size is ignored and its picture draws at its own. */
+.settings-file-icon { display: flex; flex: 0 0 auto; align-self: flex-start; }
+.settings-file-plain { display: grid; place-items: center; border-radius: var(--radius-panel); background: var(--surface-soft); }
+.settings-file-plain .outline-icon { width: 26px; height: 26px; }
+.settings-file-body { display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.settings-file-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 32px; }
+.settings-file-head strong { font-weight: 600; overflow-wrap: anywhere; }
+.settings-file-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.settings-purpose { display: flex; flex-direction: column; gap: 8px; max-width: 74ch; }
+/* Only a blank line starts a paragraph: a purpose wrapped by hand reads as one flowing paragraph. */
+.settings-purpose p { margin: 0; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+.settings-purpose-empty { margin: 0; color: var(--muted); }
+.settings-purpose-text { display: block; width: 100%; box-sizing: border-box; min-height: 172px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--ink); font: inherit; line-height: 1.55; resize: vertical; }
+.settings-purpose-text:focus { border-color: var(--cobalt); outline: 2px solid color-mix(in srgb, var(--cobalt) 22%, transparent); outline-offset: 0; }
+.settings-purpose-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
+.settings-purpose-foot > span:first-child { flex: 1 1 240px; }
+.settings-purpose-count { font-family: var(--mono); }
+.settings-file-note { display: flex; align-items: center; gap: 6px; }
+.settings-file-note .outline-icon { width: 14px; height: 14px; flex: 0 0 14px; }
+
 .settings-changes { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; max-width: 920px; padding: 10px 16px; border: 1px solid var(--cobalt); border-radius: var(--radius-control); background: var(--cobalt-soft); }
 .settings-changes p { flex: 1 1 280px; margin: 0; }
 .settings-changes p span { color: var(--muted); }
@@ -62,7 +86,8 @@
   .settings-switch[aria-checked="true"] .switch-glyph,
   .settings-choice button[aria-checked="true"],
   .settings-section[aria-current]::before { background: Highlight; }
-  .settings-row.is-pending, .settings-row.is-target { border: 3px solid Highlight; }
+  .settings-row.is-pending, .settings-row.is-target,
+  .settings-file-card.is-pending, .settings-file-card.is-target { border: 3px solid Highlight; }
 }
 
 /* A narrow window: the sections stack over the rows, and a row's control goes under its words. */
@@ -72,7 +97,7 @@
   .settings-index { border-right: 0; border-bottom: 1px solid var(--line); overflow: visible; }
   .settings-index nav { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .settings-list { overflow: visible; }
-  .settings-row { flex-wrap: wrap; }
+  .settings-row, .settings-file-card { flex-wrap: wrap; }
   .settings-row-control { justify-content: flex-start; }
 }
 

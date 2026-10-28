@@ -2980,13 +2980,54 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     await page.click('#nav-settings');
     await until(() => document.querySelector('[data-settings-section="file"]') !== null, null, 'the Settings page', 6000);
     await page.click('[data-settings-section="file"]');
-    await page.fill('[data-setting-text="file.purpose"]', 'Decisions we took and why');
-    await page.press('[data-setting-text="file.purpose"]', 'Tab');
+    await page.click('[data-purpose-edit]');
+    await page.fill('[data-purpose-text]', 'Decisions we took and why');
+    await page.click('[data-purpose-done]');
     await until(() => document.querySelector('.settings-changes') !== null, null, 'the changes bar', 4000);
     const bar = await page.evaluate(() => document.querySelector('.settings-changes strong')?.textContent);
     assert(bar === '1 change to the file', `the bar says ${JSON.stringify(bar)}.`);
     await page.click('[data-settings-review]');
     await until(() => document.querySelector('#studio-content')?.textContent?.includes('Say what this file is for'), null, 'the review of the purpose', 6000);
+  });
+
+  // The purpose is prose of up to 4,000 characters that agents and Help read first: a one-line
+  // field showed a few words of it (owner, 2026-10-28). Measured, not looked at: the card carries the
+  // file's icon, the purpose reads as paragraphs, and the editor is several lines across the card.
+  await check('the purpose reads beside the file\'s icon and edits in a text area of several lines', 'decision', async () => {
+    await page.click('#nav-settings');
+    await until(() => document.querySelector('[data-settings-section="file"]') !== null, null, 'the Settings page', 6000);
+    await page.click('[data-settings-section="file"]');
+    await until(() => document.querySelector('.settings-file-card') !== null, null, 'the file card', 4000);
+    const reading = await page.evaluate(() => ({
+      icon: document.querySelectorAll('.settings-file-card .settings-file-icon .look-icon img').length,
+      iconWidth: Math.round(document.querySelector('.settings-file-card .settings-file-icon .look-icon img')?.getBoundingClientRect().width ?? 0),
+      field: document.querySelectorAll('.settings-file-card input').length,
+      name: document.querySelector('.settings-file-head strong')?.textContent ?? '' }));
+    assert(reading.icon > 0 && reading.iconWidth >= 32 && reading.iconWidth <= 64 && reading.field === 0 && reading.name !== '',
+      `the file card showed ${JSON.stringify(reading)}: no icon, an icon not drawn at its 48 px, no name, or a one-line field.`);
+    await page.click('[data-purpose-edit]');
+    await until(() => document.querySelector('[data-purpose-text]') !== null, null, 'the purpose editor', 4000);
+    // A line break typed inside a paragraph is wrapping, not a break: the purpose below has one.
+    await page.fill('[data-purpose-text]', 'First paragraph of what\nthis file is for.\n\nA second paragraph, after a blank line.');
+    const editor = await page.evaluate(() => {
+      const area = document.querySelector('[data-purpose-text]');
+      const body = document.querySelector('.settings-file-body')?.getBoundingClientRect();
+      const box = area?.getBoundingClientRect();
+      const line = area ? parseFloat(getComputedStyle(area).lineHeight) : 0;
+      return { tag: area?.tagName ?? null, height: Math.round(box?.height ?? 0), line: Math.round(line), width: Math.round(box?.width ?? 0), body: Math.round(body?.width ?? 0),
+        count: document.querySelector('#settings-purpose-count')?.textContent ?? '', focused: document.activeElement === area };
+    });
+    assert(editor.tag === 'TEXTAREA' && editor.line > 0 && editor.height >= editor.line * 5 && editor.width >= editor.body * 0.9 && editor.focused,
+      `the purpose editor was ${JSON.stringify(editor)}: not a text area five lines tall across the card, or not focused.`);
+    assert(editor.count === '82 of 4,000', `the count said ${JSON.stringify(editor.count)}.`);
+    await page.click('[data-purpose-done]');
+    await until(() => document.querySelectorAll('.settings-purpose p').length === 2, null, 'the purpose as two paragraphs', 4000);
+    const first = await page.evaluate(() => {
+      const paragraph = document.querySelector('.settings-purpose p');
+      return { height: Math.round(paragraph.getBoundingClientRect().height), line: Math.round(parseFloat(getComputedStyle(paragraph).lineHeight)) };
+    });
+    assert(first.line > 0 && first.height < first.line * 1.5, `the first paragraph drew ${JSON.stringify(first)}: its typed line break was kept as a break.`);
+    await page.click('[data-settings-discard]');
   });
 
   await check('settings opens with no file and keeps this computer\'s settings', 'decision', async () => {
