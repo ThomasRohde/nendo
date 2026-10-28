@@ -291,29 +291,34 @@ export function renderFileMenu(): void {
     const elsewhere = tabWindow && mainWindowOnly.has(method);
     return `<button type="button" data-file-action="${method}" ${enabled && !elsewhere ? '' : 'disabled'}>${icon(glyph)}<span><strong>${label}</strong><small>${elsewhere ? 'In the main window' : detail}</small></span></button>`;
   };
+  // A page in a browser (ADR-0036) makes no copies, imports no CSV, reads no linked files and
+  // restores no backup: those items are left out there, not shown as buttons that never work.
+  const browser = client.mode === 'browser';
+  const desktop = (markup: string): string => browser ? '' : markup;
+  const section = (label: string, items: string): string => items.trim() === '' ? '' : `<div class="file-menu-divider"></div><p class="file-menu-label">${label}</p>${items}`;
   menu.innerHTML = `<div class="file-menu-heading">${escapeHtml(state.session.fileName ?? 'No file open')}</div>
     <button type="button" id="about-file" data-file-action="about" ${state.session.hasFile ? '' : 'disabled'}>${icon('file')}<span><strong>About this file</strong><small>What it is for, in the author's words</small></span></button>
     ${state.session.hasFile
-      ? item('file.newFile', escapeHtml(newFileMenuLabel(state.session.manifest?.newFileLabel)), 'This application, without this file’s work', 'file', local && state.session.capabilities.backup)
+      ? desktop(item('file.newFile', escapeHtml(newFileMenuLabel(state.session.manifest?.newFileLabel)), 'This application, without this file’s work', 'file', local && state.session.capabilities.backup))
       : item('session.createFile', 'New file', 'Start with an empty workspace', 'file', client.mode !== 'unavailable')}
     ${item('session.openFile', 'Open file…', 'Choose a Nendo file', 'open', client.mode !== 'unavailable')}
     ${client.mode === 'browser' ? item('download', 'Download file', downloadDetail(), 'export', state.session.fileName !== null) : ''}
     ${client.keptAs?.().previous === true ? item('downloadPrevious', 'Download previous copy', 'Your copy as it was before this version of the app', 'history', true) : ''}
-    <div class="file-menu-divider"></div><p class="file-menu-label">Copies</p>
+    ${section('Copies', desktop(`
     ${item('file.backup', 'Create backup…', 'Save a recovery copy', 'backup', local && state.session.capabilities.backup)}
     ${item('file.duplicate', 'Duplicate…', 'Another copy of this application', 'duplicate', local && state.session.capabilities.backup)}
     ${item('file.fork', 'Fork…', 'Start a separate application', 'fork', local && state.session.capabilities.backup)}
-    ${client.mode === 'browser' ? '' : item('file.webPage', 'Web page…', 'Export this app as one page, or apply changes made in one', 'export', local && state.session.capabilities.backup)}
-    <div class="file-menu-divider"></div><p class="file-menu-label">Data</p>
+    ${item('file.webPage', 'Web page…', 'Export this app as one page, or apply changes made in one', 'export', local && state.session.capabilities.backup)}`))}
+    ${section('Data', `${desktop(`
     ${item('file.importCsv', 'Import CSV…', 'Map fields and review batches of up to 100 new records', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${item('file.exportCsv', 'Export CSV…', 'Faithful UTF-8 values from one record type', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${state.session.entities.some(entity => !entity.retired && entity.fields.some(field => !field.retired && field.presentation === 'media'))
       ? item('file.embedLinkedPictures', 'Embed linked pictures…', 'Copy a record type’s linked picture files into this file', 'data', local && state.session.capabilities.mutate)
-      : ''}
-    ${item('customViews', 'Custom views…', 'The packages in this file, and whether views run here', 'surfaces', state.session.hasFile && client.mode !== 'unavailable')}
-    <div class="file-menu-divider"></div><p class="file-menu-label">Recovery</p>
+      : ''}`)}
+    ${item('customViews', 'Custom views…', 'The packages in this file, and whether views run here', 'surfaces', state.session.hasFile && client.mode !== 'unavailable')}`)}
+    ${section('Recovery', desktop(`
     ${item('file.restore', 'Restore backup…', 'Replace from a backup; retain this version', 'history', local && offersReplacement(state.session))}
-    ${item('file.resolveRecovery', 'Review recovery record…', 'Resolve an interrupted replacement', 'health', local)}
+    ${item('file.resolveRecovery', 'Review recovery record…', 'Resolve an interrupted replacement', 'health', local)}`))}
     <div class="file-menu-divider"></div>
     ${item('file.close', 'Close file', 'Return to the start screen', 'close', state.session.fileName !== null && client.mode !== 'unavailable')}`;
   wireFileActions(menu);

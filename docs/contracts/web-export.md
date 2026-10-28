@@ -130,7 +130,8 @@ included, and promotes them:
 | readOnly | Another tab is editing the app. | Opens without keeping anything. |
 
 After carriedPartly and started, the copy as it was is kept under `previous:` and the same key,
-and **Download previous copy** in the file menu saves it. An approval of automatic actions
+and **Download previous copy** in the file menu saves it. The page's file menu offers only what
+the page can do ([ADR-0036](../decisions/0036-nendo-runs-in-a-browser.md#what-the-browser-host-does-not-do)). An approval of automatic actions
 carries to the newer export when its automatic actions are exactly those approved
 (`DesktopBehaviourGrantStore.IsGrantedIn`); otherwise the page asks again.
 

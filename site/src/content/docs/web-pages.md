@@ -43,8 +43,10 @@ Double-click the `.html` file. The page opens the file it carries.
 - Pictures stored in the file are shown from the page. Pictures linked from the web load from
   their addresses.
 
-What the page does not have: agent access, a view's own browser storage across visits, and more
-than one tab writing at a time. A second tab on the same page opens it read-only.
+What the page does not have: agent access, a view's own browser storage across visits, more
+than one tab writing at a time, and the file menu's copies, CSV, linked pictures and recovery,
+which it leaves out. Its file menu offers **About this file**, **Open file…**, **Download file**,
+**Custom views…** and **Close file**. A second tab on the same page opens it read-only.
 
 ## Publish a page
 

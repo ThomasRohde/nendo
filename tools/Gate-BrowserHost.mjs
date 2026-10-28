@@ -225,6 +225,15 @@ async page => {
     .catch(() => { throw Error('The list edit did not survive a reload.'); });
   checks.push('a record page edit and a list edit survive a reload');
   await exported.click('#file-menu summary');
+  // The page offers only what it can do: no copies, CSV, linked pictures or recovery, and no
+  // button that is there but never works.
+  const offered = await exported.$$eval('#file-actions button', (buttons) => buttons.map((button) => ({ action: button.dataset.fileAction, disabled: button.disabled })));
+  const desktopOnly = ['file.newFile', 'file.backup', 'file.duplicate', 'file.fork', 'file.webPage', 'file.importCsv', 'file.exportCsv', 'file.embedLinkedPictures', 'file.restore', 'file.resolveRecovery'];
+  const stray = offered.filter((item) => item.disabled || desktopOnly.includes(item.action));
+  const labels = await exported.$$eval('#file-actions .file-menu-label', (items) => items.map((item) => item.textContent));
+  assert(stray.length === 0 && !labels.includes('Copies') && !labels.includes('Recovery'),
+    `The exported page's file menu offers ${JSON.stringify(stray)} under ${JSON.stringify(labels)}: an action this host cannot take, or a disabled one.`);
+  checks.push('the exported page\'s file menu offers only what the page can do');
   const keptDetail = await exported.textContent('#file-actions [data-file-action="download"]');
   assert(keptDetail.includes('This browser keeps your changes'), `Download does not say the browser keeps the changes: ${keptDetail}.`);
   const [stationDownload] = await Promise.all([

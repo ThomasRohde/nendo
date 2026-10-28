@@ -83,6 +83,10 @@ with nothing installed.
   name.
 - No sync-managed-location warning, recent-file list across devices, tabs in windows, or title
   bar integration.
+- No copies (Create backup, Duplicate, Fork, a new file of the application, Web page), CSV import
+  or export, embedding linked pictures, or recovery. The File menu leaves them out, with their
+  section, rather than showing them disabled: it offers About this file, Open file, Download file,
+  Custom views and Close file.
 - Custom views run as in [ADR-0035](0035-an-app-exported-as-one-web-page.md): opaque-origin
   frames, with the package loaded by the page.
 
