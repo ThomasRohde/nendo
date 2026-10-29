@@ -25,7 +25,7 @@ copy of its own, made the way **Duplicate…** makes one (see
 comes with Nendo.
 
 A file over 256 MiB is refused, and the message says how large it is. The page itself starts at
-about 10 MB, the size of the runtime it carries, plus your file compressed.
+about 23 MB, the size of the runtime it carries, plus your file compressed.
 
 ## Use a page
 

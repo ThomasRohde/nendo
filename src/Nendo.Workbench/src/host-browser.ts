@@ -2,6 +2,7 @@ import { DesktopWorkbenchClient, type WebViewBridge } from './host-desktop';
 import { protocolVersion } from './host';
 import type { KeptAs } from './host-types';
 import { showOpeningCard, type OpeningCard } from './page-opening';
+import { bytesFromBase64 } from './base64';
 
 /**
  * The browser host (ADR-0036): the same Engine and protocol handler, compiled to WebAssembly and
@@ -321,7 +322,7 @@ async function startRuntime(opening: OpeningCard | null): Promise<BrowserHostExp
   if (element === null) throw new Error('This page carries no browser host.');
   const { files, config } = JSON.parse(element.textContent ?? '{}') as RuntimeFiles;
   const raw = async (name: string): Promise<Uint8Array> => {
-    const gzipped = Uint8Array.from(atob(files[name]), (c) => c.charCodeAt(0));
+    const gzipped = bytesFromBase64(files[name]);
     return new Uint8Array(await new Response(new Blob([gzipped]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   };
   const base = new URL('_framework/', window.location.href).href;
@@ -470,7 +471,7 @@ async function openCarriedFile(host: BrowserHostExports): Promise<void> {
   const name = element.dataset.name ?? 'file.nendo';
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(carried)));
   const digest = [...hash].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-  const exported = async (): Promise<Uint8Array> => new Uint8Array(await new Response(new Blob([Uint8Array.from(atob(carried), (c) => c.charCodeAt(0))]).stream()
+  const exported = async (): Promise<Uint8Array> => new Uint8Array(await new Response(new Blob([bytesFromBase64(carried)]).stream()
     .pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   const webApp = document.querySelector('link[rel="manifest"]') !== null;
   const key = webApp ? `web-app:${new URL('./', window.location.href).href}` : `page-file:${digest}`;
@@ -521,7 +522,7 @@ function watchPictures(host: BrowserHostExports): void {
     let url = urls.get(address);
     if (url === undefined) {
       url = readPicture(host, address).then((picture) => picture === null ? null
-        : URL.createObjectURL(new Blob([Uint8Array.from(atob(picture.base64), (c) => c.charCodeAt(0))], { type: picture.mediaType })));
+        : URL.createObjectURL(new Blob([bytesFromBase64(picture.base64)], { type: picture.mediaType })));
       urls.set(address, url);
     }
     return url;

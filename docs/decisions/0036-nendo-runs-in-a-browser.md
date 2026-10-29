@@ -35,6 +35,8 @@ with nothing installed.
 
 - The Engine is built for `browser-wasm` from the same source. Calculations, automatic actions,
   proposals, history and compensation behave as in the Windows host.
+- A publish compiles the assemblies to WebAssembly ahead of time (`RunAOTCompilation`), so the
+  Engine is not interpreted in the page. A debug build stays interpreted.
 - The three Windows-only types sit behind an internal platform seam with a Windows and a
   browser implementation, chosen at run time. In the browser: a file's identity is its path in
   the page's file system, the instance guard is in-process, and a verified move is a move
@@ -71,6 +73,10 @@ with nothing installed.
 - Elsewhere, the page says the file is held in this page only, and **Download** saves a copy.
 - One page writes a file at a time. A second page opening the same application instance opens
   it read-only (the Web Locks API, keyed by application and instance ID).
+- Opening a file hashes its content once, in the inspection. The page's file system is in memory
+  that only this Engine writes, so the authority read under the write lease takes the
+  inspection's digest as its own rather than hashing every row again; its integrity check still
+  runs. The Windows host hashes the file again under the lease.
 - The browser host opens files up to 256 MiB, and names the size when it refuses one. The file,
   a proposal clone and a backup share one WebAssembly memory.
 - The file's pictures are read from the file by the page. Their addresses (`nendo-media://`) are
@@ -111,10 +117,12 @@ with nothing installed.
 
 ### Negative
 
-- The page carries the .NET runtime: several MB, against a few hundred KB for a page of data.
+- The page carries the .NET runtime compiled ahead of time: about 23 MB, against a few hundred KB
+  for a page of data.
 - The loader leans on the runtime's resource-loader hook, which `dotnet.d.ts` marks as not a
   public API with compatibility guarantees. A .NET upgrade must re-run the browser lane.
-- Building needs the `wasm-tools` workload, which links SQLite into the runtime.
+- Building needs the `wasm-tools` workload, which links SQLite into the runtime and compiles the
+  assemblies; the ahead-of-time publish takes about ten minutes.
 - Without the File System Access API, a person's work lives in the page until they download it.
 - A file's size is bounded by browser memory.
 
@@ -126,8 +134,8 @@ with nothing installed.
   replaces Microsoft.Data.Sqlite under the Engine and needs a worker and a server.
 - **Multithreaded WebAssembly:** needs cross-origin isolation headers, which a page opened from
   disk cannot send.
-- **Ahead-of-time compilation:** two to three times the download for speed the Engine does not
-  need.
+- **Interpreting the Engine:** about half the download, but opening a large file took about
+  twice as long, most of it in the Engine's inspection and content digest.
 
 ## Revisit triggers
 

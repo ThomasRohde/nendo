@@ -8,7 +8,19 @@ internal sealed partial class SqliteNendoStore
     private long _authorityDataVersion;
     private bool _authorityTainted;
     private string? _verifiedContentDigest;
+    private string? _inspectedContentDigest;
     internal long FullAuthorityScanCount { get; private set; }
+
+    /// <summary>
+    /// Takes the opening inspection's content digest as the first authority read's own, instead of
+    /// computing it again. Only where nothing but this Engine can reach the file between the two
+    /// reads: the browser page's in-memory file system (<see cref="BrowserFileSystem"/>).
+    /// </summary>
+    internal void AdoptInspectedContentDigest(string digest)
+    {
+        if (_authorityCache is not null) throw new InvalidOperationException("The authority has already been read.");
+        _inspectedContentDigest = digest;
+    }
 
     private async Task<NendoAuthoritySnapshot> ReadAuthoritySnapshotAsync(
         SqliteTransaction? transaction, CancellationToken cancellationToken)
@@ -29,7 +41,8 @@ internal sealed partial class SqliteNendoStore
         FullAuthorityScanCount++;
         // Use the same streaming, complete storage fingerprint as inspection:
         // includes raw canonical/inverse evidence and every protected/user row.
-        var digest = await ReadContentDigestAsync(cancellationToken, transaction);
+        var digest = _inspectedContentDigest ?? await ReadContentDigestAsync(cancellationToken, transaction);
+        _inspectedContentDigest = null;
         var manifest = await ReadManifestAsync(transaction, cancellationToken);
         var authority = new NendoAuthoritySnapshot(manifest.ApplicationId, manifest.InstanceId,
             manifest.DefinitionRevision, manifest.DataRevision, manifest.ChangeSequence, Guid.NewGuid().ToString("N"));

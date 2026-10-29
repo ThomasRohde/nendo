@@ -16,6 +16,10 @@
     <!-- Partial trimming keeps those assemblies whole, so the analysis's warnings about reflection
          describe code that is not removed. Desktop is not trimmed at all, for the same reason. -->
     <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <!-- A publish compiles the assemblies to WebAssembly ahead of time. Interpreted, opening a large
+         file took about twice as long; the page grows by about 9 MB gzipped, and the publish by
+         minutes. A debug build stays interpreted. -->
+    <RunAOTCompilation>true</RunAOTCompilation>
   </PropertyGroup>
 
   <ItemGroup>

@@ -23,6 +23,11 @@ for (const name of readdirSync(framework)) {
   builds.set(unprinted, name);
   files[name] = gzipSync(readFileSync(join(framework, name)), { level: 9 }).toString('base64');
 }
+// The page runs Nendo compiled ahead of time (ADR-0036): interpreted, a large file took twice as
+// long to open. The native module names each assembly it compiled; a publish without it has none.
+const native = readFileSync(join(framework, builds.get('dotnet.native.wasm') ?? 'dotnet.native.wasm')).toString('latin1');
+const interpreted = ['Nendo_Engine', 'Nendo_Session', 'Nendo_Browser'].filter((name) => !native.includes(`mono_aot_${name}_get_method`));
+if (interpreted.length > 0) throw new Error(`The runtime in ${framework} was not compiled ahead of time: ${interpreted.join(', ')}. Publish Nendo.Browser with RunAOTCompilation.`);
 const dotnetJs = readFileSync(join(framework, 'dotnet.js'), 'utf8');
 const config = JSON.parse(/\/\*json-start\*\/([\s\S]*?)\/\*json-end\*\//.exec(dotnetJs)[1]);
 

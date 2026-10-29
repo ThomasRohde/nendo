@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Nendo.Engine.Tests;
 
 /// <summary>
@@ -61,6 +63,48 @@ public sealed class BrowserFileSystemTests
         var copied = await copy.GetSnapshotAsync();
         Assert.AreNotEqual(original.Manifest.InstanceId, copied.Manifest.InstanceId);
         Assert.AreEqual(kind == NendoIdentityCopyKind.Duplicate, copied.Manifest.ApplicationId == original.Manifest.ApplicationId);
+    }
+
+    /// <summary>
+    /// A page's file is in memory only this Engine writes, so opening it hashes its content once,
+    /// in the inspection, where a desktop hashes it again under the write lease. Each pass over
+    /// every row took seconds in the page, whose runtime is the slowest place the Engine runs.
+    /// </summary>
+    [TestMethod]
+    public async Task APageHashesItsFileOnceWhenItOpensItWhereADesktopHashesItTwice()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var created = await workspace.CreateAsync();
+        workspace.Forget(created);
+        await created.DisposeAsync();
+
+        Assert.AreEqual(2, await CountContentDigestsAsync(workspace.FilePath, inPage: false), "A desktop open did not hash the file again under its lease.");
+        Assert.AreEqual(1, await CountContentDigestsAsync(workspace.FilePath, inPage: true), "A page hashed its file more than once to open it.");
+    }
+
+    private static readonly ActivitySource Scope = new("Nendo.Engine.Tests.BrowserFileSystem");
+
+    /// <summary>Content digests computed to observe and open the file, counted under this test's own parent activity.</summary>
+    private static async Task<int> CountContentDigestsAsync(string path, bool inPage)
+    {
+        using var page = inPage ? BrowserFileSystem.Use() : null;
+        var count = 0;
+        string? root = null;
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name is "Nendo.Engine.Startup" or "Nendo.Engine.Tests.BrowserFileSystem",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStarted = activity => { if (activity.OperationName == "engine.content-digest" && root is not null && activity.RootId == root) Interlocked.Increment(ref count); },
+        };
+        ActivitySource.AddActivityListener(listener);
+        using (var scope = Scope.StartActivity("count-digests")!)
+        {
+            root = scope.RootId;
+            var observed = await NendoWriteCoordinator.ObserveAsync(path);
+            await using var opened = await NendoWriteCoordinator.OpenObservedAsync(path, "digest-count", observed);
+            Assert.IsTrue(opened.Capabilities.Mutate);
+        }
+        return count;
     }
 
     private static string Digest(string path)

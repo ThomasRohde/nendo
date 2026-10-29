@@ -26,7 +26,7 @@ export function viewFrameDocument(files: ViewPackageFiles, entryPoint: string, a
 const frameLoader = `(() => {
   const { files, entryPoint, api } = JSON.parse(document.getElementById('p').textContent);
   const BASE = 'https://package.nendo-view.invalid/';
-  const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const bytes = (b64) => { if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(b64); const s = atob(b64); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
   const text = (file) => new TextDecoder().decode(bytes(file.base64));
   const urls = Object.create(null);
   const keyOf = (spec, from) => { try { const u = new URL(spec, BASE + from); return u.href.startsWith(BASE) ? decodeURIComponent(u.pathname.slice(1)) : null; } catch { return null; } };

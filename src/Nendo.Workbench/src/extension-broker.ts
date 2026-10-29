@@ -1,6 +1,7 @@
 import { exactEnvelope, inboundJson, plainJson, plainPage, plainRecord, plainSearchPage, plainTreePage } from './extension-model';
 import { blockedConditionsNotice } from './format';
 import { WorkbenchHostError, type BlockedCondition, type RecordSnapshot } from './host-types';
+import { bytesFromBase64 } from './base64';
 import {
   apiVersion, extensionLimits, hostKeys, utf8Length,
   type AssistantItem, type AssistantReply, type AssistantStatus,
@@ -893,7 +894,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       let mediaType = 'application/octet-stream';
       while (offset !== null) {
         const window = await deps.request('media.readWindow', { sha256: sha, offset }) as { base64: string; mediaType: string; nextOffset: number | null };
-        parts.push(Uint8Array.from(atob(window.base64), (character) => character.charCodeAt(0)));
+        parts.push(bytesFromBase64(window.base64));
         mediaType = window.mediaType;
         offset = window.nextOffset;
       }

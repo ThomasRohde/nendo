@@ -1,3 +1,4 @@
+import { bytesFromBase64 } from './base64';
 import { escapeHtml } from './format';
 import type { ProposalFileWindow } from './host-types';
 import { byteSize, hasHiddenCharacters, hiddenCharactersFileNote, showHiddenCharacters } from './package-diff-markup';
@@ -33,7 +34,7 @@ export async function readProposedFile(
     if (first === null) { first = window; total = window.totalBytes; }
     if (window.totalBytes > largestFile) throw new Error(`${target.path} is larger than a package file may be.`);
     if (window.sha256 !== first.sha256 || window.offset !== read) throw new Error(`${target.path} changed while it was read. Open the proposal again.`);
-    const bytes = decodeBase64(window.content);
+    const bytes = bytesFromBase64(window.content);
     if (bytes.length === 0) break;
     parts.push(bytes);
     read += bytes.length;
@@ -47,13 +48,6 @@ export async function readProposedFile(
   let text: string | null;
   try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { text = null; }
   return { mediaType: first.mediaType, sha256: digest, bytes, text };
-}
-
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
-  return bytes;
 }
 
 async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {

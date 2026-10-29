@@ -348,6 +348,10 @@ public sealed partial class NendoWriteCoordinator
             using var storeTiming = NendoStartupDiagnostics.Source.StartActivity("engine.coordinator.store-open");
             store = await SqliteNendoStore.OpenAsync(fullPath, cancellationToken);
             storeTiming?.Dispose();
+            // A page's file is in its own memory, which only this Engine writes, so the bytes
+            // under the lease are those the inspection hashed. Hashing every row again took
+            // seconds there; the authority read's integrity check still runs.
+            if (BrowserFileSystem.Active) store.AdoptInspectedContentDigest(expectedDigest);
             using var authorityTiming = NendoStartupDiagnostics.Source.StartActivity("engine.coordinator.authority");
             var authority = await store.GetAuthoritySnapshotAsync(cancellationToken);
             if (authority.InstanceId != expectedInstance || await store.GetContentDigestAsync(cancellationToken) != expectedDigest)
