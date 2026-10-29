@@ -127,7 +127,15 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
    * `browser` when the bridge is the browser host's runtime in this page (ADR-0036): the same
    * protocol and journal, without the Windows host's window, tabs and agents.
    */
-  constructor(private readonly bridge: WebViewBridge, readonly mode: 'desktop' | 'browser' = 'desktop') {
+  /**
+   * A browser host answers only once its runtime has started (ADR-0036), which takes seconds on a
+   * slow device: a request's time starts when this settles, so one sent while the page is still
+   * opening is not given up on before the host could read it. Null where the host is there at once.
+   */
+  private readonly started: Promise<void> | null;
+
+  constructor(private readonly bridge: WebViewBridge, readonly mode: 'desktop' | 'browser' = 'desktop', started: Promise<unknown> | null = null) {
+    this.started = started === null ? null : started.then(() => undefined, () => undefined);
     bridge.addEventListener('message', (event) => this.receive(event.data));
   }
 
@@ -227,20 +235,22 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     const requestId = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
       const waitMs = hostTimeoutMs(method);
-      const timeout = waitMs === null
-        ? null
-        : window.setTimeout(() => {
-            this.pending.delete(requestId);
-            reject(new WorkbenchHostError('host-timeout', 'The Desktop host did not respond.'));
-          }, waitMs);
-
-      this.pending.set(requestId, {
+      const entry: PendingRequest = {
         method,
         fileSessionId: this.fileSessionId,
         resolve: (value) => resolve(value as T),
         reject,
-        timeout,
-      });
+        timeout: null,
+      };
+      this.pending.set(requestId, entry);
+      if (waitMs !== null) {
+        const expire = (): void => {
+          this.pending.delete(requestId);
+          reject(new WorkbenchHostError('host-timeout', 'Nendo did not respond.'));
+        };
+        if (this.started === null) entry.timeout = window.setTimeout(expire, waitMs);
+        else void this.started.then(() => { if (this.pending.get(requestId) === entry) entry.timeout = window.setTimeout(expire, waitMs); });
+      }
       const envelope = { protocolVersion, requestId, method, fileSessionId: this.fileSessionId, boundedRead: true, payload };
       if (additionalObjects === undefined) this.bridge.postMessage(envelope);
       else this.bridge.postMessageWithAdditionalObjects!(envelope, additionalObjects);

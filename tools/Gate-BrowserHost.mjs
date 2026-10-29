@@ -197,8 +197,37 @@ async page => {
   const exported = await page.context().newPage();
   watch(exported);
   await exported.setViewportSize({ width: 1440, height: 900 });
+  // While it opens, the page shows the file and its four steps, each ticked with its time, and the
+  // card goes only once the file's first screen is there (page-opening.ts).
+  await exported.addInitScript(() => {
+    const seen = window.__opening = { shown: false, title: null, icon: null, states: {}, times: {}, removedWithRail: null };
+    const look = () => {
+      const card = document.querySelector('.page-opening');
+      if (card === null) {
+        if (seen.shown && seen.removedWithRail === null) seen.removedWithRail = document.querySelector('[data-rail-place]') !== null;
+        return;
+      }
+      seen.shown = true;
+      seen.title = card.querySelector('h2')?.textContent ?? null;
+      seen.icon = card.querySelector('img.page-opening-icon') ? 'picture' : card.querySelector('.page-opening-tile')?.textContent ? 'tile' : null;
+      for (const row of card.querySelectorAll('[data-step]')) {
+        const states = seen.states[row.dataset.step] ??= [];
+        if (!states.includes(row.dataset.state)) states.push(row.dataset.state);
+        const time = row.querySelector('.page-opening-time')?.textContent;
+        if (time) seen.times[row.dataset.step] = time;
+      }
+    };
+    new MutationObserver(look).observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
+  });
   await openExported(exported, '__STATION_PAGE_URL__');
   checks.push('an exported page opens the file it carries');
+  const opening = await exported.evaluate(() => window.__opening);
+  assert(opening.shown, 'The exported page showed no card while it opened.');
+  assert(opening.title === 'Opening Nendo Station' && opening.icon !== null, `The opening card did not show the file: ${JSON.stringify({ title: opening.title, icon: opening.icon })}.`);
+  const unticked = ['unpack', 'engine', 'file'].filter((step) => !(opening.states[step] ?? []).includes('running') || !(opening.states[step] ?? []).includes('done') || !/^\d+\.\d s$/.test(opening.times[step] ?? ''));
+  assert(unticked.length === 0 && (opening.states.draw ?? []).includes('running'), `The opening steps did not run in turn: ${JSON.stringify({ states: opening.states, times: opening.times })}.`);
+  assert(opening.removedWithRail === true, `The opening card did not wait for the file's first screen: ${opening.removedWithRail}.`);
+  checks.push('an exported page shows its opening steps until its file is drawn');
   // The page carries a Duplicate, a new instance, so its automatic actions are approved for it afresh.
   await exported.waitForFunction(() => document.body.innerText.includes('Approval needed'), null, { timeout: 30000 })
     .catch(() => { throw Error('The exported Station did not ask to approve its automatic actions.'); });

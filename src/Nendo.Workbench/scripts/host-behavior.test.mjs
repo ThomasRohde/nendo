@@ -39,6 +39,32 @@ function fixture({ hold = false } = {}) {
   return { state, values, requests, respond, deliver, client: () => module.createWorkbenchClient(),
     timeout: () => { const callbacks = [...timers.values()]; timers.clear(); callbacks.forEach(callback => callback()); } };
 }
+const desktop = await bundleOf('src/host-desktop.ts');
+
+// A browser host answers once its runtime has started, which takes seconds on a slow device: a
+// request sent while the page opens starts its time only then, so it is not given up on unread.
+test('a request to a browser host waits for its runtime to start before its time runs', { timeout: 2000 }, async () => {
+  const timers = new Map();
+  let timerId = 0;
+  globalThis.window = { location: { search: '' }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    setTimeout: callback => { timers.set(++timerId, callback); return timerId; }, clearTimeout: id => timers.delete(id) };
+  const sent = [];
+  let start;
+  const started = new Promise(resolve => { start = resolve; });
+  const client = new desktop.DesktopWorkbenchClient({ addEventListener() {}, postMessage: message => sent.push(message) }, 'browser', started);
+  const lost = client.request('session.getSnapshot').catch(error => error);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sent.length, 1, 'the request was not handed to the host');
+  assert.equal(timers.size, 0, 'the request\'s time ran while the runtime was still starting');
+  start();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(timers.size, 1, 'the request\'s time did not start once the runtime had started');
+  [...timers.values()].forEach(callback => callback());
+  const error = await lost;
+  assert.equal(error.code, 'host-timeout');
+  assert.equal(error.message, 'Nendo did not respond.');
+});
+
 const payload = key => ({ entityId: 'entity.generic', recordId: 'record-one', values: { 'field.title': 'Keep this exact value' }, idempotencyKey: key });
 const receipt = key => ({ revisionId: 'revision-' + key, operationDigest: 'digest-' + key,
   definitionRevision: 1, dataRevision: 1, changeSequence: 2, isIdempotentReplay: true });

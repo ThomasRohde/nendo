@@ -42,7 +42,7 @@ public sealed class WebAppExportTests
         var text = System.Text.Encoding.UTF8.GetString(page);
         StringAssert.Contains(text, "<link rel=\"manifest\" href=\"manifest.webmanifest\" />");
         Assert.IsLessThan(text.IndexOf("<title>", StringComparison.Ordinal), text.IndexOf("rel=\"manifest\"", StringComparison.Ordinal), "The manifest is not named in the head.");
-        StringAssert.Matches(text, new Regex("<script type=\"application/octet-stream\" id=\"nendo-file\" data-name=\"Station.nendo\">[A-Za-z0-9+/=]+</script>\n<script type=\"module\">"));
+        StringAssert.Matches(text, new Regex("<script type=\"application/octet-stream\" id=\"nendo-file\" data-name=\"Station.nendo\" data-tone=\"[a-z]+\" data-letter=\"S\">[A-Za-z0-9+/=]+</script>\n<script type=\"module\">"));
 
         using var manifest = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(folder, "manifest.webmanifest")));
         var root = manifest.RootElement;

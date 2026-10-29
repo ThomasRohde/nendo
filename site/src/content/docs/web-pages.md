@@ -29,7 +29,9 @@ about 10 MB, the size of the runtime it carries, plus your file compressed.
 
 ## Use a page
 
-Double-click the `.html` file. The page opens the file it carries.
+Double-click the `.html` file. The page opens the file it carries. That takes a few seconds, and
+until the first screen is there a card shows the file and the steps it is going through: Unpacking
+Nendo, Starting the engine, Opening the file and Drawing the first screen.
 
 - **Automatic actions** ask for approval first, as they do the first time Nendo opens a copy. Open
   **Health** and approve them. The approval is kept for the next visit.

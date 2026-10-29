@@ -1,0 +1,131 @@
+/* The card a page that carries a file shows on the layer while it opens (page-opening.ts): over
+   the layer, on canvas, with the file's picture or look, a bar and the four steps. */
+.page-opening {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--canvas);
+  border-radius: inherit;
+}
+
+.page-opening-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  width: min(420px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.page-opening-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-opening-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-panel);
+  object-fit: cover;
+}
+
+.page-opening-tile {
+  display: grid;
+  place-items: center;
+  background: var(--look-grey);
+  color: var(--look-letter);
+  font-size: 18px;
+  font-weight: 600;
+}
+.page-opening-tile[data-tone="red"] { background: var(--look-red); }
+.page-opening-tile[data-tone="orange"] { background: var(--look-orange); }
+.page-opening-tile[data-tone="amber"] { background: var(--look-amber); }
+.page-opening-tile[data-tone="green"] { background: var(--look-green); }
+.page-opening-tile[data-tone="teal"] { background: var(--look-teal); }
+.page-opening-tile[data-tone="blue"] { background: var(--look-blue); }
+.page-opening-tile[data-tone="violet"] { background: var(--look-violet); }
+
+.page-opening-titles h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.page-opening-titles p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.page-opening-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+.page-opening-bar > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cobalt);
+}
+
+.page-opening-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.page-opening-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+.page-opening-steps li[data-state="running"] { color: var(--ink); font-weight: 600; }
+.page-opening-steps li[data-state="done"] { color: var(--ink); }
+
+.page-opening-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.page-opening-steps li[data-state="waiting"] .page-opening-mark::before {
+  content: "";
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  border: 1.75px solid var(--line-strong);
+  border-radius: 50%;
+}
+.page-opening-steps li[data-state="done"] .page-opening-mark { color: var(--healthy); }
+.page-opening-mark .outline-icon { width: 16px; height: 16px; stroke-width: 2.25; }
+
+.page-opening-time {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.page-opening-note {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}

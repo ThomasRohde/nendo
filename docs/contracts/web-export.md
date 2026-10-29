@@ -51,7 +51,7 @@ installed Nendo exports with no network. It holds, in this order before its modu
 | `<template id="nendo-notices">` | The licences of everything the page carries: Nendo, the Workbench's packages and Lucide's icons, the .NET runtime and its third-party notices, and every NuGet package the runtime publishes, with SQLite's public-domain dedication. Inert: nothing reads it. |
 | `<script type="application/json" id="nendo-runtime">` | The .NET runtime's files, gzipped and base64, and its boot config. |
 | `<script type="application/json" id="nendo-view-api">` | The view API, `/_nendo/api.js`. |
-| `<script type="application/octet-stream" id="nendo-file" data-name="…">` | The exported file, gzipped and base64. Only an exported page has it. |
+| `<script type="application/octet-stream" id="nendo-file" data-name="…" data-tone="…" data-letter="…" data-icon="…">` | The exported file, gzipped and base64. Only an exported page has it. `data-tone` and `data-letter` are the file's look as it is drawn; `data-icon` is its own picture as a `data:image/png` URL, only when that is a PNG of up to 512 KiB. They are for the card the page shows while it opens. |
 
 The page's own code makes no network request, from disk or from a web server. Linked pictures
 load from their addresses, and a view keeps the network rule it has in Nendo. Agent access does
@@ -59,7 +59,14 @@ not exist in the page.
 
 ### Opening and keeping
 
-- The page opens the file it carries as it starts.
+- The page opens the file it carries as it starts. Until the file's first screen is drawn, a card on
+  the layer shows the file (its picture, else its tone and letter), "Opening {name}", a bar and
+  four steps, each ticked with the seconds it took: Unpacking Nendo, Starting the engine, Opening
+  {file name}, Drawing the first screen. The card goes when the page cannot open the file, or after
+  60 seconds.
+- A request the page sends while its runtime is still starting does not time out: its time starts
+  once the runtime has started. A request that then goes unanswered fails with "Nendo did not
+  respond."
 - The **working copy** is kept in the IndexedDB database `nendo-browser-host` (version 2, store
   `files`) under `page-file:` and the SHA-256 of the carried text. Each exported page has its own,
   and a new export starts from what it carries. The page writes it after each answer that
@@ -190,6 +197,9 @@ nothing reaches the file until the person accepts it.
 | Arrival, stale and refused revisions left out, other files refused, pictures | `tests/Nendo.Engine.Tests/WebPageChangesTests.cs` |
 | The notice's sentences | `tests/Nendo.Session.Tests/WebPageChangesNoticeTests.cs` |
 | Exported Station and Swarm open, edit, keep across a reload, download; refused storage; no network; the download applies back | `tools/Review-BrowserHost.ps1` with `tools/Gate-BrowserHost.mjs` and `tools/WebPageRoundTrip.cs`. The gate runs it in Edge from disk; `-Browser chrome` or `firefox`, `-Served` (a static site on a loopback port) and `-Page` (an installed page) run the same checks elsewhere. |
+| The opening card: the file's name and picture, the four steps in turn with their times, gone once the file's first screen is drawn | `tools/Gate-BrowserHost.mjs`, on the exported Station |
+| A request's time starts only once the runtime has started; the timeout says "Nendo did not respond." | `src/Nendo.Workbench/scripts/host-behavior.test.mjs` |
+| The look and picture carried beside the file, a picture only as a PNG within its limit | `tests/Nendo.Session.Tests/WebPageExportTests.cs` |
 | A view's package files asked for while it runs: a script, stylesheet and picture by property and attribute, a module worker that imports a module, fetches and receives an early message, a classic worker that imports scripts and fetches, under the page's content-security policy | `tools/View-FrameLoads.mjs`, in the same lane |
 | The web app folder: its files, the manifest, the stamped worker, the icons; a folder that is not empty is refused and left as it was | `tests/Nendo.Session.Tests/WebAppExportTests.cs` |
 | A visitor's changes carry to a newer export of the same source and are applied once; an older export is refused | `tests/Nendo.Engine.Tests/WebPageChangesTests.cs` |

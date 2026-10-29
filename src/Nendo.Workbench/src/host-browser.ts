@@ -1,6 +1,7 @@
 import { DesktopWorkbenchClient, type WebViewBridge } from './host-desktop';
 import { protocolVersion } from './host';
 import type { KeptAs } from './host-types';
+import { showOpeningCard, type OpeningCard } from './page-opening';
 
 /**
  * The browser host (ADR-0036): the same Engine and protocol handler, compiled to WebAssembly and
@@ -15,7 +16,10 @@ import type { KeptAs } from './host-types';
 /** The page carries the runtime's files here, gzipped and base64, with the runtime's boot config. */
 export const browserRuntimeId = 'nendo-runtime';
 
-/** An exported page (ADR-0035) carries its file here, gzipped and base64, named by `data-name`. */
+/**
+ * An exported page (ADR-0035) carries its file here, gzipped and base64, named by `data-name`, with
+ * the file's look for the card it shows while it opens (`data-tone`, `data-letter`, `data-icon`).
+ */
 const carriedFileId = 'nendo-file';
 
 /** The largest file the page opens; the runtime refuses one too. */
@@ -87,7 +91,7 @@ export class BrowserWorkbenchClient extends DesktopWorkbenchClient {
 
   constructor() {
     const runtime = new RuntimeBridge();
-    super(runtime, 'browser');
+    super(runtime, 'browser', runtime.host);
     this.runtime = runtime;
     void registerWebApp(() => runtime.settled());
   }
@@ -301,6 +305,18 @@ function refusal(message: unknown, code: string, text: string): string {
  * beside the page; every lookup it makes is then answered by name.
  */
 async function bootRuntime(): Promise<BrowserHostExports> {
+  const carried = document.getElementById(carriedFileId);
+  const opening = carried === null ? null : showOpeningCard(carried);
+  try {
+    return await startRuntime(opening);
+  } catch (error) {
+    opening?.close(false);
+    throw error;
+  }
+}
+
+async function startRuntime(opening: OpeningCard | null): Promise<BrowserHostExports> {
+  opening?.begin('unpack');
   const element = document.getElementById(browserRuntimeId);
   if (element === null) throw new Error('This page carries no browser host.');
   const { files, config } = JSON.parse(element.textContent ?? '{}') as RuntimeFiles;
@@ -315,6 +331,7 @@ async function bootRuntime(): Promise<BrowserHostExports> {
     modules[name] = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
   }
   const { dotnet } = await import(/* @vite-ignore */ modules['dotnet.js']) as { dotnet: DotnetBuilder };
+  opening?.begin('engine');
   const runtime = await dotnet.withResourceLoader((_type, name) => {
     if (modules[name] !== undefined) return modules[name];
     if (files[name] === undefined) return undefined;
@@ -325,10 +342,12 @@ async function bootRuntime(): Promise<BrowserHostExports> {
   runtime.setModuleImports('nendo-browser-host', { pickFile, takeWriterLock, releaseWriterLock });
   const exports = await runtime.getAssemblyExports(config.mainAssemblyName);
   const host = exports.Nendo.Browser.BrowserHost;
+  opening?.begin('file');
   // Kept device state comes back before any file opens, so an approval given on an earlier visit holds.
   const state = await readStored('device', 'state');
   if (typeof state === 'string') host.ImportDeviceState(state);
   await openCarriedFile(host);
+  opening?.begin('draw');
   void navigator.storage?.persist?.().catch(() => false);
   watchPictures(host);
   return host;

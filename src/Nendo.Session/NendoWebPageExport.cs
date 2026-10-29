@@ -54,6 +54,11 @@ public static class NendoWebPageExport
         if (!File.Exists(templatePath))
             throw new NendoPreconditionException("web-page-runtime-missing",
                 "This Nendo has no web page runtime to export with. Reinstall Nendo to get it.");
+        var manifest = (await service.GetDefinitionSnapshotAsync(cancellationToken)).Manifest;
+        var look = NendoLook.Resolve(manifest.ApplicationId, fileName, manifest.Look);
+        byte[]? picture = null;
+        if (look.Icon is { } icon && NendoMediaAddress.TryParse(icon, out var address) && address!.Sha256 is { } sha)
+            picture = await service.ReadMediaContentAsync(sha, cancellationToken);
         var folder = Path.Combine(Path.GetTempPath(), "nendo-web-page", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         try
@@ -65,7 +70,7 @@ public static class NendoWebPageExport
             if (length > maximumFileBytes)
                 throw new NendoPreconditionException("file-too-large",
                     $"{fileName} is {Mebibytes(length)} MiB; a web page opens files of up to {Mebibytes(maximumFileBytes)} MiB.");
-            return Carry(await File.ReadAllTextAsync(templatePath, cancellationToken), await File.ReadAllBytesAsync(copy, cancellationToken), fileName);
+            return Carry(await File.ReadAllTextAsync(templatePath, cancellationToken), await File.ReadAllBytesAsync(copy, cancellationToken), fileName, look, picture);
         }
         finally
         {
@@ -77,15 +82,27 @@ public static class NendoWebPageExport
         }
     }
 
-    /// <summary>The page carrying a file, before its module script.</summary>
-    public static string Carry(string page, byte[] file, string fileName)
+    /// <summary>The largest picture a page carries for the card it shows while it opens.</summary>
+    public const int MaximumIconBytes = 512 * 1024;
+
+    private static ReadOnlySpan<byte> PngSignature => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    /// <summary>
+    /// The page carrying a file, before its module script. The file's look goes beside it, so the
+    /// page can show the file while the runtime starts: its tone and letter, and its own picture
+    /// when that is a PNG of up to <see cref="MaximumIconBytes"/>.
+    /// </summary>
+    public static string Carry(string page, byte[] file, string fileName, NendoResolvedLook? look = null, byte[]? picture = null)
     {
         var at = page.IndexOf(ModuleScript, StringComparison.Ordinal);
         if (at < 0) throw new NendoPreconditionException("web-page-runtime-missing", "The web page runtime has no module script to carry a file beside.");
         using var packed = new MemoryStream();
         using (var gzip = new GZipStream(packed, CompressionLevel.SmallestSize, leaveOpen: true)) gzip.Write(file);
+        var shown = look is null ? "" : $" data-tone=\"{WebUtility.HtmlEncode(look.Tone)}\" data-letter=\"{WebUtility.HtmlEncode(look.Letter)}\"";
+        if (picture is { Length: > 0 and <= MaximumIconBytes } && picture.AsSpan().StartsWith(PngSignature))
+            shown += $" data-icon=\"data:image/png;base64,{Convert.ToBase64String(picture)}\"";
         return string.Concat(page.AsSpan(0, at),
-            $"<script type=\"application/octet-stream\" id=\"nendo-file\" data-name=\"{WebUtility.HtmlEncode(fileName)}\">{Convert.ToBase64String(packed.ToArray())}</script>\n",
+            $"<script type=\"application/octet-stream\" id=\"nendo-file\" data-name=\"{WebUtility.HtmlEncode(fileName)}\"{shown}>{Convert.ToBase64String(packed.ToArray())}</script>\n",
             page.AsSpan(at));
     }
 
