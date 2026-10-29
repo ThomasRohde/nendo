@@ -287,6 +287,20 @@ async page => {
   await refused.close();
   checks.push('a refused storage shows the visit-only notice');
 
+  // A view that loads its own files while it runs gets them from its package: a script, stylesheet,
+  // picture or worker given a package path after the document was written (tools/View-FrameLoads.mjs).
+  const loads = await page.context().newPage();
+  watch(loads);
+  await loads.goto('__VIEW_LOADS_URL__');
+  await loads.waitForFunction(() => window.__viewLoads !== null, null, { timeout: 40000 })
+    .catch(() => { throw Error('The view-loads probe never reported.'); });
+  const loaded = await loads.evaluate(() => window.__viewLoads);
+  const expected = { 'script property': 'loaded', 'script attribute': 'loaded', stylesheet: 'loaded', picture: 'loaded', 'module worker': 'engine 42 early', 'classic worker': 'helper 42' };
+  const missed = Object.entries(expected).filter(([name, value]) => loaded[name] !== value).map(([name]) => `${name}: ${loaded[name] ?? 'nothing'}`);
+  assert(missed.length === 0, `A view could not load its package files at run time: ${missed.join('; ')}.`);
+  await loads.close();
+  checks.push('a view loads its package files at run time');
+
   assert(requests.length === 0, `The page reached the network: ${JSON.stringify(requests.slice(0, 5))}.`);
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, errors };

@@ -108,7 +108,12 @@ if ($Served) {
     $stationUrl = "${siteUrl}station/"
     $swarmUrl = "${siteUrl}swarm/"
 }
+# The page that measures what a view loads while it runs, under this page's content-security policy.
+$viewLoads = Join-Path $lane "view-loads-$runId.html"
+$made = & node (Join-Path $PSScriptRoot 'View-FrameLoads.mjs') $page $viewLoads 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) { throw "The view-loads probe page was not written: $made" }
 $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-BrowserHost.mjs'))
+$probe = $probe.Replace('__VIEW_LOADS_URL__', (& $fileUrl $viewLoads))
 $probe = $probe.Replace('__PAGE_URL__', $pageUrl).Replace('__STATION_BASE64__', $station).Replace('__SWARM_BASE64__', $swarm)
 $probe = $probe.Replace('__STATION_PAGE_URL__', $stationUrl).Replace('__SWARM_PAGE_URL__', $swarmUrl)
 $probe = $probe.Replace('__DOWNLOAD_PATH__', ($download -replace '\\', '/'))

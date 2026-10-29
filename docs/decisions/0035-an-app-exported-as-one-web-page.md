@@ -80,7 +80,14 @@ no server.
 - The page loads the view's package into the frame: each file becomes a blob URL inside the
   frame, relative module specifiers are rewritten onto one fixed base that an import map sends to
   those blobs, `fetch` of a package path is answered from them, and the entry document is written
-  in place. `/_nendo/api.js` is the view API, which talks to the page's broker over a
+  in place. A file the view asks for while it runs comes from the same blobs: a script,
+  stylesheet, picture or sound given a package path as a property or an attribute, and a worker
+  started from a package path. An import map does not reach into a worker and a module worker does
+  not start in an opaque origin, so a worker's modules are copied with their specifiers pointing
+  straight at each other, a module worker starts as a classic worker that imports its module and
+  holds the messages that arrive before it has run, and a prelude answers `fetch` and
+  `importScripts` of package paths inside it. A specifier computed while the view runs, such as
+  `import(name + '.js')`, is not rewritten and does not load. `/_nendo/api.js` is the view API, which talks to the page's broker over a
   `MessagePort` with the same closed method table as in Nendo. The broker accepts the frame's
   opaque origin only from a frame it mounted.
 - The page's content-security policy allows `blob:` for scripts, styles and connections, since a
