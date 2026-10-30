@@ -433,7 +433,9 @@ Setup writes five items into the per-user class store, and one shortcut:
 
 - the `.nendo` icon and double-click to open;
 - *New > Nendo application*, which runs `Nendo.Desktop.exe -new "%1"` to make a real
-  empty file (no template ships);
+  empty file (no template ships). An agent runs the same switch with `-access <level>`
+  to make its file at the agent access it needs
+  ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md));
 - `OpenWithProgids`, for *Open with*;
 - an `Applications\Nendo.Desktop.exe` key, so *Open with* reaches Nendo for an extension
   another program owns;

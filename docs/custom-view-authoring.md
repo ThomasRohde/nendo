@@ -905,7 +905,20 @@ The script reads the folder as Import does, finds the running Nendo through the 
 it writes under `%LOCALAPPDATA%\Nendo\Mcp\active` (or at the address `--endpoint`
 names), proposes only the files that differ, and prints the proposal's title; accept it
 in Nendo. `--accept` accepts it only while the file's agent access is **Unattended**.
-With more than one Nendo running, name the file with `--application <applicationId>`.
+With more than one Nendo running, name the file with `--application <applicationId>`,
+or by its file name with `--file <name.nendo>`.
+
+To put an app into a new file, make the file first with the level the script needs:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Nendo\Nendo.Desktop.exe" -new "C:\Work\Gantt.nendo" -access unattended
+node tools/Put-NendoPackage.mjs extensions/gantt --file Gantt.nendo --accept
+```
+
+`-access` takes `inspect`, `editData`, `shapeApp` or `unattended`, and only beside `-new`
+on a file that launch makes
+([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)). At
+`shapeApp` the proposal waits for the person instead.
 `--title` sets the proposal's title. The script packs the operations into mutations of
 up to 16 operations each, fewer when the files are large, and gives the views that show
 the package a mutation of their own; each mutation is one revision in History. If the

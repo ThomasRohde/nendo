@@ -162,6 +162,78 @@ public sealed class DesktopAgentModeMemoryTests
         Assert.AreEqual("Off", DesktopShellState.None.AgentAccess);
     }
 
+    /// <summary>
+    /// <c>-new -access</c>: an agent makes its file and reaches it at the level it asked for,
+    /// with nobody setting that level on the Agent page first.
+    /// </summary>
+    [TestMethod]
+    public async Task ALaunchThatMakesAFileStartsTheLevelItAskedForAndRemembersIt()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var deviceRoot = workspace.FileHistoryRoot;
+        var path = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "made-by-an-agent.nendo");
+
+        await using (var first = Controller(deviceRoot, "one"))
+        {
+            await first.CreateForLaunchAsync(path, "shapeApp");
+            var status = await first.GetAgentStatusAsync();
+            Assert.AreEqual("shapeApp", status.Mode, "The new file did not start at the level the launch asked for.");
+            Assert.AreEqual("ready", status.State);
+            Assert.IsNotNull(status.Endpoint, "The level did not start a listener.");
+            Assert.IsTrue(status.Remembered, "The level was not remembered for the new file.");
+        }
+
+        await using (var second = Controller(deviceRoot, "two"))
+        {
+            await second.OpenAsync(path);
+            Assert.AreEqual("shapeApp", (await second.GetAgentStatusAsync()).Mode,
+                "The new file did not open again at the level its launch gave it.");
+        }
+    }
+
+    [TestMethod]
+    public async Task ALaunchWithNoLevelMakesTheFileAtOff()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var deviceRoot = workspace.FileHistoryRoot;
+        var path = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "made-at-off.nendo");
+
+        await using var session = Controller(deviceRoot, "one");
+        await session.CreateForLaunchAsync(path, null);
+        Assert.AreEqual("off", (await session.GetAgentStatusAsync()).Mode);
+    }
+
+    /// <summary>
+    /// The level is for a file the launch made. A <c>-new</c> that names a file already holding
+    /// data is refused, and that file's level stays where the person left it.
+    /// </summary>
+    [TestMethod]
+    public async Task ALaunchThatFindsAFileAlreadyThereGivesItNoLevel()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var deviceRoot = workspace.FileHistoryRoot;
+        var path = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "already-there.nendo");
+        await using (var owner = Controller(deviceRoot, "one"))
+        {
+            await owner.CreateAsync(path);
+        }
+
+        await using (var launch = Controller(deviceRoot, "two"))
+        {
+            try { await launch.CreateForLaunchAsync(path, "unattended"); }
+            catch (Nendo.Engine.NendoException) { }
+            catch (IOException) { }
+            Assert.IsNull((await launch.GetAgentStatusAsync()).Endpoint, "A refused create still started agent access.");
+        }
+
+        await using (var reopen = Controller(deviceRoot, "three"))
+        {
+            await reopen.OpenAsync(path);
+            Assert.AreEqual("off", (await reopen.GetAgentStatusAsync()).Mode,
+                "A -new over an existing file gave that file the level the launch asked for.");
+        }
+    }
+
     private static async Task<string?> ReadInstanceAsync(string deviceRoot, string path)
     {
         await using var controller = Controller(deviceRoot, "read");

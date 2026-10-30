@@ -536,9 +536,10 @@ public sealed partial class MainPage : Page
                     if (await ConfirmDestinationLocationAsync(path)) await _session.CreateAsync(path);
                     break;
                 // Explorer's New menu has already picked the name and may have left an
-                // empty file sitting at it, which is the picker's case exactly.
+                // empty file sitting at it, which is the picker's case exactly. An agent's -new
+                // comes this way too, with the level it asked for.
                 case DesktopStartupMode.CreateFromShell:
-                    if (await ConfirmDestinationLocationAsync(path)) await _session.CreateFromSavePickerAsync(path);
+                    if (await ConfirmDestinationLocationAsync(path)) await _session.CreateForLaunchAsync(path, _startupRequest.AgentAccess);
                     break;
                 default:
                     var assessment = await _session.AssessOpenAsync(path);

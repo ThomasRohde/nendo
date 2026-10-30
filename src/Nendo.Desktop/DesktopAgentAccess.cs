@@ -322,6 +322,29 @@ internal sealed partial class DesktopSessionController
         }
     }
 
+    /// <summary>
+    /// Makes the file a <c>-new</c> launch named and starts the level its <c>-access</c> asked
+    /// for, as if the person had chosen it on the Agent page (ADR-0009). Only a file this call
+    /// made gets a level: a create that finds a file already there is refused before it.
+    /// A level that cannot start leaves the new file at Off, as a remembered one does on open.
+    /// </summary>
+    internal async Task<DesktopSessionView> CreateForLaunchAsync(
+        string path,
+        string? access,
+        CancellationToken cancellationToken = default)
+    {
+        var created = await CreateFromSavePickerAsync(path, cancellationToken);
+        if (access is null) return created;
+        try
+        {
+            await SetAgentModeAsync(access, cancellationToken);
+        }
+        catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+        }
+        return created;
+    }
+
     internal async Task<DesktopAgentStatus> RevokeAgentEditingAsync(
         CancellationToken cancellationToken = default)
     {

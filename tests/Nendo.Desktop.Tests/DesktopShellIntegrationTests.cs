@@ -57,6 +57,50 @@ public sealed class DesktopStartupArgumentTests
     }
 
     [TestMethod]
+    public void TheAccessSwitchBesideNewNamesTheLevelForTheFileItMakes()
+    {
+        foreach (var arguments in new[]
+        {
+            new[] { "Nendo.Desktop.exe", "-new", "-access", "shapeApp", @"C:\files\App.nendo" },
+            new[] { "Nendo.Desktop.exe", "-access", "SHAPEAPP", "-new", @"C:\files\App.nendo" },
+            new[] { "Nendo.Desktop.exe", "/new", "/access", "shapeapp", @"C:\files\App.nendo" },
+        })
+        {
+            var request = DesktopStartupRequest.FromArguments(arguments);
+            Assert.AreEqual(DesktopStartupMode.CreateFromShell, request?.Mode, string.Join(' ', arguments));
+            Assert.AreEqual("shapeApp", request?.AgentAccess, string.Join(' ', arguments));
+            Assert.AreEqual(@"C:\files\App.nendo", request?.Path);
+        }
+    }
+
+    [TestMethod]
+    public void TheAccessSwitchIsDroppedOnAnOpen()
+    {
+        // The defect this exists for: a double-click, or anything that can start Nendo, raising
+        // the level of a file that already holds data.
+        var request = DesktopStartupRequest.FromArguments(["Nendo.Desktop.exe", "-access", "unattended", @"C:\files\Work.nendo"]);
+        Assert.AreEqual(DesktopStartupMode.Open, request?.Mode);
+        Assert.IsNull(request?.AgentAccess);
+    }
+
+    [TestMethod]
+    public void ALevelTheSwitchDoesNotNameMakesTheFileAtOff()
+    {
+        foreach (var level in new[] { "off", "Shape app", "admin", "" })
+        {
+            var request = DesktopStartupRequest.FromArguments(["Nendo.Desktop.exe", "-new", "-access", level, @"C:\files\App.nendo"]);
+            Assert.AreEqual(DesktopStartupMode.CreateFromShell, request?.Mode, level);
+            Assert.IsNull(request?.AgentAccess, level);
+        }
+    }
+
+    [TestMethod]
+    public void TheAccessSwitchWithNoValueTakesNoPathForOne()
+    {
+        Assert.IsNull(DesktopStartupRequest.FromArguments(["Nendo.Desktop.exe", "-new", "-access", @"C:\files\App.nendo"]));
+    }
+
+    [TestMethod]
     public void ALaunchWithNoPathOpensNothingRatherThanFailing()
     {
         Assert.IsNull(DesktopStartupRequest.FromArguments(["Nendo.Desktop.exe"]));

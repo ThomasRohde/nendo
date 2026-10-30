@@ -17,8 +17,16 @@ internal enum DesktopStartupMode
     Open,
 }
 
-internal sealed record DesktopStartupRequest(DesktopStartupMode Mode, string Path)
+/// <param name="AgentAccess">
+/// The agent access level <c>-access</c> asked for, by the Agent page's name for it
+/// (<c>inspect</c>, <c>editData</c>, <c>shapeApp</c>, <c>unattended</c>), or null. Kept only
+/// beside <c>-new</c>: it is for a file this launch makes, never one it opens.
+/// </param>
+internal sealed record DesktopStartupRequest(DesktopStartupMode Mode, string Path, string? AgentAccess = null)
 {
+    /// <summary>The levels <c>-access</c> takes. Off is left out: a new file begins there anyway.</summary>
+    private static readonly string[] AccessLevels = ["inspect", "editData", "shapeApp", "unattended"];
+
     /// <summary>
     /// What this launch was asked to open: an environment variable, or a file the
     /// person double-clicked.
@@ -50,6 +58,13 @@ internal sealed record DesktopStartupRequest(DesktopStartupMode Mode, string Pat
     /// have to be kept in step with the one <em>New file</em> already produces.
     /// </para>
     /// <para>
+    /// <c>-access &lt;level&gt;</c> beside <c>-new</c> starts agent access on the file once it
+    /// is made, so an agent asked to build an app makes its file and reaches it without the
+    /// person setting the level first (ADR-0009). An empty file has nothing for the level to
+    /// protect. It takes the next argument as its value and leaves the mode as it was; a
+    /// level it does not name is dropped, and the file is made at Off.
+    /// </para>
+    /// <para>
     /// A path the framework cannot resolve opens no file rather than failing the
     /// launch: a window with no file is recoverable and a process that exits before
     /// drawing one is not.
@@ -61,6 +76,7 @@ internal sealed record DesktopStartupRequest(DesktopStartupMode Mode, string Pat
     internal static DesktopStartupRequest? FromArguments(IReadOnlyList<string> arguments)
     {
         var mode = DesktopStartupMode.Open;
+        string? access = null;
         for (var index = 1; index < arguments.Count; index++)
         {
             var candidate = arguments[index];
@@ -70,6 +86,14 @@ internal sealed record DesktopStartupRequest(DesktopStartupMode Mode, string Pat
             }
             if (candidate[0] == '-' || candidate[0] == '/')
             {
+                if (string.Equals(candidate[1..], "access", StringComparison.OrdinalIgnoreCase))
+                {
+                    index++;
+                    access = index < arguments.Count
+                        ? Array.Find(AccessLevels, level => string.Equals(level, arguments[index], StringComparison.OrdinalIgnoreCase))
+                        : null;
+                    continue;
+                }
                 // Only the last switch before the path counts, so "-new -new x" and a
                 // stray flag after one both behave the way the text reads.
                 mode = string.Equals(candidate[1..], "new", StringComparison.OrdinalIgnoreCase)
@@ -79,7 +103,8 @@ internal sealed record DesktopStartupRequest(DesktopStartupMode Mode, string Pat
             }
             try
             {
-                return new DesktopStartupRequest(mode, System.IO.Path.GetFullPath(candidate));
+                return new DesktopStartupRequest(mode, System.IO.Path.GetFullPath(candidate),
+                    mode == DesktopStartupMode.CreateFromShell ? access : null);
             }
             catch (ArgumentException)
             {

@@ -47,7 +47,9 @@ It is the same program you would run in a terminal, and it keeps its own tools o
 
 ## Access levels
 
-You set the level on the Agent page. Each level includes everything that the levels before it allow. This computer remembers the level for each file: a file opens at the level you last chose for it. A new file, a Duplicate or Fork of one, a backup restored from Health, and a read-only or recovery open begin at Off, and choosing Off forgets it. A copy made in Explorer keeps the file's identity, so on this computer it opens at the same level, as a moved or renamed file does.
+You set the level on the Agent page. Each level includes everything that the levels before it allow. This computer remembers the level for each file: a file opens at the level you last chose for it. A new file, a Duplicate or Fork of one, a backup restored from Health, and a read-only or recovery open begin at Off, and choosing Off forgets it.
+
+An agent asked to build an app can make its own file at the level it needs, so you do not have to make an empty file and set its level first. It runs Nendo with `-new` and `-access`, for example `Nendo.Desktop.exe -new "C:\Work\Gantt.nendo" -access shapeApp`. The level is `inspect`, `editData`, `shapeApp` or `unattended`. Nendo makes the file, opens it in a window of its own at that level and remembers the level, just as if you had chosen it. This only works for a file that launch makes: when the file already exists, Nendo refuses it and changes no level, and on a plain open `-access` is ignored. `unattended` given this way does not ask you to confirm it. A copy made in Explorer keeps the file's identity, so on this computer it opens at the same level, as a moved or renamed file does.
 
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |

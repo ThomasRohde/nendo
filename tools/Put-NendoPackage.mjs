@@ -2,8 +2,13 @@
 // a person accepts (ADR-0013). The folder holds a nendo-package.json and the
 // package's files; the manifest itself is not stored, because the package row holds it.
 //
-//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--endpoint <url>] [--title <title>]
+//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--file <name.nendo>] [--endpoint <url>]
+//                                   [--title <title>]
 //                                   [--operations <file.json>] [--dry-run] [--accept]
+//
+// --file picks the running Nendo by the name of the file it has open, as its discovery entry
+// gives it: the way to reach a file an agent has just made with Nendo.Desktop.exe -new, whose
+// application ID it does not know yet. It waits up to 30 seconds for that file to be listening.
 //
 // --operations names a JSON array of further canonical operations, such as the configuration a
 // view needs once it runs the new package. They go in the same proposal, as its last mutation,
@@ -39,7 +44,7 @@ function fail(message) {
 
 const args = process.argv.slice(2);
 const option = name => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
-const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--endpoint', '--title', '--operations'].includes(args[index - 1]));
+const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--file', '--endpoint', '--title', '--operations'].includes(args[index - 1]));
 const dryRun = args.includes('--dry-run');
 const accept = args.includes('--accept');
 if (!folder) fail('Name the package folder: node tools/Put-NendoPackage.mjs extensions/systems-lens');
@@ -61,14 +66,32 @@ async function readPackage() {
   return { manifest, files };
 }
 
-async function connect() {
+async function discoveryEntries() {
   const root = path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'Mcp', 'active');
   const names = await fs.readdir(root).then(all => all.filter(name => name.endsWith('.json')), () => []);
   const entries = [];
-  if (option('--endpoint')) entries.push({ endpoint: option('--endpoint') });
-  else for (const name of names) {
+  for (const name of names) {
     try { entries.push(JSON.parse(await fs.readFile(path.join(root, name), 'utf8'))); } catch { /* not a discovery entry */ }
   }
+  return entries;
+}
+
+// A Nendo started with -new a moment ago may not be listening yet, so --file waits for it.
+async function namedEntries(fileName) {
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    const named = (await discoveryEntries()).filter(entry => entry.displayName?.toLowerCase() === fileName.toLowerCase());
+    if (named.length > 0) return named;
+    if (Date.now() > deadline) fail(`No running Nendo has ${fileName} open with agent access on.`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+}
+
+async function connect() {
+  const fileName = option('--file');
+  const entries = option('--endpoint') ? [{ endpoint: option('--endpoint') }]
+    : fileName !== undefined ? await namedEntries(fileName)
+    : await discoveryEntries();
   const candidates = [];
   for (const entry of entries) {
     if (!/^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? '')) continue;

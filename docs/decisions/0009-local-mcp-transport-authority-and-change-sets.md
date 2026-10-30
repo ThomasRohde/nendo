@@ -80,6 +80,15 @@ application services, at a static loopback address, with no credential. The
   recovery open, a restore and a replacement begin at Off. A copy made outside Nendo
   keeps the instance ID and opens at the remembered level, as a moved file does. The
   file never stores the level.
+- A new file begins at Off, except one made by `Nendo.Desktop.exe -new <path> -access
+  <level>` (`inspect`, `editData`, `shapeApp` or `unattended`): that launch makes the
+  file and starts the level, remembered as if the person had chosen it. It is how an
+  agent asked to build an app makes its file and reaches it. An empty file has nothing
+  for a level to protect, so the choice costs the person nothing. The switch applies only
+  to a file the launch made: on a plain open it is ignored, a `-new` that finds a file
+  already holding data is refused before any level starts, and a level it does not name
+  leaves the file at Off. Unattended chosen this way skips the confirmation the Agent page
+  asks for.
 - A shape change needs the person's acceptance below Unattended. At Edit data, data
   writes do not.
 - **Unattended** adds one tool, `nendo.change_set.accept`, which promotes a proposal
