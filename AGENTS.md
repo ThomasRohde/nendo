@@ -71,9 +71,13 @@ make a task easier.
   until the owner accepts an entry, however obvious the implementation looks. The
   item's *Next action* says what happens next and *Held by* says who has it; keep
   both true whenever you leave the item open, and log the handoff in its *Handoff log*.
-- **You author; the person accepts.** Validate a change set into a proposal,
-  release the lease, and hand over by the proposal's exact title so they can find
-  it. Never describe a proposal as applied before they have accepted it.
+- **Records go in directly; a definition change is a proposal.** Write planner
+  records (work, findings, checks, decisions) with the MCP data writes under a short
+  lease, as the planner's skill says, never as a proposal. A change to a file's
+  definition (its schema, screens, skill or a package) you author as a change set:
+  validate it into a proposal, release the lease, and hand over by the proposal's
+  exact title so the person can find and accept it. Never describe a proposal as
+  applied before they have accepted it.
 - Nendo Development is the primary work planner. Read
   [`docs/dogfooding.md`](docs/dogfooding.md) for the connection, semantic IDs, the
   reference codes and how to read the file without paying for it twice.
