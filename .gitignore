@@ -84,3 +84,7 @@ appsettings.*.local.json
 # Crash dumps
 *.stackdump
 *.dmp
+
+# Bragging
+brag-output/
+brag-output-2026-11-01-101622/
